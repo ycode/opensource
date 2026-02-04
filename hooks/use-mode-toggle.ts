@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useMemo } from 'react';
 
 type DesignCategory = 'spacing' | 'layout' | 'borders' | 'typography' | 'sizing' | 'backgrounds' | 'effects' | 'positioning';
 
@@ -15,6 +15,10 @@ type ModeToggleConfig = {
 /**
  * Hook to manage unified/individual mode toggle for design properties
  * Handles value transfer between modes and prevents empty inputs
+ * 
+ * Mode is derived from:
+ * 1. Stored mode preference (modeProperty) - highest priority
+ * 2. Auto-detection based on current values - fallback
  */
 export function useModeToggle(config: ModeToggleConfig) {
   const {
@@ -27,74 +31,28 @@ export function useModeToggle(config: ModeToggleConfig) {
     getCurrentValue,
   } = config;
 
-  const [mode, setMode] = useState<'all' | 'individual'>(() => {
-    // Initialize from stored mode preference if available
+  // Derive mode during render (no state or effects needed)
+  const mode = useMemo((): 'all' | 'individual' => {
+    // Check for stored mode preference first (persisted in layer design)
     if (modeProperty) {
       const storedMode = getCurrentValue(modeProperty) as 'all' | 'individual' | '';
       if (storedMode === 'all' || storedMode === 'individual') {
         return storedMode;
       }
     }
-    
-    // Fall back to auto-detection
+
+    // Auto-detect based on current values
     const unifiedValue = getCurrentValue(unifiedProperty);
     const individualValues = individualProperties.map(prop => getCurrentValue(prop)).filter(Boolean);
-    
+
+    // If individual properties are set (and no unified), show individual mode
     if (individualValues.length > 0 && !unifiedValue) {
       return 'individual';
     }
+
+    // Default to unified mode
     return 'all';
-  });
-
-  const pendingModeChangeRef = useRef<'all' | 'individual' | null>(null);
-
-  // Auto-detect mode based on which properties are set (only if no stored preference)
-  useEffect(() => {
-    const unifiedValue = getCurrentValue(unifiedProperty);
-    const individualValues = individualProperties.map(prop => getCurrentValue(prop)).filter(Boolean);
-    
-    // If we have a stored mode preference, respect it and don't auto-detect
-    if (modeProperty) {
-      const storedMode = getCurrentValue(modeProperty) as 'all' | 'individual' | '';
-      if (storedMode === 'all' || storedMode === 'individual') {
-        if (mode !== storedMode) {
-          setMode(storedMode);
-        }
-        return;
-      }
-    }
-    
-    // If we have a pending mode change, check if the properties are ready for it
-    if (pendingModeChangeRef.current) {
-      const targetMode = pendingModeChangeRef.current;
-      
-      if (targetMode === 'individual') {
-        // Switch to individual mode (with or without values)
-        setMode('individual');
-        pendingModeChangeRef.current = null;
-      } else if (targetMode === 'all' && individualValues.length === 0) {
-        // Properties are ready, switch to unified mode (allow even without values)
-        setMode('all');
-        pendingModeChangeRef.current = null;
-      }
-      return;
-    }
-    
-    // Normal auto-detection when no pending change and no stored preference
-    // If any individual properties are set, switch to individual mode
-    if (individualValues.length > 0 && !unifiedValue) {
-      setMode('individual');
-    }
-    // If only unified property is set, switch to unified mode
-    else if (unifiedValue && individualValues.length === 0) {
-      setMode('all');
-    }
-    // If no values at all and currently in unified mode, stay in unified mode
-    // Don't auto-switch away from individual mode if user manually toggled to it
-    else if (!unifiedValue && individualValues.length === 0 && mode === 'all') {
-      setMode('all');
-    }
-  }, [unifiedProperty, individualProperties, modeProperty, getCurrentValue, mode]);
+  }, [unifiedProperty, individualProperties, modeProperty, getCurrentValue]);
 
   // Helper function to find most common value
   const findMostCommonValue = useCallback((values: string[]): string | null => {
@@ -108,10 +66,7 @@ export function useModeToggle(config: ModeToggleConfig) {
   const handleToggle = useCallback(() => {
     const newMode = mode === 'all' ? 'individual' : 'all';
     
-    // Set pending mode change - useEffect will complete it when properties are ready
-    pendingModeChangeRef.current = newMode;
-    
-    // Update properties - when they update, useEffect will detect and switch mode
+    // Update properties
     if (newMode === 'all') {
       // Individual → Unified: use most common value
       const individualValues = individualProperties
@@ -147,10 +102,6 @@ export function useModeToggle(config: ModeToggleConfig) {
       
       if (updates.length > 0) {
         updateDesignProperties(updates);
-      } else {
-        // If no updates, just switch mode
-        setMode('all');
-        pendingModeChangeRef.current = null;
       }
     } else {
       // Unified → Individual: populate all with unified value (or allow empty start)
@@ -183,15 +134,9 @@ export function useModeToggle(config: ModeToggleConfig) {
       
       if (updates.length > 0) {
         updateDesignProperties(updates);
-      } else {
-        // No unified value - just switch to individual mode with empty inputs
-        setMode('individual');
-        pendingModeChangeRef.current = null;
-        
-        // Still save the mode preference
-        if (modeProperty) {
-          updateDesignProperty(category, modeProperty, 'individual');
-        }
+      } else if (modeProperty) {
+        // No value updates but save the mode preference
+        updateDesignProperty(category, modeProperty, 'individual');
       }
     }
   }, [
@@ -205,6 +150,12 @@ export function useModeToggle(config: ModeToggleConfig) {
     getCurrentValue,
     findMostCommonValue,
   ]);
+
+  // Dummy setMode for backwards compatibility (mode is now derived)
+  const setMode = useCallback((_newMode: 'all' | 'individual') => {
+    // Mode is derived from values/preferences, direct setting not supported
+    // Use handleToggle or update modeProperty via updateDesignProperty instead
+  }, []);
 
   return {
     mode,
