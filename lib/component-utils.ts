@@ -8,6 +8,164 @@ import type { Layer, Component } from '@/types';
 import { regenerateIdsWithInteractionRemapping } from './layer-utils';
 
 /**
+ * Collect all component IDs referenced in a layer tree
+ */
+export function collectComponentIds(layers: Layer[]): Set<string> {
+  const ids = new Set<string>();
+
+  const traverse = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      if (layer.componentId) {
+        ids.add(layer.componentId);
+      }
+      if (layer.children && layer.children.length > 0) {
+        traverse(layer.children);
+      }
+    }
+  };
+
+  traverse(layers);
+  return ids;
+}
+
+/**
+ * Build a dependency graph of components
+ * Returns a map where key is componentId and value is set of componentIds it depends on
+ */
+export function buildComponentDependencyGraph(
+  components: Component[]
+): Map<string, Set<string>> {
+  const graph = new Map<string, Set<string>>();
+
+  for (const component of components) {
+    const dependencies = collectComponentIds(component.layers || []);
+    graph.set(component.id, dependencies);
+  }
+
+  return graph;
+}
+
+/**
+ * Check if adding a layer tree to a component would create a circular reference
+ *
+ * @param targetComponentId - The component being edited (receiving the layers)
+ * @param layersToAdd - The layers being added/pasted
+ * @param components - All available components
+ * @returns Object with `wouldCycle` boolean and optional `cyclePath` for debugging
+ */
+export function wouldCreateCircularReference(
+  targetComponentId: string,
+  layersToAdd: Layer[],
+  components: Component[]
+): { wouldCycle: boolean; cyclePath?: string[] } {
+  // Get all component IDs referenced in the layers being added
+  const referencedComponentIds = collectComponentIds(layersToAdd);
+
+  // If no components are referenced, no cycle possible
+  if (referencedComponentIds.size === 0) {
+    return { wouldCycle: false };
+  }
+
+  // Direct self-reference check
+  if (referencedComponentIds.has(targetComponentId)) {
+    return { wouldCycle: true, cyclePath: [targetComponentId, targetComponentId] };
+  }
+
+  // Build dependency graph for all components
+  const graph = buildComponentDependencyGraph(components);
+
+  // Check if any referenced component has a path back to targetComponentId
+  // Using DFS to detect cycles
+  for (const refId of referencedComponentIds) {
+    const visited = new Set<string>();
+    const path: string[] = [targetComponentId, refId];
+
+    if (hasPathToComponent(refId, targetComponentId, graph, visited, path)) {
+      return { wouldCycle: true, cyclePath: path };
+    }
+  }
+
+  return { wouldCycle: false };
+}
+
+/**
+ * DFS helper to check if there's a path from `startId` to `targetId` through component dependencies
+ */
+function hasPathToComponent(
+  startId: string,
+  targetId: string,
+  graph: Map<string, Set<string>>,
+  visited: Set<string>,
+  path: string[]
+): boolean {
+  if (startId === targetId) {
+    return true;
+  }
+
+  if (visited.has(startId)) {
+    return false;
+  }
+
+  visited.add(startId);
+
+  const dependencies = graph.get(startId);
+  if (!dependencies) {
+    return false;
+  }
+
+  for (const depId of dependencies) {
+    path.push(depId);
+    if (hasPathToComponent(depId, targetId, graph, visited, path)) {
+      return true;
+    }
+    path.pop();
+  }
+
+  return false;
+}
+
+/**
+ * Get a human-readable description of a circular reference
+ */
+export function getCircularReferenceMessage(
+  cyclePath: string[],
+  components: Component[]
+): string {
+  const names = cyclePath.map(id => {
+    const comp = components.find(c => c.id === id);
+    return comp?.name || id;
+  });
+
+  return names.join(' → ');
+}
+
+/**
+ * Check for circular reference and return error message if found
+ * Returns null if no circular reference, or error message string if found
+ *
+ * @param targetComponentId - The component being edited
+ * @param layersToAdd - The layers being added/pasted (can be single layer or array)
+ * @param components - All available components
+ * @returns Error message string if circular reference found, null otherwise
+ */
+export function checkCircularReference(
+  targetComponentId: string,
+  layersToAdd: Layer | Layer[],
+  components: Component[]
+): string | null {
+  const layers = Array.isArray(layersToAdd) ? layersToAdd : [layersToAdd];
+  const result = wouldCreateCircularReference(targetComponentId, layers, components);
+
+  if (!result.wouldCycle) {
+    return null;
+  }
+
+  return result.cyclePath
+    ? getCircularReferenceMessage(result.cyclePath, components)
+    : 'This action would create an infinite component loop';
+}
+
+/**
  * Apply a component to a layer
  * Replaces the layer with a component instance (sets componentId)
  * Note: The actual layer tree is replaced during rendering, not here

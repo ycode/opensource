@@ -33,7 +33,9 @@ import Image from 'next/image';
 import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
 import { DEFAULT_ASSETS } from '@/lib/asset-constants';
 import { canHaveChildren, assignOrderClassToNewLayer, collectAllSettingsIds, generateUniqueSettingsId } from '@/lib/layer-utils';
+import { checkCircularReference } from '@/lib/component-utils';
 import { cn, generateId } from '@/lib/utils';
+import { toast } from 'sonner';
 import { componentsApi } from '@/lib/api';
 import type { Layer } from '@/types';
 import SaveLayoutDialog from './SaveLayoutDialog';
@@ -115,7 +117,7 @@ function ElementButton({
         size="sm"
         variant="secondary"
         className={cn(
-          'justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto cursor-grab active:cursor-grabbing select-none',
+          'justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] h-auto! cursor-grab active:cursor-grabbing select-none',
           className
         )}
       >
@@ -1015,17 +1017,12 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
   };
 
   const handleAddComponent = (componentId: string) => {
-    if (!currentPageId) return;
-
-    // Determine parent (selected container or Body)
-    const parentId = selectedLayerId || 'body';
-
     // Find the component
     const component = components.find(c => c.id === componentId);
     if (!component) return;
 
     // Create a component instance layer directly
-    const componentInstanceLayer = {
+    const componentInstanceLayer: Layer = {
       id: generateId('lyr'),
       name: 'div',
       customName: component.name,
@@ -1034,13 +1031,8 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       children: [], // Will be populated by resolveComponents on published pages
     };
 
-    // Use the internal addLayerFromTemplate to properly add to tree
-    // But we need to add it more directly through the pages store
-    const draft = usePagesStore.getState().draftsByPageId[currentPageId];
-    if (!draft) return;
-
-    // Find parent layer
-    const findLayerWithParent = (tree: any[], id: string, parent: any | null = null): { layer: any; parent: any | null } | null => {
+    // Helper to find parent layer
+    const findLayerWithParent = (tree: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
       for (const node of tree) {
         if (node.id === id) return { layer: node, parent };
         if (node.children) {
@@ -1051,8 +1043,83 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       return null;
     };
 
+    // Helper to update layer in tree
+    const updateLayerInTree = (tree: Layer[], layerId: string, updater: (l: Layer) => Layer): Layer[] => {
+      return tree.map((node) => {
+        if (node.id === layerId) {
+          return updater(node);
+        }
+        if (node.children && node.children.length > 0) {
+          return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
+        }
+        return node;
+      });
+    };
+
+    // If editing a component, add to component draft
+    if (editingComponentId) {
+      // Check for circular reference before adding
+      const circularError = checkCircularReference(editingComponentId, componentInstanceLayer, components);
+      if (circularError) {
+        toast.error('Infinite component loop detected', { description: circularError });
+        return;
+      }
+
+      const layers = componentDrafts[editingComponentId] || [];
+      const parentId = selectedLayerId || layers[0]?.id;
+      if (!parentId) return;
+
+      const result = findLayerWithParent(layers, parentId);
+      let newLayers: Layer[];
+      let parentToExpand: string | null = null;
+
+      if (!result) {
+        newLayers = [...layers, componentInstanceLayer];
+      } else if (canHaveChildren(result.layer)) {
+        newLayers = updateLayerInTree(layers, parentId, (parent) => ({
+          ...parent,
+          children: [...(parent.children || []), componentInstanceLayer],
+        }));
+        parentToExpand = parentId;
+      } else if (result.parent) {
+        newLayers = updateLayerInTree(layers, result.parent.id, (grandparent) => {
+          const children = grandparent.children || [];
+          const selectedIndex = children.findIndex((c) => c.id === parentId);
+          const newChildren = [...children];
+          newChildren.splice(selectedIndex + 1, 0, componentInstanceLayer);
+          return { ...grandparent, children: newChildren };
+        });
+        parentToExpand = result.parent.id;
+      } else {
+        const selectedIndex = layers.findIndex((l) => l.id === parentId);
+        newLayers = [...layers];
+        newLayers.splice(selectedIndex + 1, 0, componentInstanceLayer);
+      }
+
+      updateComponentDraft(editingComponentId, newLayers);
+      setSelectedLayerId(componentInstanceLayer.id);
+
+      if (parentToExpand) {
+        window.dispatchEvent(new CustomEvent('expandLayer', {
+          detail: { layerId: parentToExpand }
+        }));
+      }
+
+      onClose();
+      return;
+    }
+
+    // Page mode - require currentPageId
+    if (!currentPageId) return;
+
+    // Determine parent (selected container or Body)
+    const parentId = selectedLayerId || 'body';
+
+    const draft = usePagesStore.getState().draftsByPageId[currentPageId];
+    if (!draft) return;
+
     const result = findLayerWithParent(draft.layers, parentId);
-    let newLayers;
+    let newLayers: Layer[];
     let parentToExpand: string | null = null;
 
     if (!result) {
@@ -1061,19 +1128,6 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     } else {
       // Check if parent can have children
       if (canHaveChildren(result.layer)) {
-        // Add as child
-        const updateLayerInTree = (tree: any[], layerId: string, updater: (l: any) => any): any[] => {
-          return tree.map((node) => {
-            if (node.id === layerId) {
-              return updater(node);
-            }
-            if (node.children && node.children.length > 0) {
-              return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
-            }
-            return node;
-          });
-        };
-
         newLayers = updateLayerInTree(draft.layers, parentId, (parent) => ({
           ...parent,
           children: [...(parent.children || []), componentInstanceLayer],
@@ -1082,21 +1136,9 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       } else {
         // Insert after the selected layer
         if (result.parent) {
-          const updateLayerInTree = (tree: any[], layerId: string, updater: (l: any) => any): any[] => {
-            return tree.map((node) => {
-              if (node.id === layerId) {
-                return updater(node);
-              }
-              if (node.children && node.children.length > 0) {
-                return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
-              }
-              return node;
-            });
-          };
-
           newLayers = updateLayerInTree(draft.layers, result.parent.id, (grandparent) => {
             const children = grandparent.children || [];
-            const selectedIndex = children.findIndex((c: any) => c.id === parentId);
+            const selectedIndex = children.findIndex((c) => c.id === parentId);
             const newChildren = [...children];
             newChildren.splice(selectedIndex + 1, 0, componentInstanceLayer);
             return { ...grandparent, children: newChildren };
@@ -1104,7 +1146,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
           parentToExpand = result.parent.id;
         } else {
           // Selected layer is at root level, insert after it
-          const selectedIndex = draft.layers.findIndex((l: any) => l.id === parentId);
+          const selectedIndex = draft.layers.findIndex((l) => l.id === parentId);
           newLayers = [...draft.layers];
           newLayers.splice(selectedIndex + 1, 0, componentInstanceLayer);
         }
@@ -1116,16 +1158,6 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
 
     // Broadcast component add to other collaborators - find actual parent
     if (liveLayerUpdates) {
-      const findLayerWithParent = (layers: any[], id: string, parent: any = null): { layer: any; parent: any } | null => {
-        for (const layer of layers) {
-          if (layer.id === id) return { layer, parent };
-          if (layer.children) {
-            const found = findLayerWithParent(layer.children, id, layer);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
       const found = findLayerWithParent(newLayers, componentInstanceLayer.id);
       const actualParentId = found?.parent?.id || null;
       liveLayerUpdates.broadcastLayerAdd(currentPageId, actualParentId, `component:${componentId}`, componentInstanceLayer);
@@ -1241,7 +1273,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
           value={activeTab} onValueChange={(value) => setActiveTab(value as 'elements' | 'layouts' | 'components')}
           className="flex flex-col h-full overflow-hidden gap-0"
         >
-          <div className="flex flex-col flex-shrink-0 gap-2">
+          <div className="flex flex-col shrink-0 gap-2">
             <div className="p-4 pb-0">
               <TabsList className="w-full">
                 <TabsTrigger value="elements">Elements</TabsTrigger>
@@ -1250,7 +1282,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
               </TabsList>
             </div>
 
-            <hr className="mt-2 mb-0 mx-4 flex-shrink-0" />
+            <hr className="mt-2 mb-0 mx-4 shrink-0" />
           </div>
 
           <TabsContent value="elements" className="flex flex-col divide-y overflow-y-auto flex-1 px-4 pb-4 no-scrollbar">
@@ -1409,7 +1441,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="size-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                              className="size-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Icon name="more" className="size-3" />

@@ -1131,7 +1131,7 @@ function resolveFieldValueWithRelationships(
 /**
  * Resolve dynamicVariable nodes in Tiptap JSON content
  * Traverses the content tree and replaces variable nodes with resolved text
- * For rich_text fields, inlines the nested Tiptap content
+ * For rich_text fields, inline the nested Tiptap content
  */
 function resolveRichTextVariables(
   content: any,

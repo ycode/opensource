@@ -33,6 +33,8 @@ import ProfileContent from '../components/ProfileContent';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
 import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
+import { checkCircularReference } from '@/lib/component-utils';
 
 // Lazy-loaded components (heavy, not needed on initial render)
 const RightSidebar = lazy(() => import('../components/RightSidebar'));
@@ -1391,6 +1393,13 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             if (clipboardLayer && selectedLayerId) {
               // In component edit mode, paste into component drafts
               if (editingComponentId) {
+                // Check for circular reference before pasting
+                const circularError = checkCircularReference(editingComponentId, clipboardLayer, components);
+                if (circularError) {
+                  toast.error('Infinite component loop detected', { description: circularError });
+                  return;
+                }
+                
                 const layers = getCurrentLayers();
                 const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
                 
@@ -1715,6 +1724,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     liveLayerUpdates,
     openCreateComponentDialog,
     setDraftLayers,
+    components,
   ]);
 
   // Show loading screen while checking Supabase config

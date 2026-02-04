@@ -21,7 +21,8 @@ import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { canHaveChildren, findLayerById, getClassesString, regenerateInteractionIds, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping, removeLayerById } from '@/lib/layer-utils';
 import { cloneDeep } from 'lodash';
-import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
+import { toast } from 'sonner';
+import { detachSpecificLayerFromComponent, checkCircularReference } from '@/lib/component-utils';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import type { Layer } from '@/types';
@@ -186,6 +187,13 @@ export default function LayerContextMenu({
     
     // In component context, paste into component drafts
     if (isComponentContext && editingComponentId) {
+      // Check for circular reference before pasting
+      const circularError = checkCircularReference(editingComponentId, clipboardLayer, components);
+      if (circularError) {
+        toast.error('Infinite component loop detected', { description: circularError });
+        return;
+      }
+      
       const componentLayers = componentDrafts[editingComponentId] || [];
       const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
       
@@ -251,6 +259,13 @@ export default function LayerContextMenu({
     
     // In component context, paste inside in component drafts
     if (isComponentContext && editingComponentId) {
+      // Check for circular reference before pasting
+      const circularError = checkCircularReference(editingComponentId, clipboardLayer, components);
+      if (circularError) {
+        toast.error('Infinite component loop detected', { description: circularError });
+        return;
+      }
+      
       const componentLayers = componentDrafts[editingComponentId] || [];
       const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
       

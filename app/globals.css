@@ -160,7 +160,6 @@
 }
 
 /* RichTextEditor Styles */
-
 .rich-text-editor.ProseMirror {
   @apply outline-none w-full min-h-full;
 }
@@ -208,4 +207,9 @@
 
 .rich-text-editor.ProseMirror s {
   @apply line-through;
+}
+
+/* Override Sonner toast content gap */
+[data-sonner-toast][data-styled='true'] [data-content] {
+  gap: 0;
 }

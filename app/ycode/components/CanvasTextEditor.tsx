@@ -153,7 +153,7 @@ const DynamicVariable = Node.create({
             {editor.isEditable && (
               <Button
                 onClick={handleDelete}
-                className="!size-4 !p-0 -mr-1"
+                className="size-4! p-0! -mr-1"
                 variant="inline_variable_canvas"
               >
                 <Icon name="x" className="size-2" />
@@ -442,7 +442,6 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     createOrderedListExtension(textStylesRef.current),
     createListItemExtension(textStylesRef.current),
     createDynamicStyleExtension(textStylesRef),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   ], []);
 
   // Parse initial content once on mount
