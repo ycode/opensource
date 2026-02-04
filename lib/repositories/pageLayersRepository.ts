@@ -395,6 +395,81 @@ export async function publishPageLayers(draftPageId: string, publishedPageId: st
 }
 
 /**
+ * Batch publish page layers for multiple pages
+ * Much more efficient than calling publishPageLayers in a loop
+ * @param pageIds - Array of page IDs to publish layers for
+ * @returns Number of layers published
+ */
+export async function batchPublishPageLayers(pageIds: string[]): Promise<number> {
+  if (pageIds.length === 0) {
+    return 0;
+  }
+
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Step 1: Batch fetch all draft layers
+  const draftLayers = await getDraftLayersForPages(pageIds);
+
+  if (draftLayers.length === 0) {
+    return 0;
+  }
+
+  // Build map for quick lookup
+  const draftLayersById = new Map<string, PageLayers>();
+  for (const draft of draftLayers) {
+    draftLayersById.set(draft.id, draft);
+  }
+
+  // Step 2: Batch fetch existing published layers
+  const draftIds = draftLayers.map(d => d.id);
+  const existingPublished = await getPublishedLayersByIds(draftIds);
+
+  const publishedById = new Map<string, PageLayers>();
+  for (const pub of existingPublished) {
+    publishedById.set(pub.id, pub);
+  }
+
+  // Step 3: Prepare upsert data
+  const layersToUpsert: any[] = [];
+  const now = new Date().toISOString();
+
+  for (const draft of draftLayers) {
+    const existing = publishedById.get(draft.id);
+
+    // Only include if new or content_hash changed
+    if (!existing || existing.content_hash !== draft.content_hash) {
+      layersToUpsert.push({
+        id: draft.id,
+        page_id: draft.page_id,
+        layers: draft.layers,
+        content_hash: draft.content_hash,
+        is_published: true,
+        updated_at: now,
+      });
+    }
+  }
+
+  // Step 4: Batch upsert
+  if (layersToUpsert.length > 0) {
+    const { error } = await client
+      .from('page_layers')
+      .upsert(layersToUpsert, {
+        onConflict: 'id,is_published',
+      });
+
+    if (error) {
+      throw new Error(`Failed to batch publish layers: ${error.message}`);
+    }
+  }
+
+  return draftLayers.length;
+}
+
+/**
  * Get all layers entries for a page (for history)
  */
 export async function getPageLayers(pageId: string): Promise<PageLayers[]> {

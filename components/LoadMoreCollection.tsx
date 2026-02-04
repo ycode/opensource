@@ -65,7 +65,7 @@ export default function LoadMoreCollection({
     try {
       // POST request with template for server-side rendering
       const response = await fetch(
-        `/api/collections/${collectionId}/items/load-more`,
+        `/ycode/api/collections/${collectionId}/items/load-more`,
         {
           method: 'POST',
           headers: {

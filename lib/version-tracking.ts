@@ -267,7 +267,7 @@ export async function recordVersionViaApi(
   };
 
   try {
-    const response = await fetch('/api/versions', {
+    const response = await fetch('/ycode/api/versions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(versionData),

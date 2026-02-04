@@ -15,7 +15,7 @@ import { withTransaction } from '../database/transaction';
 import { getSupabaseAdmin } from '../supabase-server';
 import { getCollectionById, hardDeleteCollection } from '../repositories/collectionRepository';
 import { getFieldsByCollectionId } from '../repositories/collectionFieldRepository';
-import { getItemsByCollectionId, getItemById } from '../repositories/collectionItemRepository';
+import { getItemsByCollectionId, getAllItemsByCollectionId, getItemById, getItemsByIds } from '../repositories/collectionItemRepository';
 import { getValuesByItemId } from '../repositories/collectionItemValueRepository';
 
 /**
@@ -144,12 +144,12 @@ export async function publishCollectionWithItems(
     });
 
     result.success = true;
-    console.log(`[Publishing] ✅ Publishing completed successfully for collection ${collectionId}`);
+    console.log(`[Publishing] Publishing completed successfully for collection ${collectionId}`);
   } catch (error) {
     result.success = false;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     result.errors = [errorMessage];
-    console.error(`[Publishing] ❌ Error publishing collection ${collectionId}:`, error);
+    console.error(`[Publishing] Error publishing collection ${collectionId}:`, error);
   }
 
   return result;
@@ -208,15 +208,21 @@ async function validatePublishRequest(
     throw new Error(`Draft collection ${collectionId} not found`);
   }
 
-  // If specific item IDs provided, validate they exist
+  // If specific item IDs provided, validate they exist (batch fetch)
   if (itemIds && itemIds.length > 0) {
+    const items = await getItemsByIds(itemIds, false);
+    const foundIds = new Set(items.map(item => item.id));
+
     for (const itemId of itemIds) {
-      const item = await getItemById(itemId, false);
-      if (!item) {
+      if (!foundIds.has(itemId)) {
         throw new Error(`Draft item ${itemId} not found`);
       }
+    }
+
+    // Validate all items belong to the collection
+    for (const item of items) {
       if (item.collection_id !== collectionId) {
-        throw new Error(`Item ${itemId} does not belong to collection ${collectionId}`);
+        throw new Error(`Item ${item.id} does not belong to collection ${collectionId}`);
       }
     }
   }
@@ -352,12 +358,8 @@ async function publishSelectedItems(
     return { itemsCount: 0, valuesCount: 0 };
   }
 
-  // Fetch all draft items to publish
-  const draftItemsData = await Promise.all(
-    itemsToPublish.map(itemId => getItemById(itemId, false))
-  );
-
-  const draftItems = draftItemsData.filter((item): item is NonNullable<typeof item> => item !== null);
+  // Batch fetch all draft items to publish
+  const draftItems = await getItemsByIds(itemsToPublish, false);
 
   if (draftItems.length === 0) {
     return { itemsCount: 0, valuesCount: 0 };
@@ -464,8 +466,8 @@ async function publishItemValuesBatch(itemIds: string[]): Promise<number> {
  * - Draft data differs from published data
  */
 async function getUnpublishedItemIds(collectionId: string): Promise<string[]> {
-  // Get all draft items for this collection
-  const { items: draftItems } = await getItemsByCollectionId(collectionId, false);
+  // Get all draft items for this collection (with pagination for >1000 items)
+  const draftItems = await getAllItemsByCollectionId(collectionId, false);
 
   const unpublishedItemIds: string[] = [];
 
@@ -539,15 +541,12 @@ async function cleanupDeletedPublishedItems(collectionId: string): Promise<void>
     throw new Error('Supabase client not configured');
   }
 
-  // Get all items (including soft-deleted) from draft
-  const { items: draftItems } = await getItemsByCollectionId(
+  // Get all soft-deleted items from draft (with pagination for >1000 items)
+  const deletedDraftItems = await getAllItemsByCollectionId(
     collectionId,
     false,
-    { deleted: true } // Include deleted items
+    true // Only deleted items
   );
-
-  // Find soft-deleted items
-  const deletedDraftItems = draftItems.filter(item => item.deleted_at !== null);
 
   if (deletedDraftItems.length === 0) {
     console.log(`[cleanupDeletedPublishedItems] No soft-deleted draft items found`);
@@ -869,7 +868,7 @@ export async function groupItemsByCollection(
 
   // Group items by collection
   const itemsByCollection = new Map<string, string[]>();
-  
+
   items.forEach((item: any) => {
     const existing = itemsByCollection.get(item.collection_id) || [];
     existing.push(item.id);

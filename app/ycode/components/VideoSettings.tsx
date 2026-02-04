@@ -29,7 +29,7 @@ import {
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType, DEFAULT_ASSETS } from '@/lib/asset-utils';
-import { VIDEO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
+import { VIDEO_FIELD_TYPES, TEXT_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -149,6 +149,11 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
   const videoFields = useMemo(() => {
     const filtered = filterFieldGroupsByType(fieldGroups, VIDEO_FIELD_TYPES);
     return flattenFieldGroups(filtered);
+  }, [fieldGroups]);
+
+  // Filter field groups to only show text fields (for YouTube Video ID)
+  const textFieldGroups = useMemo(() => {
+    return filterFieldGroupsByType(fieldGroups, TEXT_FIELD_TYPES);
   }, [fieldGroups]);
 
   const handleFieldSelect = useCallback((fieldId: string) => {
@@ -492,7 +497,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
                       {videoFields.find(f => f.id === (selectedField || currentFieldId))?.name || 'Field'}
                     </span>
                     <Button
-                      className="!size-5 !p-0 -mr-1 ml-auto"
+                      className="size-5! p-0! -mr-1 ml-auto"
                       variant="outline"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -521,15 +526,17 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
 
           {/* YouTube Video ID Section */}
           {videoType === 'youtube' && (
-            <div className="grid grid-cols-3 items-center">
-              <Label variant="muted">Video ID</Label>
+            <div className="grid grid-cols-3 items-start">
+              <Label variant="muted" className="pt-2">Video ID</Label>
 
               <div className="col-span-2">
-                <Input
+                <RichTextEditor
                   value={youtubeVideoId}
-                  onChange={(e) => handleYoutubeVideoIdChange(e.target.value)}
+                  onChange={handleYoutubeVideoIdChange}
                   placeholder="i.e. dQw4w9WgXcQ"
-                  className="w-full"
+                  fieldGroups={textFieldGroups}
+                  allFields={allFields}
+                  collections={collections}
                 />
               </div>
             </div>

@@ -85,6 +85,8 @@ interface RichTextEditorProps {
   layer?: Layer | null;
   /** UI variant: 'compact' for layer content, 'full' for CMS rich-text fields */
   variant?: 'compact' | 'full';
+  /** Size variant for compact mode: 'xs' for smaller text, 'sm' for larger text */
+  size?: 'xs' | 'sm';
   /** Link types to exclude from the link settings dropdown */
   excludedLinkTypes?: LinkType[];
 }
@@ -297,6 +299,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
   isInsideCollectionLayer = false,
   layer,
   variant = 'compact',
+  size = 'xs',
   excludedLinkTypes = [],
 }, ref) => {
   const isFullVariant = variant === 'full';
@@ -403,11 +406,12 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
           'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[0px]',
           'disabled:cursor-not-allowed disabled:opacity-50',
           'rich-text-editor',
-          // Compact variant (default) - smaller text, minimal padding
-          !isFullVariant && 'min-h-[2rem] text-xs leading-5.5 px-2 py-1 rounded-lg',
+          // Compact variant (default) - size-based text and padding
+          !isFullVariant && size === 'xs' && 'min-h-[2rem] text-xs leading-5.5 px-2 py-1 rounded-lg',
+          !isFullVariant && size === 'sm' && 'min-h-[2.5rem] text-sm leading-6 px-3 py-1.5 rounded-xl',
           // Full variant - larger text, more padding, prose styles for headings
           isFullVariant && [
-            'min-h-[200px] text-sm leading-relaxed px-3 py-2.5 rounded-md',
+            'min-h-[200px] leading-relaxed px-3 py-2.5 rounded-md',
             'prose prose-sm dark:prose-invert max-w-none',
             '[&>*:first-child]:mt-0',
             '[&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h1]:mb-4',
@@ -416,10 +420,10 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             '[&_h4]:text-lg [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-2',
             '[&_h5]:text-base [&_h5]:font-semibold [&_h5]:mt-2 [&_h5]:mb-1',
             '[&_h6]:text-sm [&_h6]:font-semibold [&_h6]:mt-2 [&_h6]:mb-1',
-            '[&_p]:my-2',
-            '[&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2',
-            '[&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2',
-            '[&_li]:my-1',
+            '[&_p]:!my-2',
+            '[&_ul]:!list-disc [&_ul]:!pl-6 [&_ul]:!my-2',
+            '[&_ol]:!list-decimal [&_ol]:!pl-6 [&_ol]:!my-2',
+            '[&_li]:!my-1',
             '[&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:py-0.5 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground',
             '[&_code]:bg-input [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:font-mono',
           ],

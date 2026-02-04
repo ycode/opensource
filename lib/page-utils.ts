@@ -6,6 +6,19 @@ import { IconProps } from '@/components/ui/icon';
 import type { Page, PageFolder, PageSettings, FieldVariable, Translation, Locale } from '../types';
 import { getTranslatableKey } from './localisation-utils';
 
+/**
+ * Reserved slugs that cannot be used at the root level (null parent folder)
+ * These conflict with the app's routing structure
+ */
+export const RESERVED_ROOT_SLUGS = ['ycode'] as const;
+
+/**
+ * Check if a slug is reserved at root level
+ */
+export function isReservedRootSlug(slug: string): boolean {
+  return RESERVED_ROOT_SLUGS.includes(slug.toLowerCase().trim() as typeof RESERVED_ROOT_SLUGS[number]);
+}
+
 export interface PageTreeNode {
   id: string;
   type: 'folder' | 'page';
@@ -764,7 +777,7 @@ const TRANSLITERATION_MAP: Record<string, string> = {
   // Lithuanian
   'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's', 'ų': 'u', 'ū': 'u', 'ž': 'z',
   'Ą': 'A', 'Č': 'C', 'Ę': 'E', 'Ė': 'E', 'Į': 'I', 'Š': 'S', 'Ų': 'U', 'Ū': 'U', 'Ž': 'Z',
-  
+
   // Russian/Cyrillic
   'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z',
   'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r',
@@ -774,39 +787,39 @@ const TRANSLITERATION_MAP: Record<string, string> = {
   'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R',
   'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Shch',
   'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya',
-  
+
   // Polish (unique characters not in Lithuanian)
   'ć': 'c', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
   'Ć': 'C', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z',
-  
+
   // German
   'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss',
   'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
-  
+
   // French (unique characters not in other languages)
   'à': 'a', 'â': 'a', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'î': 'i', 'ï': 'i', 'ô': 'o', 'ù': 'u', 'û': 'u', 'ÿ': 'y', 'ç': 'c',
   'À': 'A', 'Â': 'A', 'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E', 'Î': 'I', 'Ï': 'I', 'Ô': 'O', 'Ù': 'U', 'Û': 'U', 'Ÿ': 'Y', 'Ç': 'C',
-  
+
   // Spanish (unique characters not in French)
   'á': 'a', 'í': 'i', 'ú': 'u', 'ñ': 'n',
   'Á': 'A', 'Í': 'I', 'Ú': 'U', 'Ñ': 'N',
-  
+
   // Portuguese
   'ã': 'a', 'õ': 'o',
   'Ã': 'A', 'Õ': 'O',
-  
+
   // Czech/Slovak
   'ě': 'e', 'ř': 'r', 'ť': 't', 'ů': 'u', 'ý': 'y',
   'Ě': 'E', 'Ř': 'R', 'Ť': 'T', 'Ů': 'U', 'Ý': 'Y',
-  
+
   // Romanian (unique characters)
   'ă': 'a', 'ș': 's', 'ț': 't',
   'Ă': 'A', 'Ș': 'S', 'Ț': 'T',
-  
+
   // Turkish
   'ğ': 'g', 'ı': 'i', 'ş': 's',
   'Ğ': 'G', 'İ': 'I', 'Ş': 'S',
-  
+
   // Greek
   'α': 'a', 'β': 'b', 'γ': 'g', 'δ': 'd', 'ε': 'e', 'ζ': 'z', 'η': 'i', 'θ': 'th',
   'ι': 'i', 'κ': 'k', 'λ': 'l', 'μ': 'm', 'ν': 'n', 'ξ': 'x', 'ο': 'o', 'π': 'p',
@@ -814,19 +827,19 @@ const TRANSLITERATION_MAP: Record<string, string> = {
   'Α': 'A', 'Β': 'B', 'Γ': 'G', 'Δ': 'D', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'I', 'Θ': 'Th',
   'Ι': 'I', 'Κ': 'K', 'Λ': 'L', 'Μ': 'M', 'Ν': 'N', 'Ξ': 'X', 'Ο': 'O', 'Π': 'P',
   'Ρ': 'R', 'Σ': 'S', 'Τ': 'T', 'Υ': 'Y', 'Φ': 'F', 'Χ': 'Ch', 'Ψ': 'Ps', 'Ω': 'O',
-  
+
   // Scandinavian
   'å': 'a', 'æ': 'ae', 'ø': 'o',
   'Å': 'A', 'Æ': 'Ae', 'Ø': 'O',
-  
+
   // Latvian
   'ā': 'a', 'ē': 'e', 'ģ': 'g', 'ī': 'i', 'ķ': 'k', 'ļ': 'l', 'ņ': 'n',
   'Ā': 'A', 'Ē': 'E', 'Ģ': 'G', 'Ī': 'I', 'Ķ': 'K', 'Ļ': 'L', 'Ņ': 'N',
-  
+
   // Ukrainian (additional to Russian)
   'є': 'ye', 'і': 'i', 'ї': 'yi', 'ґ': 'g',
   'Є': 'Ye', 'І': 'I', 'Ї': 'Yi', 'Ґ': 'G',
-  
+
   // Serbian (additional to Russian/Cyrillic)
   'ђ': 'dj', 'ј': 'j', 'љ': 'lj', 'њ': 'nj', 'ћ': 'c', 'џ': 'dz',
   'Ђ': 'Dj', 'Ј': 'J', 'Љ': 'Lj', 'Њ': 'Nj', 'Ћ': 'C', 'Џ': 'Dz',
@@ -839,18 +852,18 @@ const TRANSLITERATION_MAP: Record<string, string> = {
  */
 function transliterate(text: string): string {
   let result = '';
-  
+
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const transliterated = TRANSLITERATION_MAP[char];
-    
+
     if (transliterated !== undefined) {
       result += transliterated;
     } else {
       result += char;
     }
   }
-  
+
   return result;
 }
 
@@ -864,7 +877,7 @@ function transliterate(text: string): string {
 export function sanitizeSlug(slug: string, allowTrailingDash: boolean = false): string {
   // First, transliterate international characters
   let sanitized = transliterate(slug);
-  
+
   // Convert to lowercase and replace invalid chars with dash
   sanitized = sanitized
     .toLowerCase()
@@ -911,8 +924,9 @@ export function generateUniqueSlug(
     )
     .map(p => p.slug.toLowerCase());
 
-  // If base slug is unique, use it
-  if (!existingSlugs.includes(baseSlug)) {
+  // Check if base slug is available (not duplicate and not reserved at root)
+  const isBaseSlugReserved = folderId === null && isReservedRootSlug(baseSlug);
+  if (!existingSlugs.includes(baseSlug) && !isBaseSlugReserved) {
     return baseSlug;
   }
 
@@ -950,8 +964,9 @@ export function generateUniqueFolderSlug(
     )
     .map(f => f.slug.toLowerCase());
 
-  // If base slug is unique, use it
-  if (!existingSlugs.includes(baseSlug)) {
+  // Check if base slug is available (not duplicate and not reserved at root)
+  const isBaseSlugReserved = parentFolderId === null && isReservedRootSlug(baseSlug);
+  if (!existingSlugs.includes(baseSlug) && !isBaseSlugReserved) {
     return baseSlug;
   }
 
@@ -1222,6 +1237,14 @@ export function checkDuplicatePageSlug(
 ): ValidationResult {
   const trimmedSlug = slug.trim();
 
+  // Check for reserved slugs at root level
+  if (folderId === null && isReservedRootSlug(trimmedSlug)) {
+    return {
+      isValid: false,
+      error: `Slug "${trimmedSlug}" cannot be used inside the root folder.`,
+    };
+  }
+
   const duplicateSlug = pages.find(
     (p) =>
       p.id !== excludePageId &&
@@ -1255,6 +1278,14 @@ export function checkDuplicateFolderSlug(
   excludeFolderId?: string
 ): ValidationResult {
   const trimmedSlug = slug.trim();
+
+  // Check for reserved slugs at root level
+  if (parentFolderId === null && isReservedRootSlug(trimmedSlug)) {
+    return {
+      isValid: false,
+      error: `Slug "${trimmedSlug}" cannot be used inside the root folder.`,
+    };
+  }
 
   const duplicateSlug = folders.find(
     (f) =>

@@ -60,7 +60,7 @@ export default function EmailSettingsPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const response = await fetch('/api/settings/email');
+        const response = await fetch('/ycode/api/settings/email');
         if (response.ok) {
           const result = await response.json();
           if (result.data) {
@@ -128,7 +128,7 @@ export default function EmailSettingsPage() {
       setIsSaving(true);
       setError(null);
 
-      const response = await fetch('/api/settings/email', {
+      const response = await fetch('/ycode/api/settings/email', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: newSettings }),
@@ -155,7 +155,7 @@ export default function EmailSettingsPage() {
       setIsSaving(true);
       setError(null);
 
-      const response = await fetch('/api/settings/email', {
+      const response = await fetch('/ycode/api/settings/email', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: settings }),
@@ -182,7 +182,7 @@ export default function EmailSettingsPage() {
       setError(null);
       setTestResult(null);
 
-      const response = await fetch('/api/settings/email/test', {
+      const response = await fetch('/ycode/api/settings/email/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),

@@ -769,7 +769,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     set({ isLoading: { ...initialLoadingState, createTranslation: true }, error: null });
 
     try {
-      const response = await fetch('/api/translations/bulk', {
+      const response = await fetch('/ycode/api/translations/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ translations: translationsData }),

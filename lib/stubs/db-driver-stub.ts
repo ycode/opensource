@@ -3,4 +3,5 @@
  * Knex tries to dynamically require these, but we only use PostgreSQL
  * This stub prevents resolution errors when these packages aren't installed
  */
-export default {};
+const stub = {};
+export default stub;

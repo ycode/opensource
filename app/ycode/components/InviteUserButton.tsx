@@ -56,14 +56,14 @@ export const InviteUserButton: React.FC<InviteUserButtonProps> = ({
       setError(null);
       setSuccess(null);
 
-      const response = await fetch('/api/auth/invite', {
+      const response = await fetch('/ycode/api/auth/invite', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           email: email.trim(),
-          redirectTo: window.location.origin + '/accept-invite',
+          redirectTo: window.location.origin + '/ycode/accept-invite',
         }),
       });
 

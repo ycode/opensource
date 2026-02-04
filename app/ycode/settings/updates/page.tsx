@@ -76,7 +76,7 @@ export default function UpdatesSettingsPage() {
   const checkForUpdates = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/updates/check');
+      const response = await fetch('/ycode/api/updates/check');
       if (response.ok) {
         const data = await response.json();
         setUpdateInfo(data);
@@ -103,7 +103,7 @@ export default function UpdatesSettingsPage() {
     setReleasesLoading(true);
     setReleasesError(null);
     try {
-      const response = await fetch('/api/updates/releases');
+      const response = await fetch('/ycode/api/updates/releases');
       if (response.ok) {
         const data: ReleasesResponse = await response.json();
         console.log('Releases API response:', data);

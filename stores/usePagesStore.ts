@@ -488,7 +488,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   publishPage: async (pageId) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch('/api/publish', {
+      const response = await fetch('/ycode/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pageIds: [pageId] }),
@@ -1857,7 +1857,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     // Start API call in background (don't await immediately)
     (async () => {
       try {
-        const response = await fetch(`/api/pages/${pageId}/duplicate`, {
+        const response = await fetch(`/ycode/api/pages/${pageId}/duplicate`, {
           method: 'POST',
         });
 
@@ -1880,8 +1880,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         // (The backend increments the order of siblings when duplicating)
         try {
           const [pagesResponse, foldersResponse] = await Promise.all([
-            fetch('/api/pages'),
-            fetch('/api/folders')
+            fetch('/ycode/api/pages'),
+            fetch('/ycode/api/folders')
           ]);
 
           const pagesData = await pagesResponse.json();
@@ -2418,7 +2418,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     // Start API call in background (don't await immediately)
     (async () => {
       try {
-        const response = await fetch(`/api/folders/${folderId}/duplicate`, {
+        const response = await fetch(`/ycode/api/folders/${folderId}/duplicate`, {
           method: 'POST',
         });
 
@@ -2443,8 +2443,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         try {
           // Fetch fresh data from database
           const [pagesResponse, foldersResponse] = await Promise.all([
-            fetch('/api/pages'),
-            fetch('/api/folders')
+            fetch('/ycode/api/pages'),
+            fetch('/ycode/api/folders')
           ]);
 
           const pagesData = await pagesResponse.json();
@@ -2869,7 +2869,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     try {
       // Fetch fresh collection item data
-      const response = await fetch(`/api/pages/${pageId}/collection-item?itemId=${currentItem.id}`);
+      const response = await fetch(`/ycode/api/pages/${pageId}/collection-item?itemId=${currentItem.id}`);
       const result = await response.json();
 
       if (result.data) {

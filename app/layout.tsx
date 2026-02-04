@@ -25,8 +25,8 @@ export default async function RootLayout({
   const pathname = headersList.get('x-pathname') || '';
   const isPreviewRoute = pathname.startsWith('/ycode/preview');
 
-  // Apply dark mode for editor and welcome routes (/ycode, /welcome)
-  const isDarkMode = !isPreviewRoute && (pathname.startsWith('/ycode') || pathname.startsWith('/welcome'));
+  // Apply dark mode for editor routes (/ycode)
+  const isDarkMode = !isPreviewRoute && pathname.startsWith('/ycode');
 
   return (
     <html lang="en" className={isDarkMode ? 'dark' : ''}>

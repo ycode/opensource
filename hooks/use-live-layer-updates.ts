@@ -1,6 +1,6 @@
 /**
  * Live Layer Updates Hook
- * 
+ *
  * Manages real-time synchronization of layer changes using Supabase Realtime
  */
 
@@ -41,36 +41,36 @@ export function useLiveLayerUpdates(
   const { updateLayer, draftsByPageId } = usePagesStore();
   const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
-  
+
   const channelRef = useRef<any>(null);
   const isReceivingUpdates = useRef(false);
   const lastUpdateTime = useRef<number | null>(null);
   const updateQueue = useRef<LayerUpdate[]>([]);
   const pageIdRef = useRef<string | null>(pageId);
-  
+
   // Update pageIdRef whenever pageId changes
   useEffect(() => {
     pageIdRef.current = pageId;
   }, [pageId]);
-  
+
   // Debounced broadcast function
   const debouncedBroadcast = useRef(
     debounce((layerId: string, changes: Partial<Layer>) => {
       // Get fresh values from refs and store
       const channel = channelRef.current;
       const userId = useCollaborationPresenceStore.getState().currentUserId;
-      
+
       if (!channel || !userId) {
         return;
       }
-      
+
       const update: LayerUpdate = {
         layer_id: layerId,
         user_id: userId,
         changes,
         timestamp: Date.now()
       };
-      
+
       channel.send({
         type: 'broadcast',
         event: 'layer_update',
@@ -78,60 +78,60 @@ export function useLiveLayerUpdates(
       });
     }, 100) // 100ms debounce - faster sync
   );
-  
+
   // Initialize Supabase channel
   useEffect(() => {
     if (!pageId || !user) {
       return;
     }
-    
+
     const initializeChannel = async () => {
       try {
         const supabase = await createClient();
         const channel = supabase.channel(`page:${pageId}:updates`);
-        
+
         // Listen for layer updates
         channel.on('broadcast', { event: 'layer_update' }, (payload) => {
           handleIncomingUpdate(payload.payload);
         });
-        
+
         // Listen for layer structure changes
         channel.on('broadcast', { event: 'layer_added' }, (payload) => {
           handleIncomingLayerAdd(payload.payload);
         });
-        
+
         channel.on('broadcast', { event: 'layer_deleted' }, (payload) => {
           handleIncomingLayerDelete(payload.payload);
         });
-        
+
         channel.on('broadcast', { event: 'layer_moved' }, (payload) => {
           handleIncomingLayerMove(payload.payload);
         });
-        
+
         // Listen for user activity
         channel.on('broadcast', { event: 'user_activity' }, (payload) => {
           handleUserActivity(payload.payload);
         });
-        
+
         // Listen for lock changes
         channel.on('broadcast', { event: 'lock_change' }, (payload) => {
           handleLockChange(payload.payload);
         });
-        
+
         await channel.subscribe((status) => {
           if (status === 'SUBSCRIBED') {
             isReceivingUpdates.current = true;
           }
         });
-        
+
         channelRef.current = channel;
       } catch (error) {
         console.error('Failed to initialize live updates:', error);
       }
     };
-    
+
     initializeChannel();
-    
+
     return () => {
       if (channelRef.current) {
         channelRef.current.unsubscribe();
@@ -139,36 +139,38 @@ export function useLiveLayerUpdates(
       }
       isReceivingUpdates.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers are stable refs, adding would cause reconnect loops
   }, [pageId, user]);
-  
+
   const handleIncomingUpdate = useCallback((update: LayerUpdate) => {
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
-    
+
     if (!freshCurrentUserId || update.user_id === freshCurrentUserId) {
       return;
     }
-    
+
     // Add to update queue
     updateQueue.current.push(update);
-    
+
     // Process updates in order
     processUpdateQueue();
-    
+
     // Update last update time
     lastUpdateTime.current = Date.now();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- processUpdateQueue is a ref, adding would cause infinite loop
   }, []);
-  
+
   const handleUserActivity = useCallback((activity: any) => {
     if (!currentUserId || activity.user_id === currentUserId) return;
-    
+
     // Update user activity
     updateUser(activity.user_id, {
       last_active: Date.now(),
       is_editing: activity.is_editing || false
     });
   }, [currentUserId, updateUser]);
-  
+
   const handleLockChange = useCallback((lockChange: any) => {
     // Lock changes are handled silently - no toast notifications
     // The lock indicator UI shows lock status visually
@@ -177,21 +179,21 @@ export function useLiveLayerUpdates(
   const handleIncomingLayerAdd = useCallback((payload: any) => {
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
-    
+
     console.log('[LAYER-ADD] Received layer addition:', {
       payload,
       currentUserId: freshCurrentUserId,
       pageId
     });
-    
+
     if (!freshCurrentUserId || payload.user_id === freshCurrentUserId) {
       console.log('[LAYER-ADD] Ignoring own layer addition');
       return;
     }
-    
+
     // Get fresh state from store
     const { addLayerWithId: freshAddLayerWithId } = usePagesStore.getState();
-    
+
     // Apply the layer addition with the exact same layer object
     if (pageId && payload.page_id === pageId) {
       console.log('[LAYER-ADD] Applying layer addition:', {
@@ -206,14 +208,14 @@ export function useLiveLayerUpdates(
   const handleIncomingLayerDelete = useCallback((payload: any) => {
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
-    
+
     if (!freshCurrentUserId || payload.user_id === freshCurrentUserId) {
       return;
     }
-    
+
     // Get fresh state from store
     const { deleteLayer: freshDeleteLayer } = usePagesStore.getState();
-    
+
     // Apply the layer deletion
     if (pageId && payload.page_id === pageId) {
       freshDeleteLayer(pageId, payload.layer_id);
@@ -223,43 +225,43 @@ export function useLiveLayerUpdates(
   const handleIncomingLayerMove = useCallback((payload: any) => {
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
-    
+
     if (!freshCurrentUserId || payload.user_id === freshCurrentUserId) {
       return;
     }
-    
+
     // Get fresh state from store
     const { moveLayer: freshMoveLayer } = usePagesStore.getState();
-    
+
     // Apply the layer move
     if (pageId && payload.page_id === pageId) {
       freshMoveLayer(pageId, payload.layer_id, payload.target_parent_id, payload.target_index);
     }
   }, [pageId]);
-  
+
   const processUpdateQueue = useCallback(() => {
     // Get fresh pageId from the ref (this will be the current value)
     const currentPageId = pageIdRef.current;
-    
+
     if (updateQueue.current.length === 0) {
       return;
     }
-    
+
     const update = updateQueue.current.shift();
     if (!update) return;
-    
+
     // Get fresh state from store
     const { draftsByPageId: freshDrafts, updateLayer: freshUpdateLayer } = usePagesStore.getState();
     const currentDraft = freshDrafts[currentPageId || ''];
-    
+
     if (!currentPageId) {
       return;
     }
-    
+
     if (!currentDraft) {
       return;
     }
-    
+
     // Apply the update to the store (without broadcasting back)
     if (currentPageId) {
       try {
@@ -268,33 +270,33 @@ export function useLiveLayerUpdates(
         console.error(`[LIVE-UPDATES] Error applying update:`, error);
       }
     }
-    
+
     // Process next update
     if (updateQueue.current.length > 0) {
       setTimeout(processUpdateQueue, 16); // Process at 60fps
     }
   }, []); // No dependencies since we use refs
-  
+
   const broadcastLayerUpdate = useCallback((layerId: string, changes: Partial<Layer>) => {
     if (!channelRef.current || !currentUserId) {
       return;
     }
-    
+
     // Don't update local state - that's already done by the caller
     // Just broadcast the update to others
-    
+
     // Broadcast the update
     debouncedBroadcast.current(layerId, changes);
-    
+
     // Only set is_editing for text content changes, not class changes
     const isTextContentChange = 'content' in changes;
-    
+
     // Update user activity
     updateUser(currentUserId, {
       last_active: Date.now(),
       is_editing: isTextContentChange
     });
-    
+
     // Broadcast activity
     if (channelRef.current) {
       channelRef.current.send({
@@ -318,7 +320,7 @@ export function useLiveLayerUpdates(
       console.warn('[COLLAB] Cannot broadcast layer add - currentUserId not set');
       return;
     }
-    
+
     // Broadcast the layer addition
     channelRef.current.send({
       type: 'broadcast',
@@ -332,7 +334,7 @@ export function useLiveLayerUpdates(
         timestamp: Date.now()
       }
     });
-    
+
     // Update user activity
     updateUser(currentUserId, {
       last_active: Date.now(),
@@ -344,7 +346,7 @@ export function useLiveLayerUpdates(
     if (!channelRef.current || !currentUserId) {
       return;
     }
-    
+
     // Broadcast the layer deletion
     channelRef.current.send({
       type: 'broadcast',
@@ -356,7 +358,7 @@ export function useLiveLayerUpdates(
         timestamp: Date.now()
       }
     });
-    
+
     // Update user activity
     updateUser(currentUserId, {
       last_active: Date.now(),
@@ -368,7 +370,7 @@ export function useLiveLayerUpdates(
     if (!channelRef.current || !currentUserId) {
       return;
     }
-    
+
     // Broadcast the layer move
     channelRef.current.send({
       type: 'broadcast',
@@ -382,14 +384,14 @@ export function useLiveLayerUpdates(
         timestamp: Date.now()
       }
     });
-    
+
     // Update user activity
     updateUser(currentUserId, {
       last_active: Date.now(),
       is_editing: false
     });
   }, [currentUserId, updateUser]);
-  
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -398,7 +400,7 @@ export function useLiveLayerUpdates(
       }
     };
   }, []);
-  
+
   return {
     broadcastLayerUpdate,
     broadcastLayerAdd,

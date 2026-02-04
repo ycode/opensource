@@ -25,7 +25,7 @@ export default function Error({ error, reset }: ErrorProps) {
     // Fetch custom 500 error page (draft version)
     async function fetchErrorPage() {
       try {
-        const response = await fetch('/api/error-page?code=500&published=false');
+        const response = await fetch('/ycode/api/error-page?code=500&published=false');
         if (response.ok) {
           const data = await response.json();
           setErrorPageData(data.pageData);

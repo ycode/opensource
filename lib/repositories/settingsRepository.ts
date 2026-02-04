@@ -60,6 +60,39 @@ export async function getSettingByKey(key: string): Promise<any | null> {
 }
 
 /**
+ * Get multiple settings by keys in a single query
+ *
+ * @param keys - Array of setting keys to fetch
+ * @returns Promise resolving to a map of key -> value
+ */
+export async function getSettingsByKeys(keys: string[]): Promise<Record<string, any>> {
+  if (keys.length === 0) {
+    return {};
+  }
+
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Failed to initialize Supabase client');
+  }
+
+  const { data, error } = await client
+    .from('settings')
+    .select('key, value')
+    .in('key', keys);
+
+  if (error) {
+    throw new Error(`Failed to fetch settings: ${error.message}`);
+  }
+
+  const result: Record<string, any> = {};
+  for (const setting of data || []) {
+    result[setting.key] = setting.value;
+  }
+
+  return result;
+}
+
+/**
  * Set a setting value (insert or update)
  *
  * @param key - The setting key
@@ -89,4 +122,69 @@ export async function setSetting(key: string, value: any): Promise<Setting> {
   }
 
   return data;
+}
+
+/**
+ * Set multiple settings at once (batch upsert)
+ * Settings with null/undefined values are deleted instead of upserted.
+ *
+ * @param settings - Object with key-value pairs to store
+ * @returns Promise resolving to the number of settings updated
+ */
+export async function setSettings(settings: Record<string, any>): Promise<number> {
+  const entries = Object.entries(settings);
+  if (entries.length === 0) {
+    return 0;
+  }
+
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Failed to initialize Supabase client');
+  }
+
+  // Separate entries: null/undefined values should be deleted, others upserted
+  const toUpsert: [string, any][] = [];
+  const toDelete: string[] = [];
+
+  for (const [key, value] of entries) {
+    if (value === null || value === undefined) {
+      toDelete.push(key);
+    } else {
+      toUpsert.push([key, value]);
+    }
+  }
+
+  // Delete settings with null values
+  if (toDelete.length > 0) {
+    const { error: deleteError } = await client
+      .from('settings')
+      .delete()
+      .in('key', toDelete);
+
+    if (deleteError) {
+      throw new Error(`Failed to delete settings: ${deleteError.message}`);
+    }
+  }
+
+  // Upsert settings with non-null values
+  if (toUpsert.length > 0) {
+    const now = new Date().toISOString();
+    const records = toUpsert.map(([key, value]) => ({
+      key,
+      value,
+      updated_at: now,
+    }));
+
+    const { error } = await client
+      .from('settings')
+      .upsert(records, {
+        onConflict: 'key',
+      });
+
+    if (error) {
+      throw new Error(`Failed to set settings: ${error.message}`);
+    }
+  }
+
+  return entries.length;
 }

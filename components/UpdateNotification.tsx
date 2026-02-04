@@ -30,7 +30,7 @@ export default function UpdateNotification() {
 
   const checkForUpdates = async () => {
     try {
-      const response = await fetch('/api/updates/check');
+      const response = await fetch('/ycode/api/updates/check');
       if (response.ok) {
         const data = await response.json();
         setUpdateInfo(data);

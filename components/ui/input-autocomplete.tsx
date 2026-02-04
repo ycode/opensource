@@ -133,7 +133,7 @@ export function InputAutocomplete<T extends Record<string, any>>({
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-1 max-h-[315px] overflow-hidden"
+        className="w-(--radix-popover-trigger-width) p-1 max-h-80 overflow-hidden"
         align="start"
         onWheel={(e) => e.stopPropagation()}
         onOpenAutoFocus={(e) => e.preventDefault()}

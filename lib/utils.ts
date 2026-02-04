@@ -286,11 +286,29 @@ export function cloneDeep<T>(obj: T): T {
   if (obj instanceof Object) {
     const clonedObj = {} as Record<string, unknown>;
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         clonedObj[key] = cloneDeep((obj as Record<string, unknown>)[key]);
       }
     }
     return clonedObj as T;
   }
   throw new Error('Unable to clone object');
+}
+
+/**
+ * Checks if the app is running as a cloud-hosted version
+ * Returns false for self-hosted/opensource installations
+ */
+export function isCloudVersion(): boolean {
+  return process.env.NEXT_PUBLIC_IS_CLOUD === 'true';
+}
+
+/**
+ * Returns the browser's IANA timezone (e.g. "Europe/London")
+ */
+export function getDetectedTimezone(): string {
+  if (typeof Intl === 'undefined' || !Intl.DateTimeFormat) {
+    return '';
+  }
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
 }

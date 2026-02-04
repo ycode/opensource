@@ -230,7 +230,7 @@ export function useUndoRedo({
         }
         case 'layer_style': {
           // For layer styles, we need to update via API
-          await fetch(`/api/layer-styles/${entityId}`, {
+          await fetch(`/ycode/api/layer-styles/${entityId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state),
@@ -778,7 +778,7 @@ export function useUndoRedo({
           session_id: getSessionId(),
         };
 
-        const response = await fetch('/api/versions', {
+        const response = await fetch('/ycode/api/versions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(versionData),

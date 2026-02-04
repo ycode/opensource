@@ -55,7 +55,7 @@ export default function ApiKeysSettingsPage() {
 
   const fetchApiKeys = async () => {
     try {
-      const response = await fetch('/api/api-keys');
+      const response = await fetch('/ycode/api/api-keys');
       const result = await response.json();
       if (result.data) {
         setApiKeys(result.data);
@@ -72,7 +72,7 @@ export default function ApiKeysSettingsPage() {
 
     setIsGenerating(true);
     try {
-      const response = await fetch('/api/api-keys', {
+      const response = await fetch('/ycode/api/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newKeyName.trim() }),
@@ -98,7 +98,7 @@ export default function ApiKeysSettingsPage() {
     if (!keyToDelete) return;
 
     try {
-      await fetch(`/api/api-keys/${keyToDelete.id}`, {
+      await fetch(`/ycode/api/api-keys/${keyToDelete.id}`, {
         method: 'DELETE',
       });
       setApiKeys(apiKeys.filter(k => k.id !== keyToDelete.id));

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import {
   FieldDescription,
@@ -61,7 +62,7 @@ export default function UsersSettingsPage() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/api/auth/users');
+      const response = await fetch('/ycode/api/auth/users');
       const result = await response.json();
       if (result.data) {
         setActiveUsers(result.data.activeUsers || []);
@@ -89,12 +90,12 @@ export default function UsersSettingsPage() {
     setInviteSuccess(null);
 
     try {
-      const response = await fetch('/api/auth/invite', {
+      const response = await fetch('/ycode/api/auth/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: inviteEmail.trim(),
-          redirectTo: window.location.origin + '/accept-invite',
+          redirectTo: window.location.origin + '/ycode/accept-invite',
         }),
       });
 
@@ -135,7 +136,7 @@ export default function UsersSettingsPage() {
     if (!userToDelete) return;
 
     try {
-      const response = await fetch(`/api/auth/users?id=${userToDelete.id}`, {
+      const response = await fetch(`/ycode/api/auth/users?id=${userToDelete.id}`, {
         method: 'DELETE',
       });
 
@@ -156,12 +157,12 @@ export default function UsersSettingsPage() {
 
   const handleResendInvite = async (email: string) => {
     try {
-      const response = await fetch('/api/auth/invite', {
+      const response = await fetch('/ycode/api/auth/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          redirectTo: window.location.origin + '/accept-invite',
+          redirectTo: window.location.origin + '/ycode/accept-invite',
         }),
       });
 
@@ -275,10 +276,13 @@ export default function UsersSettingsPage() {
                     style={{ backgroundColor: user.avatar_url ? undefined : generateUserColor(user.id) }}
                   >
                     {user.avatar_url ? (
-                      <img
+                      <Image
                         src={user.avatar_url}
                         alt={user.display_name || user.email}
+                        width={32}
+                        height={32}
                         className="size-full object-cover"
+                        unoptimized
                       />
                     ) : (
                       getUserInitials(user.email, user.display_name || undefined)

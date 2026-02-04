@@ -30,7 +30,7 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
   useEffect(() => {
     const checkSmtpSettings = async () => {
       try {
-        const response = await fetch('/api/settings/email');
+        const response = await fetch('/ycode/api/settings/email');
         if (response.ok) {
           const result = await response.json();
           setIsSmtpEnabled(result.data?.enabled ?? false);

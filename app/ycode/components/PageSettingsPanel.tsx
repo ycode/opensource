@@ -39,7 +39,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Icon from '@/components/ui/icon';
-import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, generateSlug, sanitizeSlug } from '@/lib/page-utils';
+import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, generateSlug, sanitizeSlug, isReservedRootSlug } from '@/lib/page-utils';
 import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import { Textarea } from '@/components/ui/textarea';
 import { uploadFileApi, deleteAssetApi } from '@/lib/api';
@@ -48,7 +48,7 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import RichTextEditor from './RichTextEditor';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { getFieldIcon } from '@/lib/collection-field-utils';
+import { getFieldIcon, IMAGE_FIELD_TYPES } from '@/lib/collection-field-utils';
 
 export interface PageSettingsPanelHandle {
   checkUnsavedChanges: () => Promise<boolean>;
@@ -391,10 +391,28 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     }
   }), [hasUnsavedChanges, isSaving]);
 
+  // Track the previous page ID to detect actual page changes (not reference changes)
+  const prevPageIdRef = useRef<string | null | undefined>(page?.id);
+
   // Intercept incoming page prop changes
+  // Only runs when page ID changes, not on every form field change
   useEffect(() => {
-    // If the incoming page is the same object reference as current, nothing to do
-    if (page === currentPage) {
+    const pageId = page?.id;
+    const currentPageId = currentPage?.id;
+
+    // If the page ID hasn't changed, nothing to do
+    // This prevents the effect from running on every form field change
+    if (pageId === prevPageIdRef.current && pageId === currentPageId) {
+      return;
+    }
+
+    // Update the ref if page ID changed
+    if (pageId !== prevPageIdRef.current) {
+      prevPageIdRef.current = pageId;
+    }
+
+    // If the incoming page is the same as current, nothing to do
+    if (pageId === currentPageId) {
       return;
     }
 
@@ -408,33 +426,40 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       return;
     }
 
-    // If we just saved, accept the page update and sync initial values from the new page data
+    // If we just saved and getting updated data for the SAME page, accept and sync initial values
+    // But if switching to a DIFFERENT page, clear the flag and continue to normal flow
     if (skipNextInitializationRef.current) {
-      setCurrentPage(page);
-      rejectedPageRef.current = null;
-      // Sync initial values from the updated page to ensure they match what was saved
-      if (page && initialValuesRef.current) {
-        const settings = page.settings as PageSettings | undefined;
-        const isPageErrorPage = page.error_page !== null;
-        const isPageDynamic = page.is_dynamic === true;
-        const isPageIndex = isPageDynamic ? false : page.is_index;
+      // Check if this is the same page (updated after save) or a different page
+      if (pageId === currentPageId || (page && currentPage && page.id === currentPage.id)) {
+        setCurrentPage(page);
+        rejectedPageRef.current = null;
+        // Sync initial values from the updated page to ensure they match what was saved
+        if (page && initialValuesRef.current) {
+          const settings = page.settings as PageSettings | undefined;
+          const isPageErrorPage = page.error_page !== null;
+          const isPageDynamic = page.is_dynamic === true;
+          const isPageIndex = isPageDynamic ? false : page.is_index;
 
-        initialValuesRef.current.name = page.name;
-        initialValuesRef.current.slug = isPageErrorPage || isPageIndex ? '' : (isPageDynamic ? '*' : page.slug || '');
-        initialValuesRef.current.pageFolderId = page.page_folder_id;
-        initialValuesRef.current.isIndex = isPageIndex;
-        initialValuesRef.current.seoTitle = settings?.seo?.title || '';
-        initialValuesRef.current.seoDescription = settings?.seo?.description || '';
-        initialValuesRef.current.seoImage = settings?.seo?.image || null;
-        initialValuesRef.current.seoNoindex = isPageErrorPage ? true : (settings?.seo?.noindex || false);
-        initialValuesRef.current.customCodeHead = settings?.custom_code?.head || '';
-        initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
-        initialValuesRef.current.authEnabled = settings?.auth?.enabled || false;
-        initialValuesRef.current.authPassword = settings?.auth?.password || '';
-        initialValuesRef.current.collectionId = settings?.cms?.collection_id || null;
-        initialValuesRef.current.slugFieldId = settings?.cms?.slug_field_id || null;
+          initialValuesRef.current.name = page.name;
+          initialValuesRef.current.slug = isPageErrorPage || isPageIndex ? '' : (isPageDynamic ? '*' : page.slug || '');
+          initialValuesRef.current.pageFolderId = page.page_folder_id;
+          initialValuesRef.current.isIndex = isPageIndex;
+          initialValuesRef.current.seoTitle = settings?.seo?.title || '';
+          initialValuesRef.current.seoDescription = settings?.seo?.description || '';
+          initialValuesRef.current.seoImage = settings?.seo?.image || null;
+          initialValuesRef.current.seoNoindex = isPageErrorPage ? true : (settings?.seo?.noindex || false);
+          initialValuesRef.current.customCodeHead = settings?.custom_code?.head || '';
+          initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
+          initialValuesRef.current.authEnabled = settings?.auth?.enabled || false;
+          initialValuesRef.current.authPassword = settings?.auth?.password || '';
+          initialValuesRef.current.collectionId = settings?.cms?.collection_id || null;
+          initialValuesRef.current.slugFieldId = settings?.cms?.slug_field_id || null;
+        }
+        return;
+      } else {
+        // Switching to a different page - clear the skip flag so initialization runs
+        skipNextInitializationRef.current = false;
       }
-      return;
     }
 
     // Check hasUnsavedChanges by comparing current form state with initialValuesRef
@@ -469,8 +494,9 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     // No unsaved changes, safe to change
     setCurrentPage(page);
     rejectedPageRef.current = null; // Clear rejected page since we're accepting a change
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, currentPage, isSaving, name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile]);
+  }, [page?.id, currentPage?.id, isSaving]);
 
   // Initialize form when currentPage changes (after confirmation or when no unsaved changes)
   useEffect(() => {
@@ -745,7 +771,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     const activeCollection = collections.find(c => c.id === activeCollectionId);
     const activeCollectionName = activeCollection?.name || 'this collection';
     const collectionFields = fields[activeCollectionId] || [];
-    const imageFields = collectionFields // .filter(field => field.type === 'image');
+    const imageFields = collectionFields.filter(field => IMAGE_FIELD_TYPES.includes(field.type));
     const hasImageFields = imageFields.length > 0;
 
     // Get the selected field name if a field variable is selected
@@ -1017,6 +1043,13 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       if (!isDynamicPage) {
         // Sanitize slug (remove trailing dashes) for comparison
         const trimmedSlug = sanitizeSlug(slug.trim(), false);
+
+        // Check for reserved slugs at root level
+        if (pageFolderId === null && isReservedRootSlug(trimmedSlug)) {
+          setError(`Slug "${trimmedSlug}" cannot be used inside the root folder.`);
+          return;
+        }
+
         const duplicateSlug = pages.find(
           (p) =>
             p.id !== currentPage?.id && // Exclude current page
@@ -1190,7 +1223,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       />
 
       {/* Panel */}
-      <div className="fixed top-14 left-64 bottom-0 w-[500px] bg-background border-r z-50 flex flex-col">
+      <div className="fixed top-14 left-64 bottom-0 w-125 bg-background border-r z-50 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center justify-center gap-1.5">
@@ -1457,7 +1490,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       </Select>
                     </Field>
 
-                    <Field orientation="horizontal" className="flex !flex-row-reverse">
+                    <Field orientation="horizontal" className="flex flex-row-reverse!">
                       <FieldContent>
                         <FieldLabel htmlFor="passwordProtected">
                           Password protected
@@ -1497,7 +1530,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       </Field>
                     )}
 
-                    <Field orientation="horizontal" className="flex !flex-row-reverse">
+                    <Field orientation="horizontal" className="flex flex-row-reverse!">
                       <FieldContent>
                         <FieldLabel htmlFor="homepage">
                           {isOnRootFolder ? 'Homepage' : 'Index page'}
@@ -1677,7 +1710,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                           </div>
                         </Field>
 
-                        <Field orientation="horizontal" className="flex !flex-row-reverse">
+                        <Field orientation="horizontal" className="flex flex-row-reverse!">
                           <FieldContent>
                             <FieldLabel htmlFor="noindex" className="cursor-pointer">
                               Exclude this page from search engine results

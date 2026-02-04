@@ -6,6 +6,43 @@
  */
 
 import type { CollectionField, InlineVariable } from '@/types';
+import { formatDateInTimezone } from '@/lib/date-format-utils';
+
+/**
+ * Format a field value for display if it's a date type
+ * Returns the original value for non-date fields
+ */
+export function formatFieldValue(
+  value: string | undefined,
+  fieldType: string | null | undefined,
+  timezone: string = 'UTC'
+): string {
+  if (!value) return '';
+  if (fieldType === 'date') {
+    return formatDateInTimezone(value, timezone, 'display');
+  }
+  return value;
+}
+
+/**
+ * Resolve a field value from data sources based on source preference
+ * Used for inline variables with page/collection source selection
+ */
+export function resolveFieldFromSources(
+  fieldId: string,
+  source: string | undefined,
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string> | null
+): string | undefined {
+  if (source === 'page') {
+    return pageCollectionItemData?.[fieldId];
+  }
+  if (source === 'collection') {
+    return collectionItemData?.[fieldId];
+  }
+  // No explicit source - check collection first, then page (backwards compatibility)
+  return collectionItemData?.[fieldId] ?? pageCollectionItemData?.[fieldId];
+}
 
 /**
  * Gets the display label for a variable based on its type and data

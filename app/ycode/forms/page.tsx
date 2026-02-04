@@ -42,21 +42,21 @@ import type { FormSubmission, FormSummary, FormSubmissionStatus } from '@/types'
 
 // API functions
 async function fetchFormSummaries(): Promise<FormSummary[]> {
-  const response = await fetch('/api/form-submissions?summary=true');
+  const response = await fetch('/ycode/api/form-submissions?summary=true');
   const data = await response.json();
   if (data.error) throw new Error(data.error);
   return data.data || [];
 }
 
 async function fetchFormSubmissions(formId: string): Promise<FormSubmission[]> {
-  const response = await fetch(`/api/form-submissions?form_id=${encodeURIComponent(formId)}`);
+  const response = await fetch(`/ycode/api/form-submissions?form_id=${encodeURIComponent(formId)}`);
   const data = await response.json();
   if (data.error) throw new Error(data.error);
   return data.data || [];
 }
 
 async function updateSubmissionStatus(id: string, status: FormSubmissionStatus): Promise<void> {
-  const response = await fetch(`/api/form-submissions/${id}`, {
+  const response = await fetch(`/ycode/api/form-submissions/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
@@ -66,7 +66,7 @@ async function updateSubmissionStatus(id: string, status: FormSubmissionStatus):
 }
 
 async function deleteSubmission(id: string): Promise<void> {
-  const response = await fetch(`/api/form-submissions/${id}`, {
+  const response = await fetch(`/ycode/api/form-submissions/${id}`, {
     method: 'DELETE',
   });
   const data = await response.json();
@@ -81,7 +81,7 @@ type SortConfig = {
 
 // API function to delete all submissions for a form
 async function deleteForm(formId: string): Promise<void> {
-  const response = await fetch(`/api/form-submissions?form_id=${encodeURIComponent(formId)}`, {
+  const response = await fetch(`/ycode/api/form-submissions?form_id=${encodeURIComponent(formId)}`, {
     method: 'DELETE',
   });
   const data = await response.json();
@@ -126,6 +126,7 @@ export default function FormsPage() {
     };
 
     loadSummaries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedFormId intentionally excluded to avoid re-fetch on form switch
   }, []);
 
   // Load submissions when form is selected
@@ -316,7 +317,7 @@ export default function FormsPage() {
 
     try {
       const ids = Array.from(selectedSubmissionIds);
-      const response = await fetch('/api/form-submissions', {
+      const response = await fetch('/ycode/api/form-submissions', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
@@ -660,7 +661,7 @@ export default function FormsPage() {
                     {payloadKeys.slice(0, 4).map((key) => (
                       <td
                         key={key}
-                        className="px-4 py-3 text-muted-foreground max-w-[200px] truncate"
+                        className="px-4 py-3 text-muted-foreground max-w-50 truncate"
                       >
                         {String(submission.payload[key] || '-')}
                       </td>
@@ -777,7 +778,7 @@ export default function FormsPage() {
                     <label className="text-xs font-medium capitalize text-muted-foreground">
                       {key.replace(/_/g, ' ')}
                     </label>
-                    <div className="p-2 bg-secondary/30 rounded-lg text-xs whitespace-pre-wrap break-words">
+                    <div className="p-2 bg-secondary/30 rounded-lg text-xs whitespace-pre-wrap wrap-break-word">
                       {String(value) || '-'}
                     </div>
                   </div>
