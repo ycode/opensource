@@ -3,6 +3,7 @@ import type { TextStyle, DynamicRichTextVariable, LinkSettings } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatFieldValue, resolveFieldFromSources } from '@/lib/cms-variables-utils';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
+import { extractInlineNodesFromRichText, isTiptapDoc } from '@/lib/tiptap-utils';
 
 /**
  * Context for resolving rich text links - re-exports LinkResolutionContext for backwards compatibility
@@ -145,6 +146,30 @@ export function getTiptapTextContent(text: string): {
 }
 
 /**
+ * Get variable node metadata and raw value
+ * Returns the field type and raw value (useful for rich_text handling)
+ */
+function getVariableNodeData(
+  node: any,
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>
+): { fieldType: string | null; rawValue: unknown } {
+  if (node.attrs?.variable?.type === 'field' && node.attrs.variable.data?.field_id) {
+    const { field_id, field_type, relationships = [], source } = node.attrs.variable.data;
+
+    // Build the full path for relationship resolution
+    const fieldPath = relationships.length > 0
+      ? [field_id, ...relationships].join('.')
+      : field_id;
+
+    const rawValue = resolveFieldFromSources(fieldPath, source, collectionItemData, pageCollectionItemData);
+    return { fieldType: field_type || null, rawValue };
+  }
+
+  return { fieldType: null, rawValue: undefined };
+}
+
+/**
  * Resolve inline variable in Tiptap node
  * @param node - TipTap dynamicVariable node
  * @param collectionItemData - Data from collection layer items
@@ -157,19 +182,8 @@ function resolveVariableNode(
   pageCollectionItemData?: Record<string, string>,
   timezone: string = 'UTC'
 ): string {
-  if (node.attrs?.variable?.type === 'field' && node.attrs.variable.data?.field_id) {
-    const { field_id, field_type, relationships = [], source } = node.attrs.variable.data;
-
-    // Build the full path for relationship resolution
-    const fieldPath = relationships.length > 0
-      ? [field_id, ...relationships].join('.')
-      : field_id;
-
-    const fieldValue = resolveFieldFromSources(fieldPath, source, collectionItemData, pageCollectionItemData);
-    return formatFieldValue(fieldValue, field_type, timezone);
-  }
-
-  return '';
+  const { fieldType, rawValue } = getVariableNodeData(node, collectionItemData, pageCollectionItemData);
+  return formatFieldValue(rawValue, fieldType, timezone);
 }
 
 /**
@@ -300,6 +314,70 @@ function renderTextNode(
 }
 
 /**
+ * Render nested rich text content from a Tiptap JSON structure
+ * Used when a rich_text CMS field is inserted as an inline variable
+ * Flattens the content to render inline with surrounding text
+ */
+function renderNestedRichTextContent(
+  richTextValue: any,
+  key: string,
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>,
+  textStyles?: Record<string, TextStyle>,
+  isEditMode = false,
+  linkContext?: RichTextLinkContext,
+  timezone: string = 'UTC'
+): React.ReactNode[] {
+  // richTextValue should be a Tiptap doc structure: { type: 'doc', content: [...] }
+  if (!richTextValue || typeof richTextValue !== 'object') {
+    return [];
+  }
+
+  // If it's a string (legacy format), try to parse it
+  let parsed = richTextValue;
+  if (typeof richTextValue === 'string') {
+    try {
+      parsed = JSON.parse(richTextValue);
+    } catch {
+      // If parsing fails, return as plain text
+      return [React.createElement('span', { key }, richTextValue)];
+    }
+  }
+
+  // Handle Tiptap doc structure
+  if (parsed.type === 'doc' && Array.isArray(parsed.content)) {
+    // Extract all inline nodes from the nested content
+    const inlineNodes = extractInlineNodesFromRichText(parsed.content);
+
+    if (inlineNodes.length === 0) {
+      return [];
+    }
+
+    // Render the flattened inline content
+    const rendered = renderInlineContent(
+      inlineNodes,
+      collectionItemData,
+      pageCollectionItemData,
+      textStyles,
+      isEditMode,
+      linkContext,
+      timezone
+    );
+
+    // Add unique keys to each rendered node
+    return rendered.map((node, nodeIdx) => {
+      if (React.isValidElement(node)) {
+        return React.cloneElement(node, { key: `${key}-nested-${nodeIdx}` });
+      }
+      // Wrap non-element nodes (strings, etc.) in a span
+      return React.createElement('span', { key: `${key}-nested-${nodeIdx}` }, node);
+    });
+  }
+
+  return [];
+}
+
+/**
  * Render inline content (text nodes, variables, formatting)
  */
 function renderInlineContent(
@@ -311,25 +389,41 @@ function renderInlineContent(
   linkContext?: RichTextLinkContext,
   timezone: string = 'UTC'
 ): React.ReactNode[] {
-  return content.map((node, idx) => {
+  return content.flatMap((node, idx) => {
     const key = `node-${idx}`;
 
     if (node.type === 'text') {
-      return renderTextNode(node, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData, linkContext);
+      return [renderTextNode(node, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData, linkContext)];
     }
 
     if (node.type === 'dynamicVariable') {
-      const value = resolveVariableNode(node, collectionItemData, pageCollectionItemData, timezone);
-      // Create a text node structure with the resolved value and preserve marks
+      const { fieldType, rawValue } = getVariableNodeData(node, collectionItemData, pageCollectionItemData);
+
+      // Handle rich_text fields - render nested Tiptap content
+      if (fieldType === 'rich_text' && rawValue && typeof rawValue === 'object') {
+        return renderNestedRichTextContent(
+          rawValue,
+          key,
+          collectionItemData,
+          pageCollectionItemData,
+          textStyles,
+          isEditMode,
+          linkContext,
+          timezone
+        );
+      }
+
+      // For other field types, render as text
+      const value = formatFieldValue(rawValue, fieldType, timezone);
       const textNode = {
         type: 'text',
         text: value,
         marks: node.marks || [],
       };
-      return renderTextNode(textNode, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData);
+      return [renderTextNode(textNode, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData)];
     }
 
-    return null;
+    return [];
   }).filter(Boolean);
 }
 

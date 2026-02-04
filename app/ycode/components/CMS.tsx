@@ -33,7 +33,7 @@ import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { slugify } from '@/lib/collection-utils';
 import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon } from '@/lib/collection-field-utils';
-import { extractPlainTextFromContent } from '@/lib/cms-variables-utils';
+import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import FieldsDropdown from './FieldsDropdown';
@@ -1572,7 +1572,7 @@ const CMS = React.memo(function CMS() {
 
                       // Rich text fields - extract plain text and truncate
                       if (field.type === 'rich_text') {
-                        const plainText = extractPlainTextFromContent(value);
+                        const plainText = extractPlainTextFromTiptap(value);
                         return (
                           <td
                             key={field.id}

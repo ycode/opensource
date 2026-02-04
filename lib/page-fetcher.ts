@@ -7,6 +7,7 @@ import { getCollectionVariable, resolveFieldValue, evaluateVisibility } from '@/
 import { isFieldVariable, isAssetVariable, createDynamicTextVariable, createDynamicRichTextVariable, createAssetVariable, getDynamicTextContent, getVariableStringValue, getAssetId } from '@/lib/variable-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveComponents } from '@/lib/resolve-components';
+import { extractInlineNodesFromRichText, isTiptapDoc } from '@/lib/tiptap-utils';
 
 // Pagination context passed through to resolveCollectionLayers
 export interface PaginationContext {
@@ -1130,6 +1131,7 @@ function resolveFieldValueWithRelationships(
 /**
  * Resolve dynamicVariable nodes in Tiptap JSON content
  * Traverses the content tree and replaces variable nodes with resolved text
+ * For rich_text fields, inlines the nested Tiptap content
  */
 function resolveRichTextVariables(
   content: any,
@@ -1139,25 +1141,45 @@ function resolveRichTextVariables(
     return content;
   }
 
-  // Handle dynamicVariable node - replace with text node containing resolved value
+  // Handle dynamicVariable node - replace with resolved content
   if (content.type === 'dynamicVariable') {
     const variable = content.attrs?.variable;
     if (variable?.type === 'field' && variable.data?.field_id) {
       const fieldId = variable.data.field_id;
+      const fieldType = variable.data.field_type;
       const relationships = variable.data.relationships || [];
 
-      let value = '';
+      let value: any;
       if (relationships.length > 0) {
         const fullPath = [fieldId, ...relationships].join('.');
-        value = itemValues[fullPath] || '';
+        value = itemValues[fullPath];
       } else {
-        value = itemValues[fieldId] || '';
+        value = itemValues[fieldId];
       }
+
+      // Handle rich_text fields - inline the nested Tiptap content
+      if (fieldType === 'rich_text' && isTiptapDoc(value)) {
+        const inlineNodes = extractInlineNodesFromRichText(value.content, content.marks || []);
+        // Recursively resolve any nested dynamic variables
+        return inlineNodes.map(node => resolveRichTextVariables(node, itemValues));
+      }
+
+      // Fallback for rich_text that's not a valid doc structure
+      if (fieldType === 'rich_text' && value && typeof value === 'object') {
+        return {
+          type: 'text',
+          text: JSON.stringify(value),
+          marks: content.marks || [],
+        };
+      }
+
+      // For other field types, convert to string
+      const textValue = value != null ? String(value) : '';
 
       // Replace variable node with text node, preserving marks (bold, italic, etc.)
       return {
         type: 'text',
-        text: value,
+        text: textValue,
         marks: content.marks || [],
       };
     }
@@ -1166,14 +1188,22 @@ function resolveRichTextVariables(
 
   // Recursively process content array
   if (Array.isArray(content)) {
-    return content.map(node => resolveRichTextVariables(node, itemValues));
+    // Flatten arrays that may contain nested arrays from rich_text expansion
+    return content.flatMap(node => {
+      const resolved = resolveRichTextVariables(node, itemValues);
+      return Array.isArray(resolved) ? resolved : [resolved];
+    });
   }
 
   // Recursively process object properties
   const result: any = {};
   for (const key of Object.keys(content)) {
     if (key === 'content' && Array.isArray(content[key])) {
-      result[key] = content[key].map((node: any) => resolveRichTextVariables(node, itemValues));
+      // Flatten the content array in case of expanded rich_text nodes
+      result[key] = content[key].flatMap((node: any) => {
+        const resolved = resolveRichTextVariables(node, itemValues);
+        return Array.isArray(resolved) ? resolved : [resolved];
+      });
     } else if (typeof content[key] === 'object' && content[key] !== null) {
       result[key] = resolveRichTextVariables(content[key], itemValues);
     } else {
@@ -2164,6 +2194,112 @@ function buildAnchorMap(layers: Layer[]): Record<string, string> {
 }
 
 /**
+ * Render Tiptap JSON content to HTML string
+ * Handles text nodes, marks (bold, italic, etc.), and paragraphs
+ */
+function renderTiptapToHtml(content: any, textStyles?: Record<string, any>): string {
+  if (!content || typeof content !== 'object') {
+    return '';
+  }
+
+  // Handle text node
+  if (content.type === 'text') {
+    let text = escapeHtml(content.text || '');
+
+    // Apply marks in reverse order (innermost to outermost)
+    if (content.marks && Array.isArray(content.marks)) {
+      for (let i = content.marks.length - 1; i >= 0; i--) {
+        const mark = content.marks[i];
+        const markClass = textStyles?.[mark.type]?.classes || '';
+        const classAttr = markClass ? ` class="${escapeHtml(markClass)}"` : '';
+
+        switch (mark.type) {
+          case 'bold':
+            text = `<strong${classAttr}>${text}</strong>`;
+            break;
+          case 'italic':
+            text = `<em${classAttr}>${text}</em>`;
+            break;
+          case 'underline':
+            text = `<u${classAttr}>${text}</u>`;
+            break;
+          case 'strike':
+            text = `<s${classAttr}>${text}</s>`;
+            break;
+          case 'subscript':
+            text = `<sub${classAttr}>${text}</sub>`;
+            break;
+          case 'superscript':
+            text = `<sup${classAttr}>${text}</sup>`;
+            break;
+          case 'link':
+            if (mark.attrs?.href) {
+              const target = mark.attrs.target ? ` target="${escapeHtml(mark.attrs.target)}"` : '';
+              const rel = mark.attrs.rel ? ` rel="${escapeHtml(mark.attrs.rel)}"` : (mark.attrs.target === '_blank' ? ' rel="noopener noreferrer"' : '');
+              text = `<a href="${escapeHtml(mark.attrs.href)}"${target}${rel}${classAttr}>${text}</a>`;
+            }
+            break;
+        }
+      }
+    }
+    return text;
+  }
+
+  // Handle paragraph
+  if (content.type === 'paragraph') {
+    const innerHtml = content.content
+      ? content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('')
+      : '';
+    return innerHtml; // Return without <p> wrapper for inline text layers
+  }
+
+  // Handle doc (root)
+  if (content.type === 'doc' && Array.isArray(content.content)) {
+    return content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('');
+  }
+
+  // Handle bullet list
+  if (content.type === 'bulletList') {
+    const listClass = textStyles?.bulletList?.classes || '';
+    const classAttr = listClass ? ` class="${escapeHtml(listClass)}"` : '';
+    const items = content.content
+      ? content.content.map((item: any) => renderTiptapToHtml(item, textStyles)).join('')
+      : '';
+    return `<ul${classAttr}>${items}</ul>`;
+  }
+
+  // Handle ordered list
+  if (content.type === 'orderedList') {
+    const listClass = textStyles?.orderedList?.classes || '';
+    const classAttr = listClass ? ` class="${escapeHtml(listClass)}"` : '';
+    const items = content.content
+      ? content.content.map((item: any) => renderTiptapToHtml(item, textStyles)).join('')
+      : '';
+    return `<ol${classAttr}>${items}</ol>`;
+  }
+
+  // Handle list item
+  if (content.type === 'listItem') {
+    const innerHtml = content.content
+      ? content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('')
+      : '';
+    return `<li>${innerHtml}</li>`;
+  }
+
+  // Handle hardBreak
+  if (content.type === 'hardBreak') {
+    return '<br>';
+  }
+
+  // Fallback: recursively process content
+  if (Array.isArray(content.content)) {
+    return content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('');
+  }
+
+  return '';
+}
+
+/**
  * Convert a Layer to HTML string
  * Handles common layer types and their attributes
  */
@@ -2528,7 +2664,18 @@ function layerToHtml(
 
   // Get text content from variables.text
   const textVariable = layer.variables?.text;
-  const textContent = (textVariable && textVariable.type === 'dynamic_text') ? textVariable.data.content : '';
+  let textContent = '';
+  let isRichText = false;
+
+  if (textVariable) {
+    if (textVariable.type === 'dynamic_text') {
+      textContent = textVariable.data.content || '';
+    } else if (textVariable.type === 'dynamic_rich_text') {
+      // Render Tiptap JSON to HTML
+      textContent = renderTiptapToHtml(textVariable.data.content, layer.textStyles);
+      isRichText = true;
+    }
+  }
 
   // Handle self-closing tags
   const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link'];
@@ -2540,9 +2687,13 @@ function layerToHtml(
   const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
 
   // For icon layers, use raw iconHtml (don't escape SVG content)
+  // For rich text, content is already HTML-safe (escaped during Tiptap rendering)
   let elementHtml = '';
   if (layer.name === 'icon' && iconHtml) {
     elementHtml = `<${tag}${attrsStr}>${iconHtml}${childrenHtml}</${tag}>`;
+  } else if (isRichText) {
+    // Rich text content is already rendered to HTML, don't escape
+    elementHtml = `<${tag}${attrsStr}>${textContent}${childrenHtml}</${tag}>`;
   } else {
     elementHtml = `<${tag}${attrsStr}>${escapeHtml(textContent)}${childrenHtml}</${tag}>`;
   }

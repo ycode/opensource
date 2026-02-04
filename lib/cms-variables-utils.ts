@@ -7,21 +7,50 @@
 
 import type { CollectionField, InlineVariable } from '@/types';
 import { formatDateInTimezone } from '@/lib/date-format-utils';
+import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
 
 /**
- * Format a field value for display if it's a date type
- * Returns the original value for non-date fields
+ * Format a field value for display based on field type
+ * - date: formats in user's timezone
+ * - rich_text: extracts plain text from Tiptap JSON
+ * Returns the original value for other fields
  */
 export function formatFieldValue(
-  value: string | undefined,
+  value: unknown,
   fieldType: string | null | undefined,
   timezone: string = 'UTC'
 ): string {
-  if (!value) return '';
-  if (fieldType === 'date') {
+  if (value === null || value === undefined) return '';
+
+  // Handle rich_text fields - extract plain text from Tiptap JSON
+  if (fieldType === 'rich_text') {
+    if (typeof value === 'object') {
+      return extractPlainTextFromTiptap(value);
+    }
+    // If it's a string (legacy or unparsed), try to parse and extract
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return extractPlainTextFromTiptap(parsed);
+      } catch {
+        return value;
+      }
+    }
+    return '';
+  }
+
+  // Handle date fields
+  if (fieldType === 'date' && typeof value === 'string') {
     return formatDateInTimezone(value, timezone, 'display');
   }
-  return value;
+
+  // For other fields, ensure we return a string
+  if (typeof value === 'object') {
+    // Safety fallback - if an object slips through, stringify it
+    return JSON.stringify(value);
+  }
+
+  return String(value);
 }
 
 /**
@@ -208,35 +237,4 @@ export function convertContentToValue(content: any): string {
   }
 
   return result;
-}
-
-/**
- * Extracts plain text from TipTap JSON content (for preview/display purposes)
- */
-export function extractPlainTextFromContent(value: unknown): string {
-  if (!value || typeof value !== 'object') return '';
-
-  const content = value as { type?: string; content?: any[] };
-  if (content.type !== 'doc' || !Array.isArray(content.content)) return '';
-
-  let result = '';
-
-  const extractTextFromNode = (node: any): void => {
-    if (node.type === 'text' && node.text) {
-      result += node.text;
-    } else if (node.type === 'dynamicVariable' && node.attrs?.label) {
-      result += `[${node.attrs.label}]`;
-    } else if (Array.isArray(node.content)) {
-      for (const child of node.content) {
-        extractTextFromNode(child);
-      }
-    }
-  };
-
-  for (const block of content.content) {
-    if (result.length > 0) result += ' ';
-    extractTextFromNode(block);
-  }
-
-  return result.trim();
 }
