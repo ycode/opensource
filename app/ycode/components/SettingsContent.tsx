@@ -9,7 +9,6 @@ const SETTINGS_ITEMS = [
   { id: 'users', label: 'Users', path: '/ycode/settings/users' },
   { id: 'redirects', label: 'Redirects', path: '/ycode/settings/redirects' },
   { id: 'email', label: 'Email', path: '/ycode/settings/email' },
-  { id: 'api-keys', label: 'API keys', path: '/ycode/settings/api-keys' },
   { id: 'templates', label: 'Templates', path: '/ycode/settings/templates' },
   { id: 'updates', label: 'Updates', path: '/ycode/settings/updates' },
 ];
