@@ -87,18 +87,17 @@ export function TemplateApplyDialog({
         showCloseButton={!loading}
         className="sm:max-w-md"
       >
-        <DialogHeader className="bg-destructive/10">
-          <DialogTitle className="flex items-center gap-2 text-destructive">
-            <Icon name="info" className="h-4 w-4" />
+        <DialogHeader>
+          <DialogTitle>
             Apply Template
           </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <DialogDescription className="text-sm leading-relaxed">
+          <DialogDescription>
             You are about to apply the <strong>&ldquo;{template.name}&rdquo;</strong>{' '}
             template to your project.
           </DialogDescription>
+        </DialogHeader>
+
+        <div>
 
           {/* Warning Box */}
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">

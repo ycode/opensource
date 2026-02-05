@@ -21,8 +21,11 @@ export default function TemplatesSettingsPage() {
   return (
     <div className="p-8">
       <div className="max-w-4xl mx-auto">
-        <header className="pt-8 pb-6">
+        <header className="pt-8 pb-6 flex items-center justify-between">
           <span className="text-base font-medium">Templates</span>
+          <Button onClick={() => setShowExportDialog(true)} variant="secondary">
+            Submit template
+          </Button>
         </header>
 
         {/* Apply Template Section */}
@@ -37,27 +40,6 @@ export default function TemplatesSettingsPage() {
           </div>
 
           <TemplateGallery onApplySuccess={handleApplySuccess} />
-        </div>
-
-        <FieldSeparator />
-
-        {/* Export Template Section */}
-        <div className="bg-secondary/20 p-8 rounded-lg mt-8">
-          <div className="grid grid-cols-3 gap-10">
-            <div>
-              <FieldLegend>Export as Template</FieldLegend>
-              <FieldDescription>
-                Save your current site as a reusable template. This will export
-                all pages, collections, components, and assets.
-              </FieldDescription>
-            </div>
-
-            <div className="col-span-2 flex items-center">
-              <Button onClick={() => setShowExportDialog(true)}>
-                Export Template
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* Export Dialog */}
