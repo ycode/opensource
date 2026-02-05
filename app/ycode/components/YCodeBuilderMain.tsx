@@ -30,6 +30,7 @@ import LeftSidebar from '../components/LeftSidebar';
 import SettingsContent from '../components/SettingsContent';
 import LocalizationContent from '../components/LocalizationContent';
 import ProfileContent from '../components/ProfileContent';
+import IntegrationsContent from '../components/IntegrationsContent';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
 import { Toaster } from '@/components/ui/sonner';
@@ -1854,24 +1855,24 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         signOut={signOut}
         showPageDropdown={showPageDropdown}
         setShowPageDropdown={setShowPageDropdown}
-        currentPage={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' ? undefined : currentPage}
-        currentPageId={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' ? null : currentPageId}
-        pages={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' ? [] : pages}
-        setCurrentPageId={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' ? () => {} : setCurrentPageId}
-        isSaving={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? false : isCurrentlySaving}
-        hasUnsavedChanges={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? false : hasUnsavedChanges}
-        lastSaved={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? null : lastSaved}
-        isPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? false : isPublishing}
-        setIsPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? () => {} : setIsPublishing}
-        saveImmediately={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? async () => {} : saveImmediately}
-        activeTab={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? 'pages' : activeTab}
+        currentPage={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? undefined : currentPage}
+        currentPageId={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? null : currentPageId}
+        pages={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? [] : pages}
+        setCurrentPageId={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? () => {} : setCurrentPageId}
+        isSaving={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? false : isCurrentlySaving}
+        hasUnsavedChanges={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? false : hasUnsavedChanges}
+        lastSaved={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? null : lastSaved}
+        isPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? false : isPublishing}
+        setIsPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? () => {} : setIsPublishing}
+        saveImmediately={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? async () => {} : saveImmediately}
+        activeTab={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? 'pages' : activeTab}
         onExitComponentEditMode={handleExitComponentEditMode}
-        publishCount={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? 0 : publishCount}
-        onPublishSuccess={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? () => {} : () => {
+        publishCount={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? 0 : publishCount}
+        onPublishSuccess={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? () => {} : () => {
           loadPublishCounts();
           // No need to reload pages - publish already updates store state
         }}
-        isSettingsRoute={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms'}
+        isSettingsRoute={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations'}
       />
 
       {/* Main Content Area */}
@@ -1885,6 +1886,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           <ProfileContent>{children}</ProfileContent>
         ) : routeType === 'forms' ? (
           <>{children}</>
+        ) : routeType === 'integrations' ? (
+          <IntegrationsContent>{children}</IntegrationsContent>
         ) : (
           <>
             {/* Left Sidebar - Pages & Layers (hidden in preview mode and CMS) */}
@@ -1986,7 +1989,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     )}
 
     {/* Collaboration: Realtime Cursors - scoped to context (tab + page/collection/component) */}
-    {user && cursorRoomName && routeType !== 'settings' && routeType !== 'localization' && routeType !== 'profile' && (
+    {user && cursorRoomName && routeType !== 'settings' && routeType !== 'localization' && routeType !== 'profile' && routeType !== 'integrations' && (
       <Suspense fallback={null}>
         <RealtimeCursors
           roomName={cursorRoomName}
