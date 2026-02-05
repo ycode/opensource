@@ -1021,6 +1021,7 @@ export async function getUnpublishedPages(): Promise<Page[]> {
       .select(`
         id,
         content_hash,
+        page_folder_id,
         page_layers!inner(content_hash)
       `)
       .eq('id', draftPage.id)
@@ -1048,8 +1049,11 @@ export async function getUnpublishedPages(): Promise<Page[]> {
         ? draftPage.page_layers[0].content_hash !== publishedPageWithLayers.page_layers[0].content_hash
         : false; // If either is null, consider them the same (no change)
 
-    // If either changed, needs republishing
-    if (pageMetadataChanged || layersChanged) {
+    // Check if page was moved to a different folder
+    const folderChanged = draftPage.page_folder_id !== publishedPageWithLayers.page_folder_id;
+
+    // If any of these changed, needs republishing
+    if (pageMetadataChanged || layersChanged || folderChanged) {
       unpublishedPages.push(draftPage);
     }
   }

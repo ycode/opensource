@@ -33,15 +33,16 @@ export const LayerLockIndicator: React.FC<LayerLockIndicatorProps> = ({
   // Use owner's color or default to a visible red
   const userColor = ownerUser?.color || '#ef4444';
 
+  // Use span instead of div to allow nesting inside p, h1-h6, etc.
   return (
     <>
       {/* Semi-transparent overlay */}
       {showOverlay && (
-        <div className="absolute inset-0 bg-black/10 pointer-events-none z-40 rounded" />
+        <span className="absolute inset-0 block bg-black/10 pointer-events-none z-40 rounded" />
       )}
       
       {/* Lock badge in corner */}
-      <div className={`absolute top-1 right-1 z-50 ${className}`}>
+      <span className={`absolute top-1 right-1 z-50 block ${className}`}>
         <CollaboratorBadge
           collaborator={{
             userId: lock?.user_id || '',
@@ -51,12 +52,12 @@ export const LayerLockIndicator: React.FC<LayerLockIndicatorProps> = ({
           size="sm"
           tooltipPrefix="Editing by"
         />
-      </div>
+      </span>
       
       {/* Colored border overlay */}
       {showBorder && (
-        <div 
-          className="absolute inset-0 pointer-events-none z-40 rounded"
+        <span
+          className="absolute inset-0 block pointer-events-none z-40 rounded"
           style={{ 
             boxShadow: `inset 0 0 0 2px ${userColor}`,
           }}

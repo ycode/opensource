@@ -85,6 +85,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
@@ -567,6 +568,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const toggleSuperscript = useCanvasTextEditorStore((state) => state.toggleSuperscript);
   const toggleBulletList = useCanvasTextEditorStore((state) => state.toggleBulletList);
   const toggleOrderedList = useCanvasTextEditorStore((state) => state.toggleOrderedList);
+  const setHeading = useCanvasTextEditorStore((state) => state.setHeading);
   const focusEditor = useCanvasTextEditorStore((state) => state.focusEditor);
   const requestFinishEditing = useCanvasTextEditorStore((state) => state.requestFinish);
   const addFieldVariable = useCanvasTextEditorStore((state) => state.addFieldVariable);
@@ -1934,230 +1936,239 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
       {/* Text Editor Toolbar - shown when editing text */}
       {isTextEditing && !isPreviewMode && (
-        <div className="absolute top-0 h-16.25 left-0 right-0 z-50 flex items-center justify-center gap-1 px-4 bg-background border-b">
-          <div className="flex items-center justify-center gap-0.5 bg-input p-1 rounded-lg">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn('size-6!', textEditorActiveMarks.bold && 'bg-accent')}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggleBold();
-                  }}
-                >
-                  <Icon name="bold" className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bold (⌘B)</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn('size-6!', textEditorActiveMarks.italic && 'bg-accent')}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggleItalic();
-                  }}
-                >
-                  <Icon name="italic" className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Italic (⌘I)</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn('size-6!', textEditorActiveMarks.underline && 'bg-accent')}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggleUnderline();
-                  }}
-                >
-                  <Icon name="underline" className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Underline (⌘U)</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn('size-6!', textEditorActiveMarks.strike && 'bg-accent')}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggleStrike();
-                  }}
-                >
-                  <Icon name="strikethrough" className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Strikethrough</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn('size-6!', textEditorActiveMarks.superscript && 'bg-accent')}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggleSuperscript();
-                  }}
-                >
-                  <Icon name="superscript" className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Superscript</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn('size-6!', textEditorActiveMarks.subscript && 'bg-accent')}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggleSubscript();
-                  }}
-                >
-                  <Icon name="subscript" className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Subscript</TooltipContent>
-            </Tooltip>
-
-            <div className="h-5 shrink-0 flex items-center justify-center">
-              <Separator orientation="vertical" className="mx-1 bg-secondary" />
-            </div>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn('size-6!', textEditorActiveMarks.bulletList && 'bg-accent')}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggleBulletList();
-                  }}
-                >
-                  <Icon name="listUnordered" className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bullet List</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn('size-6!', textEditorActiveMarks.orderedList && 'bg-accent')}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    toggleOrderedList();
-                  }}
-                >
-                  <Icon name="listOrdered" className="size-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Numbered List</TooltipContent>
-            </Tooltip>
-
-            {/* Link Button */}
-            {textEditor && (() => {
-              // Find the current layer being edited
-              let editingLayer: Layer | null = null;
-              let layersToSearch: Layer[] = [];
-              if (editingLayerId) {
-                if (editingComponentId) {
-                  layersToSearch = componentDrafts[editingComponentId] || [];
-                } else if (currentPageId) {
-                  const draft = draftsByPageId[currentPageId];
-                  layersToSearch = draft ? draft.layers : [];
-                }
-                editingLayer = findLayerById(layersToSearch, editingLayerId);
+        <div className="absolute top-0 h-16.25 left-0 right-0 z-50 flex items-center justify-center gap-2 px-4 bg-background border-b">
+          {/* Heading/Paragraph Dropdown */}
+          <Select
+            value={
+              textEditorActiveMarks.headingLevel
+                ? `h${textEditorActiveMarks.headingLevel}`
+                : 'paragraph'
+            }
+            onValueChange={(value) => {
+              if (value === 'paragraph') {
+                setHeading(null);
+              } else {
+                const level = parseInt(value.replace('h', '')) as 1 | 2 | 3 | 4 | 5 | 6;
+                setHeading(level);
               }
+            }}
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="paragraph">Paragraph</SelectItem>
+              <SelectItem value="h1">Heading 1</SelectItem>
+              <SelectItem value="h2">Heading 2</SelectItem>
+              <SelectItem value="h3">Heading 3</SelectItem>
+              <SelectItem value="h4">Heading 4</SelectItem>
+              <SelectItem value="h5">Heading 5</SelectItem>
+              <SelectItem value="h6">Heading 6</SelectItem>
+            </SelectContent>
+          </Select>
 
-              // Check if layer can have rich text links
-              const { canHaveLinks } = editingLayer
-                ? canLayerHaveLink(editingLayer, layersToSearch, 'richText')
-                : { canHaveLinks: true };
+          {/* Link Button */}
+          {textEditor && (() => {
+            // Find the current layer being edited
+            let editingLayer: Layer | null = null;
+            let layersToSearch: Layer[] = [];
+            if (editingLayerId) {
+              if (editingComponentId) {
+                layersToSearch = componentDrafts[editingComponentId] || [];
+              } else if (currentPageId) {
+                const draft = draftsByPageId[currentPageId];
+                layersToSearch = draft ? draft.layers : [];
+              }
+              editingLayer = findLayerById(layersToSearch, editingLayerId);
+            }
 
-              return (
-                <>
-                  <div className="h-5 shrink-0 flex items-center justify-center">
-                    <Separator orientation="vertical" className="mx-1 bg-secondary" />
-                  </div>
-                  {canHaveLinks ? (
-                    <RichTextLinkPopover
-                      editor={textEditor}
-                      fieldGroups={fieldGroups}
-                      allFields={collectionFieldsFromStore}
-                      collections={collectionsFromStore}
-                      isInsideCollectionLayer={!!editingLayerParentCollection}
-                      layer={editingLayer}
-                      open={textEditorLinkPopoverOpen}
-                      onOpenChange={setTextEditorLinkPopoverOpen}
-                      disabled={false}
-                      trigger={
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className={cn('size-6!', textEditorActiveMarks.richTextLink && 'bg-accent')}
-                        >
-                          <Icon name="link" className="size-3" />
-                        </Button>
-                      }
-                    />
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="size-6!"
-                          disabled={true}
-                        >
-                          <Icon name="link" className="size-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Links cannot be nested</TooltipContent>
-                    </Tooltip>
-                  )}
-                </>
-              );
-            })()}
+            // Check if layer can have rich text links
+            const { canHaveLinks } = editingLayer
+              ? canLayerHaveLink(editingLayer, layersToSearch, 'richText')
+              : { canHaveLinks: true };
 
-            {/* Inline Variable Button - matches RichTextEditor behavior */}
-            <div className="h-5 shrink-0 flex items-center justify-center">
-              <Separator orientation="vertical" className="mx-1 bg-secondary" />
-            </div>
-            {hasFieldsMatching(fieldGroups, f => DISPLAYABLE_FIELD_TYPES.includes(f.type)) ? (
+            return canHaveLinks ? (
+              <ToggleGroup
+                type="single"
+                size="xs"
+                variant="secondary"
+                spacing={1}
+              >
+                <RichTextLinkPopover
+                  editor={textEditor}
+                  fieldGroups={fieldGroups}
+                  allFields={collectionFieldsFromStore}
+                  collections={collectionsFromStore}
+                  isInsideCollectionLayer={!!editingLayerParentCollection}
+                  layer={editingLayer}
+                  open={textEditorLinkPopoverOpen}
+                  onOpenChange={setTextEditorLinkPopoverOpen}
+                  disabled={false}
+                  trigger={
+                    <ToggleGroupItem
+                      value="link"
+                      data-state={textEditorActiveMarks.richTextLink ? 'on' : 'off'}
+                      asChild
+                    >
+                      <button
+                        type="button" title="Link"
+                        className="w-auto min-w-0 shrink-0"
+                      >
+                        <Icon name="link" className="size-3" />
+                      </button>
+                    </ToggleGroupItem>
+                  }
+                />
+              </ToggleGroup>
+            ) : (
+              <ToggleGroup
+                type="single" size="xs"
+                variant="secondary" spacing={1}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="link" disabled
+                      asChild
+                    >
+                      <button type="button" className="w-auto min-w-0 shrink-0">
+                        <Icon name="link" className="size-3" />
+                      </button>
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Links cannot be nested</TooltipContent>
+                </Tooltip>
+              </ToggleGroup>
+            );
+          })()}
+
+          {/* Text formatting */}
+          <ToggleGroup
+            type="multiple"
+            size="xs"
+            variant="secondary"
+            spacing={1}
+          >
+            <ToggleGroupItem
+              value="bold"
+              data-state={textEditorActiveMarks.bold ? 'on' : 'off'}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleBold();
+              }}
+              title="Bold (⌘B)"
+            >
+              <Icon name="bold" className="size-3" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="italic"
+              data-state={textEditorActiveMarks.italic ? 'on' : 'off'}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleItalic();
+              }}
+              title="Italic (⌘I)"
+            >
+              <Icon name="italic" className="size-3" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="underline"
+              data-state={textEditorActiveMarks.underline ? 'on' : 'off'}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleUnderline();
+              }}
+              title="Underline (⌘U)"
+            >
+              <Icon name="underline" className="size-3" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="strike"
+              data-state={textEditorActiveMarks.strike ? 'on' : 'off'}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleStrike();
+              }}
+              title="Strikethrough"
+            >
+              <Icon name="strikethrough" className="size-3" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="superscript"
+              data-state={textEditorActiveMarks.superscript ? 'on' : 'off'}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleSuperscript();
+              }}
+              title="Superscript"
+            >
+              <Icon name="superscript" className="size-3" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="subscript"
+              data-state={textEditorActiveMarks.subscript ? 'on' : 'off'}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleSubscript();
+              }}
+              title="Subscript"
+            >
+              <Icon name="subscript" className="size-3" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {/* Lists */}
+          <ToggleGroup
+            type="multiple"
+            size="xs"
+            variant="secondary"
+            spacing={1}
+          >
+            <ToggleGroupItem
+              value="bulletList"
+              data-state={textEditorActiveMarks.bulletList ? 'on' : 'off'}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleBulletList();
+              }}
+              title="Bullet List"
+            >
+              <Icon name="listUnordered" className="size-3" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="orderedList"
+              data-state={textEditorActiveMarks.orderedList ? 'on' : 'off'}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleOrderedList();
+              }}
+              title="Numbered List"
+            >
+              <Icon name="listOrdered" className="size-3" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {/* Inline Variable Button */}
+          {hasFieldsMatching(fieldGroups, f => DISPLAYABLE_FIELD_TYPES.includes(f.type)) && (
+            <ToggleGroup
+              type="single"
+              size="xs"
+              variant="secondary"
+              spacing={1}
+            >
               <DropdownMenu
                 open={textEditorVariableDropdownOpen}
                 onOpenChange={setTextEditorVariableDropdownOpen}
               >
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="size-6!"
-                  >
-                    <Icon name="database" className="size-3" />
-                  </Button>
+                  <ToggleGroupItem value="variable" asChild>
+                    <button
+                      type="button" title="Insert Variable"
+                      className="w-auto min-w-0 shrink-0"
+                    >
+                      <Icon name="database" className="size-3" />
+                    </button>
+                  </ToggleGroupItem>
                 </DropdownMenuTrigger>
 
                 {fieldGroups && (
@@ -2192,24 +2203,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   </DropdownMenuContent>
                 )}
               </DropdownMenu>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="size-6!"
-                    disabled={true}
-                  >
-                    <Icon name="database" className="size-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>No variables available</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-
-          {/*<div className="flex-1" />*/}
+            </ToggleGroup>
+          )}
 
           {/*<span className="text-xs text-muted-foreground mr-0.5">*/}
           {/*  Press <kbd className="mx-0.5 px-1.5 py-0.75 bg-secondary rounded text-[10px] text-foreground">ESC</kbd> to*/}

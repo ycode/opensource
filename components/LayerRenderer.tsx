@@ -12,6 +12,7 @@ import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Brea
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
+import { resolveFieldFromSources } from '@/lib/cms-variables-utils';
 import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable } from '@/lib/variable-utils';
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
 import { isValidLinkSettings } from '@/lib/link-utils';
@@ -20,7 +21,7 @@ import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
-import { renderRichText, hasBlockElements, type RichTextLinkContext } from '@/lib/text-format-utils';
+import { renderRichText, hasBlockElements, DEFAULT_TEXT_STYLES, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -420,10 +421,10 @@ const LayerItem: React.FC<{
   // Check if locked by another user (only compute when lock exists)
   const isLockedByOther = !!(lock && lock.user_id !== currentUserId && Date.now() <= lock.expires_at);
   const classesString = getClassesString(layer);
-  // Keep collection layer data and page data separate for different link contexts
-  // Use layer's _collectionItemId if present (from server-resolved collection layers)
-  const effectiveCollectionItemId = layer._collectionItemId || collectionItemId;
-  const effectiveCollectionItemData = layer._collectionItemValues || collectionItemData;
+  // Collection layer data (from repeaters/loops) - separate from page collection data
+  // Use layer's pre-resolved values if present (from SSR), otherwise use prop from parent
+  const collectionLayerItemId = layer._collectionItemId || collectionItemId;
+  const collectionLayerData = layer._collectionItemValues || collectionItemData;
   const getAssetFromStore = useAssetsStore((state) => state.getAsset);
   const assetsById = useAssetsStore((state) => state.assetsById);
   const timezone = useSettingsStore((state) => state.settingsByKey.timezone as string | null) ?? 'UTC';
@@ -557,7 +558,7 @@ const LayerItem: React.FC<{
         pages,
         folders,
         collectionItemSlugs,
-        collectionItemId: effectiveCollectionItemId,
+        collectionItemId: collectionLayerItemId,
         pageCollectionItemId,
         isPreview,
         locale: currentLocale,
@@ -582,7 +583,7 @@ const LayerItem: React.FC<{
       if (valueToRender !== undefined) {
         // Value is typed as ComponentVariableValue - check if it's a text variable (has 'type' property)
         if ('type' in valueToRender && valueToRender.type === 'dynamic_rich_text') {
-          return renderRichText(valueToRender as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone);
+          return renderRichText(valueToRender as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone);
         }
         if ('type' in valueToRender && valueToRender.type === 'dynamic_text') {
           return (valueToRender as any).data.content;
@@ -597,7 +598,7 @@ const LayerItem: React.FC<{
     if (textVariable?.type === 'dynamic_rich_text') {
       // Render rich text with formatting (bold, italic, etc.) and inline variables
       // In edit mode, adds data-style attributes for style selection
-      return renderRichText(textVariable as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone);
+      return renderRichText(textVariable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
@@ -605,7 +606,7 @@ const LayerItem: React.FC<{
       const content = textVariable.data.content;
       if (content.includes('<ycode-inline-variable>')) {
         // Resolve inline variables with timezone-aware date formatting
-        return resolveInlineVariablesFromData(content, effectiveCollectionItemData, pageCollectionItemData ?? undefined, timezone);
+        return resolveInlineVariablesFromData(content, collectionLayerData, pageCollectionItemData ?? undefined, timezone);
       }
       // No inline variables, return plain content
       return content;
@@ -656,8 +657,8 @@ const LayerItem: React.FC<{
   const imageUrl = getImageUrlFromVariable(
     imageVariable,
     getAsset,
-    resolveFieldValue,
-    effectiveCollectionItemData
+    collectionLayerData,
+    pageCollectionItemData
   );
 
   // Get image alt text and apply translation if available
@@ -699,12 +700,12 @@ const LayerItem: React.FC<{
   // Single reference: get the one referenced item (no loop, just context)
   // Multi-reference: filter to items in the array (loops through all)
   const collectionItems = React.useMemo(() => {
-    if (!sourceFieldId || !effectiveCollectionItemData) {
+    if (!sourceFieldId) {
       return allCollectionItems;
     }
 
-    // Get the reference field value from parent item
-    const refValue = effectiveCollectionItemData[sourceFieldId];
+    // Get the reference field value using source-aware resolution
+    const refValue = resolveFieldFromSources(sourceFieldId, undefined, collectionLayerData, pageCollectionItemData);
     if (!refValue) return [];
 
     // Handle single reference: value is just an item ID string
@@ -724,7 +725,7 @@ const LayerItem: React.FC<{
     } catch {
       return [];
     }
-  }, [allCollectionItems, sourceFieldId, sourceFieldType, effectiveCollectionItemData]);
+  }, [allCollectionItems, sourceFieldId, sourceFieldType, collectionLayerData, pageCollectionItemData]);
 
   useEffect(() => {
     if (!isEditMode) return;
@@ -864,8 +865,14 @@ const LayerItem: React.FC<{
 
   // Build className with editor states if in edit mode
   // Use cn() for cleaner conditional class handling and automatic conflict resolution
+  // When layer tag is p and has text, add paragraph default classes (block, margin) so the wrapper displays correctly
+  const paragraphClasses = htmlTag === 'p' && layer.variables?.text
+    ? (layer.textStyles?.paragraph?.classes ?? DEFAULT_TEXT_STYLES.paragraph?.classes ?? '')
+    : '';
+
   const fullClassName = isEditMode ? cn(
     classesString,
+    paragraphClasses,
     enableDragDrop && !isEditing && !isLockedByOther && 'cursor-default',
     // Selection/hover outlines are now rendered by SelectionOverlay component (outside iframe)
     isDragging && 'opacity-30',
@@ -873,7 +880,7 @@ const LayerItem: React.FC<{
     isLockedByOther && 'opacity-90 pointer-events-none select-none',
     // Add ycode-layer class for editor styling
     'ycode-layer'
-  ) : classesString;
+  ) : cn(classesString, paragraphClasses);
 
   // Check if layer should be hidden (hide completely in both edit mode and public pages)
   if (layer.settings?.hidden) {
@@ -896,7 +903,8 @@ const LayerItem: React.FC<{
     });
 
     const isVisible = evaluateVisibility(conditionalVisibility, {
-      collectionItemData: effectiveCollectionItemData,
+      collectionLayerData,
+      pageCollectionData: pageCollectionItemData,
       pageCollectionCounts,
     });
     if (!isVisible) {
@@ -923,8 +931,8 @@ const LayerItem: React.FC<{
           activeLayerId={activeLayerId}
           projected={projected}
           pageId={pageId}
-          collectionItemData={effectiveCollectionItemData}
-          collectionItemId={effectiveCollectionItemId}
+          collectionItemData={collectionLayerData}
+          collectionItemId={collectionLayerItemId}
           pageCollectionItemId={pageCollectionItemId}
           pageCollectionItemData={pageCollectionItemData}
           hiddenLayerInfo={hiddenLayerInfo}
@@ -1345,7 +1353,7 @@ const LayerItem: React.FC<{
             iconHtml = asset?.content || '';
           }
         } else if (isFieldVariable(iconSrc)) {
-          const resolvedValue = resolveFieldValue(iconSrc, effectiveCollectionItemData);
+          const resolvedValue = resolveFieldValue(iconSrc, collectionLayerData, pageCollectionItemData);
           if (resolvedValue && typeof resolvedValue === 'string') {
             // Try to get as asset first (field contains asset ID)
             const asset = assetsById[resolvedValue] || getAsset(resolvedValue);
@@ -1399,7 +1407,7 @@ const LayerItem: React.FC<{
         if (videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
           const rawVideoId = videoSrc.data.video_id || '';
           // Resolve inline variables in video ID (supports CMS binding)
-          const videoId = resolveInlineVariablesFromData(rawVideoId, effectiveCollectionItemData, pageCollectionItemData, timezone);
+          const videoId = resolveInlineVariablesFromData(rawVideoId, collectionLayerData, pageCollectionItemData, timezone);
           // Use normalized attributes for consistency (already handles string/boolean conversion)
           const privacyMode = normalizedAttributes?.youtubePrivacyMode === true;
           const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
@@ -1496,8 +1504,8 @@ const LayerItem: React.FC<{
           return getVideoUrlFromVariable(
             videoVariable,
             getAsset,
-            resolveFieldValue,
-            effectiveCollectionItemData
+            collectionLayerData,
+            pageCollectionItemData
           );
         }
         if (htmlTag === 'audio' && layer.variables?.audio?.src) {
@@ -1524,8 +1532,8 @@ const LayerItem: React.FC<{
           return getVideoUrlFromVariable(
             audioVariable,
             getAsset,
-            resolveFieldValue,
-            effectiveCollectionItemData
+            collectionLayerData,
+            pageCollectionItemData
           );
         }
         return imageUrl || undefined;
@@ -1553,8 +1561,8 @@ const LayerItem: React.FC<{
           return getImageUrlFromVariable(
             posterVariable,
             getAsset,
-            resolveFieldValue,
-            effectiveCollectionItemData
+            collectionLayerData,
+            pageCollectionItemData
           );
         }
         return undefined;
@@ -1615,8 +1623,8 @@ const LayerItem: React.FC<{
               activeLayerId={activeLayerId}
               projected={projected}
               pageId={pageId}
-              collectionItemData={effectiveCollectionItemData}
-              collectionItemId={effectiveCollectionItemId}
+              collectionItemData={collectionLayerData}
+              collectionItemId={collectionLayerItemId}
               pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
               pages={pages}
@@ -1677,7 +1685,7 @@ const LayerItem: React.FC<{
             value={editorValue}
             onChange={handleEditorChange}
             onFinish={finishEditing}
-            collectionItemData={effectiveCollectionItemData}
+            collectionItemData={collectionLayerData}
             clickCoords={editingClickCoords}
           />
         </Tag>
@@ -1797,8 +1805,8 @@ const LayerItem: React.FC<{
               activeLayerId={activeLayerId}
               projected={projected}
               pageId={pageId}
-              collectionItemData={effectiveCollectionItemData}
-              collectionItemId={effectiveCollectionItemId}
+              collectionItemData={collectionLayerData}
+              collectionItemId={collectionLayerItemId}
               pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
               pages={pages}
@@ -1863,8 +1871,8 @@ const LayerItem: React.FC<{
             activeLayerId={activeLayerId}
             projected={projected}
             pageId={pageId}
-            collectionItemData={effectiveCollectionItemData}
-            collectionItemId={effectiveCollectionItemId}
+            collectionItemData={collectionLayerData}
+            collectionItemId={collectionLayerItemId}
             pageCollectionItemId={pageCollectionItemId}
             pageCollectionItemData={pageCollectionItemData}
             hiddenLayerInfo={hiddenLayerInfo}
@@ -1914,9 +1922,9 @@ const LayerItem: React.FC<{
       pages,
       folders,
       collectionItemSlugs,
-      collectionItemId: effectiveCollectionItemId,
+      collectionItemId: collectionLayerItemId,
       pageCollectionItemId,
-      collectionItemData: effectiveCollectionItemData,
+      collectionItemData: collectionLayerData,
       pageCollectionItemData: pageCollectionItemData || undefined,
       isPreview,
       locale: currentLocale,

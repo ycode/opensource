@@ -286,20 +286,28 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
 
   // Step 7: Publish folders using upsert
   const foldersToUpsert: any[] = [];
+  
+  // Track folders being published in this batch
+  const foldersBeingPublished = new Set<string>();
 
   for (const draftFolder of foldersToPublish) {
-    // Ensure parent folder is published
+    // Ensure parent folder is published or being published in this batch
     let publishedParentId: string | null = null;
     if (draftFolder.page_folder_id) {
-      const publishedParent = publishedFoldersById.get(draftFolder.page_folder_id);
-      if (!publishedParent) {
+      const parentIsPublished = publishedFoldersById.has(draftFolder.page_folder_id);
+      const parentIsInBatch = foldersBeingPublished.has(draftFolder.page_folder_id);
+      
+      if (!parentIsPublished && !parentIsInBatch) {
         console.warn(
           `Parent folder ${draftFolder.page_folder_id} is not published, skipping folder ${draftFolder.id}`
         );
         continue;
       }
-      publishedParentId = publishedParent.id;
+      // Use the same ID since published folders share the same ID as drafts
+      publishedParentId = draftFolder.page_folder_id;
     }
+    
+    foldersBeingPublished.add(draftFolder.id);
 
     foldersToUpsert.push({
       id: draftFolder.id,
@@ -327,23 +335,32 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
   const pagesToUpsert: any[] = [];
 
   for (const draftPage of validDraftPages) {
-    // Ensure parent folder is published
+    // Ensure parent folder is published or being published in this batch
     let publishedParentId: string | null = null;
     if (draftPage.page_folder_id) {
-      const publishedParent = publishedFoldersById.get(draftPage.page_folder_id);
-      if (!publishedParent) {
+      const parentIsPublished = publishedFoldersById.has(draftPage.page_folder_id);
+      const parentIsInBatch = foldersBeingPublished.has(draftPage.page_folder_id);
+      
+      if (!parentIsPublished && !parentIsInBatch) {
         console.warn(
           `Parent folder ${draftPage.page_folder_id} is not published, skipping page ${draftPage.id}`
         );
         continue;
       }
-      publishedParentId = publishedParent.id;
+      // Use the same ID since published folders share the same ID as drafts
+      publishedParentId = draftPage.page_folder_id;
     }
 
     const existingPublished = publishedPagesById.get(draftPage.id);
 
-    // Only include if new or content_hash changed
-    if (!existingPublished || existingPublished.content_hash !== draftPage.content_hash) {
+    // Check if page needs republishing:
+    // - New page (not published yet)
+    // - Content changed (content_hash differs)
+    // - Folder changed (page_folder_id differs - e.g. page moved to different folder)
+    const contentChanged = existingPublished?.content_hash !== draftPage.content_hash;
+    const folderChanged = existingPublished?.page_folder_id !== publishedParentId;
+    
+    if (!existingPublished || contentChanged || folderChanged) {
       pagesToUpsert.push({
         id: draftPage.id,
         name: draftPage.name,

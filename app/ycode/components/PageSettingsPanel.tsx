@@ -1384,17 +1384,17 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         <div className="flex items-center gap-3">
                           <FieldLabel>Slug</FieldLabel>
 
-                          {isErrorPage && (
-                            <FieldDescription>
-                              Error pages do not have a slug
-                            </FieldDescription>
-                          )}
+                          {/*{isErrorPage && (*/}
+                          {/*  <FieldDescription>*/}
+                          {/*    Error pages do not have a slug*/}
+                          {/*  </FieldDescription>*/}
+                          {/*)}*/}
 
-                          {isIndex && (
-                            <FieldDescription>
-                              {isOnRootFolder ? 'Homepages' : 'Index pages'} do not have a slug
-                            </FieldDescription>
-                          )}
+                          {/*{isIndex && (*/}
+                          {/*  <FieldDescription>*/}
+                          {/*    {isOnRootFolder ? 'Homepages' : 'Index pages'} do not have a slug*/}
+                          {/*  </FieldDescription>*/}
+                          {/*)}*/}
                         </div>
 
                         <Input

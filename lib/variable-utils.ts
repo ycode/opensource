@@ -10,6 +10,7 @@
 
 import type { AssetVariable, FieldVariable, DynamicTextVariable, DynamicRichTextVariable, StaticTextVariable, ComponentVariableValue } from '@/types';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
+import { resolveFieldFromSources } from '@/lib/cms-variables-utils';
 import { DEFAULT_ASSETS } from '@/lib/asset-constants';
 import { stringToTiptapContent } from '@/lib/text-format-utils';
 
@@ -205,20 +206,21 @@ export function getVariableStringValue(
 /**
  * Get image URL from image src variable
  * - AssetVariable -> gets asset URL from store
- * - FieldVariable -> resolves field value (requires collectionItemData and resolveFieldValue)
+ * - FieldVariable -> resolves field value using source-aware resolution (page or collection)
  * - DynamicTextVariable -> returns content as URL (resolves inline variables if collectionItemData provided)
  *
  * @param src - The image src variable (AssetVariable | FieldVariable | DynamicTextVariable)
  * @param getAsset - Function to get asset by ID (required for AssetVariable)
- * @param resolveFieldValue - Function to resolve field variable (required for FieldVariable)
- * @param collectionItemData - Collection item data for field resolution (required for FieldVariable and inline variables)
+ * @param collectionItemData - Collection layer item data for field resolution
+ * @param pageCollectionItemData - Page collection item data for dynamic pages
+ * @param useDefault - Whether to return default placeholder when asset_id is null
  * @returns Image URL string or undefined
  */
 export function getImageUrlFromVariable(
   src: AssetVariable | FieldVariable | DynamicTextVariable | undefined | null,
   getAsset?: (id: string) => { public_url: string | null; content?: string | null } | null,
-  resolveFieldValue?: (variable: FieldVariable, collectionItemData?: Record<string, string>) => string | undefined,
   collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string> | null,
   useDefault: boolean = true
 ): string | undefined {
   if (!src) return undefined;
@@ -245,8 +247,16 @@ export function getImageUrlFromVariable(
   }
 
   if (isFieldVariable(src)) {
-    if (!resolveFieldValue) return undefined;
-    const resolvedValue = resolveFieldValue(src, collectionItemData);
+    const fieldId = src.data.field_id;
+    if (!fieldId) return undefined;
+
+    // Use source-aware resolution (respects source: 'page' | 'collection')
+    const resolvedValue = resolveFieldFromSources(
+      fieldId,
+      src.data.source,
+      collectionItemData,
+      pageCollectionItemData
+    );
     if (!resolvedValue) return undefined;
 
     // The field value may be an asset ID - look up the asset to get the URL
@@ -270,7 +280,7 @@ export function getImageUrlFromVariable(
     const content = src.data.content;
     // Resolve inline variables if present
     if (content.includes('<ycode-inline-variable>')) {
-      return resolveInlineVariablesFromData(content, collectionItemData);
+      return resolveInlineVariablesFromData(content, collectionItemData, pageCollectionItemData);
     }
     return content;
   }
@@ -281,21 +291,22 @@ export function getImageUrlFromVariable(
 /**
  * Get video URL from video src variable
  * - AssetVariable -> gets asset URL from store
- * - FieldVariable -> resolves field value (requires collectionItemData and resolveFieldValue)
+ * - FieldVariable -> resolves field value using source-aware resolution (page or collection)
  * - DynamicTextVariable -> returns content as URL (resolves inline variables if collectionItemData provided)
  * - VideoVariable -> returns undefined (YouTube videos are handled separately as iframes)
  *
  * @param src - The video src variable (AssetVariable | FieldVariable | DynamicTextVariable | VideoVariable)
  * @param getAsset - Function to get asset by ID (required for AssetVariable)
- * @param resolveFieldValue - Function to resolve field variable (required for FieldVariable)
- * @param collectionItemData - Collection item data for field resolution (required for FieldVariable and inline variables)
+ * @param collectionItemData - Collection layer item data for field resolution
+ * @param pageCollectionItemData - Page collection item data for dynamic pages
+ * @param useDefault - Whether to return default placeholder when asset_id is null
  * @returns Video URL string or undefined
  */
 export function getVideoUrlFromVariable(
   src: AssetVariable | FieldVariable | DynamicTextVariable | { type: 'video'; data: any } | undefined | null,
   getAsset?: (id: string) => { public_url: string | null } | null,
-  resolveFieldValue?: (variable: FieldVariable, collectionItemData?: Record<string, string>) => string | undefined,
   collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string> | null,
   useDefault: boolean = false
 ): string | undefined {
   if (!src) return undefined;
@@ -317,8 +328,16 @@ export function getVideoUrlFromVariable(
   }
 
   if (isFieldVariable(src)) {
-    if (!resolveFieldValue) return undefined;
-    const resolvedValue = resolveFieldValue(src, collectionItemData);
+    const fieldId = src.data.field_id;
+    if (!fieldId) return undefined;
+
+    // Use source-aware resolution (respects source: 'page' | 'collection')
+    const resolvedValue = resolveFieldFromSources(
+      fieldId,
+      src.data.source,
+      collectionItemData,
+      pageCollectionItemData
+    );
     if (!resolvedValue) return undefined;
 
     // The field value may be an asset ID - look up the asset to get the URL
@@ -338,7 +357,7 @@ export function getVideoUrlFromVariable(
     const content = src.data.content;
     // Resolve inline variables if present
     if (content.includes('<ycode-inline-variable>')) {
-      return resolveInlineVariablesFromData(content, collectionItemData);
+      return resolveInlineVariablesFromData(content, collectionItemData, pageCollectionItemData);
     }
     return content;
   }

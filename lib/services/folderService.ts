@@ -121,18 +121,32 @@ export async function publishFolders(
   const activeFolders = foldersToProcess.filter((f: PageFolder) => f.deleted_at === null);
   const softDeletedFolders = foldersToProcess.filter((f: PageFolder) => f.deleted_at !== null);
 
-  // Get existing published folders
+  // Get existing published folders (need full data to verify parent relationships)
   const folderIdsToCheck = foldersToProcess.map((f: PageFolder) => f.id);
+  
+  // Also get all parent folder IDs that we might need to reference
+  const parentFolderIds = new Set<string>();
+  foldersToProcess.forEach((f: PageFolder) => {
+    if (f.page_folder_id) {
+      parentFolderIds.add(f.page_folder_id);
+    }
+  });
+  
+  const allIdsToCheck = [...new Set([...folderIdsToCheck, ...parentFolderIds])];
+
+  // Fetch all published folders we need to reference
+  const { data: existingPublished } = await client
+    .from('page_folders')
+    .select('*')
+    .eq('is_published', true)
+    .in('id', allIdsToCheck);
+
+  const publishedFoldersById = new Map<string, PageFolder>(
+    (existingPublished || []).map((f: PageFolder) => [f.id, f])
+  );
+  const publishedIds = new Set(publishedFoldersById.keys());
 
   if (folderIdsToCheck.length > 0) {
-    const { data: existingPublished } = await client
-      .from('page_folders')
-      .select('id')
-      .eq('is_published', true)
-      .in('id', folderIdsToCheck);
-
-    const publishedIds = new Set((existingPublished || []).map((f: any) => f.id));
-
     // Soft-delete published versions of soft-deleted drafts
     const idsToSoftDelete = softDeletedFolders
       .filter((f: PageFolder) => publishedIds.has(f.id))
@@ -153,17 +167,54 @@ export async function publishFolders(
     (a: PageFolder, b: PageFolder) => (a.depth || 0) - (b.depth || 0)
   );
 
-  // Prepare folders to upsert
-  const foldersToUpsert = sortedFolders.map((folder: PageFolder) => ({
-    id: folder.id,
-    name: folder.name,
-    slug: folder.slug,
-    page_folder_id: folder.page_folder_id,
-    order: folder.order,
-    depth: folder.depth,
-    settings: folder.settings,
-    is_published: true,
-  }));
+  // Track folders being published in this batch
+  const foldersBeingPublished = new Set<string>();
+
+  // Prepare folders to upsert, resolving parent folder IDs to published versions
+  const foldersToUpsert: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    page_folder_id: string | null;
+    order: number | null;
+    depth: number;
+    settings: PageFolder['settings'];
+    is_published: boolean;
+  }> = [];
+
+  for (const folder of sortedFolders) {
+    let publishedParentId: string | null = null;
+    
+    if (folder.page_folder_id) {
+      // Check if parent is already published or being published in this batch
+      const parentIsPublished = publishedFoldersById.has(folder.page_folder_id);
+      const parentIsInBatch = foldersBeingPublished.has(folder.page_folder_id);
+      
+      if (!parentIsPublished && !parentIsInBatch) {
+        // Parent folder is not published and not in this batch - skip this folder
+        console.warn(
+          `Parent folder ${folder.page_folder_id} is not published, skipping folder ${folder.id}`
+        );
+        continue;
+      }
+      
+      // Use the same ID since published folders share the same ID as drafts
+      publishedParentId = folder.page_folder_id;
+    }
+    
+    foldersBeingPublished.add(folder.id);
+    
+    foldersToUpsert.push({
+      id: folder.id,
+      name: folder.name,
+      slug: folder.slug,
+      page_folder_id: publishedParentId,
+      order: folder.order,
+      depth: folder.depth,
+      settings: folder.settings,
+      is_published: true,
+    });
+  }
 
   if (foldersToUpsert.length === 0) {
     return { count: 0 };

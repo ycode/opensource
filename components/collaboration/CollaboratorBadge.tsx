@@ -1,6 +1,6 @@
 /**
  * CollaboratorBadge Component
- * 
+ *
  * Reusable badge showing a collaborator's initial in their assigned color.
  * Used for layer locks, collection item locks, and other collaboration features.
  */
@@ -40,26 +40,27 @@ export function CollaboratorBadge({
   className,
 }: CollaboratorBadgeProps) {
   const { email, displayName, color } = collaborator;
-  
+
   const userColor = color || '#ef4444';
-  const userInitial = displayName 
+  const userInitial = displayName
     ? getUserInitials(email, displayName).charAt(0).toUpperCase()
-    : email 
+    : email
       ? getUserInitials(email).charAt(0).toUpperCase()
       : '?';
   const userName = displayName || (email ? getDisplayName(email) : 'Another user');
 
+  // Use span to allow nesting inside p, h1-h6, etc.
   const badge = (
-    <div 
+    <span
       className={cn(
-        'flex items-center justify-center rounded-full text-white font-semibold cursor-default flex-shrink-0',
+        'inline-flex items-center justify-center rounded-full text-white font-semibold cursor-default shrink-0',
         sizeClasses[size],
         className
       )}
       style={{ backgroundColor: userColor }}
     >
       {userInitial}
-    </div>
+    </span>
   );
 
   if (!showTooltip) {

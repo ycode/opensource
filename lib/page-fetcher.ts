@@ -8,6 +8,7 @@ import { isFieldVariable, isAssetVariable, createDynamicTextVariable, createDyna
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveComponents } from '@/lib/resolve-components';
 import { extractInlineNodesFromRichText, isTiptapDoc } from '@/lib/tiptap-utils';
+import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 // Pagination context passed through to resolveCollectionLayers
 export interface PaginationContext {
@@ -1322,7 +1323,8 @@ export async function resolveCollectionLayers(
           if (collectionFilters?.groups?.length) {
             items = items.filter(item =>
               evaluateVisibility(collectionFilters, {
-                collectionItemData: item.values,
+                collectionLayerData: item.values,
+                pageCollectionData: null,
                 pageCollectionCounts: {},
               })
             );
@@ -1508,7 +1510,8 @@ export async function resolveCollectionLayers(
 
   // Third pass: Filter layers by conditional visibility
   // We need to compute collection counts first, then filter
-  const filteredResult = filterByVisibility(resultWithPagination, parentItemValues);
+  // parentItemValues is the page collection data for dynamic pages
+  const filteredResult = filterByVisibility(resultWithPagination, undefined, parentItemValues);
 
   return filteredResult;
 }
@@ -1547,26 +1550,32 @@ function computeCollectionCounts(layers: Layer[]): Record<string, number> {
 /**
  * Filter layers by conditional visibility rules
  * @param layers - Layer tree to filter
- * @param itemValues - Current collection item values for field conditions
+ * @param collectionLayerData - Current collection layer item values for field conditions
+ * @param pageCollectionData - Page collection data for dynamic pages
  * @returns Filtered layer tree with hidden layers removed
  */
 function filterByVisibility(
   layers: Layer[],
-  itemValues?: Record<string, string>
+  collectionLayerData?: Record<string, string>,
+  pageCollectionData?: Record<string, string> | null
 ): Layer[] {
   // First compute all collection counts
   const pageCollectionCounts = computeCollectionCounts(layers);
 
-  function filterLayer(layer: Layer, currentItemValues?: Record<string, string>): Layer | null {
+  function filterLayer(
+    layer: Layer,
+    currentCollectionLayerData?: Record<string, string>
+  ): Layer | null {
     // Use stored item values from cloned collection layers if available
     // This ensures children of collection items have access to the correct item values
-    const effectiveItemValues = layer._collectionItemValues || currentItemValues;
+    const effectiveCollectionLayerData = layer._collectionItemValues || currentCollectionLayerData;
 
     // Check conditional visibility
     const conditionalVisibility = layer.variables?.conditionalVisibility;
     if (conditionalVisibility && conditionalVisibility.groups?.length > 0) {
       const isVisible = evaluateVisibility(conditionalVisibility, {
-        collectionItemData: effectiveItemValues,
+        collectionLayerData: effectiveCollectionLayerData,
+        pageCollectionData,
         pageCollectionCounts,
       });
       if (!isVisible) {
@@ -1577,7 +1586,7 @@ function filterByVisibility(
     // Recursively filter children, passing down the effective item values
     if (layer.children) {
       const filteredChildren = layer.children
-        .map(child => filterLayer(child, effectiveItemValues))
+        .map(child => filterLayer(child, effectiveCollectionLayerData))
         .filter((child): child is Layer => child !== null);
 
       return {
@@ -1590,7 +1599,7 @@ function filterByVisibility(
   }
 
   return layers
-    .map(layer => filterLayer(layer, itemValues))
+    .map(layer => filterLayer(layer, collectionLayerData))
     .filter((layer): layer is Layer => layer !== null);
 }
 
@@ -2239,6 +2248,24 @@ function renderTiptapToHtml(content: any, textStyles?: Record<string, any>): str
               text = `<a href="${escapeHtml(mark.attrs.href)}"${target}${rel}${classAttr}>${text}</a>`;
             }
             break;
+          case 'dynamicStyle': {
+            // Handle dynamic styles (headings, paragraphs, custom styles)
+            const styleKeys: string[] = mark.attrs?.styleKeys || [];
+            // Backwards compatibility: single styleKey
+            if (styleKeys.length === 0 && mark.attrs?.styleKey) {
+              styleKeys.push(mark.attrs.styleKey);
+            }
+            // Merge layer textStyles with defaults
+            const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+            const classes = styleKeys
+              .map(k => mergedStyles[k]?.classes || '')
+              .filter(Boolean)
+              .join(' ');
+            if (classes) {
+              text = `<span class="${escapeHtml(classes)}">${text}</span>`;
+            }
+            break;
+          }
         }
       }
     }
@@ -2247,10 +2274,32 @@ function renderTiptapToHtml(content: any, textStyles?: Record<string, any>): str
 
   // Handle paragraph
   if (content.type === 'paragraph') {
+    const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+    const paragraphClass = mergedStyles?.paragraph?.classes || '';
     const innerHtml = content.content
       ? content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('')
       : '';
-    return innerHtml; // Return without <p> wrapper for inline text layers
+    // Wrap in span with paragraph styles for proper block display
+    if (paragraphClass) {
+      return `<span class="${escapeHtml(paragraphClass)}">${innerHtml}</span>`;
+    }
+    return innerHtml;
+  }
+
+  // Handle heading
+  if (content.type === 'heading') {
+    const level = content.attrs?.level || 1;
+    const styleKey = `h${level}`;
+    const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+    const headingClass = mergedStyles?.[styleKey]?.classes || '';
+    const innerHtml = content.content
+      ? content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('')
+      : '';
+    // Use span to avoid nesting issues (h1 inside p is invalid)
+    if (headingClass) {
+      return `<span class="${escapeHtml(headingClass)}">${innerHtml}</span>`;
+    }
+    return innerHtml;
   }
 
   // Handle doc (root)

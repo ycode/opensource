@@ -34,6 +34,8 @@ interface CanvasTextEditorState {
     richTextLink: boolean;
     /** Active dynamic style key (if any) */
     dynamicStyleKey: string | null;
+    /** Active heading level (1-6) or null if not in a heading */
+    headingLevel: 1 | 2 | 3 | 4 | 5 | 6 | null;
   };
 }
 
@@ -74,6 +76,8 @@ interface CanvasTextEditorActions {
   toggleBulletList: () => void;
   /** Toggle ordered list */
   toggleOrderedList: () => void;
+  /** Toggle heading level (1-6) or set to paragraph (null) */
+  setHeading: (level: 1 | 2 | 3 | 4 | 5 | 6 | null) => void;
   /** Toggle custom style formatting */
   toggleCustomStyle: () => void;
   /** Focus the editor */
@@ -108,6 +112,7 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     orderedList: false,
     richTextLink: false,
     dynamicStyleKey: null,
+    headingLevel: null,
   },
   onFinishCallback: null,
   onSaveCallback: null,
@@ -145,6 +150,7 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
         orderedList: false,
         richTextLink: false,
         dynamicStyleKey: null,
+        headingLevel: null,
       },
       onFinishCallback: null,
       onSaveCallback: null,
@@ -187,6 +193,15 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
       dynamicStyleKey = styleKeys.length > 0 ? styleKeys[styleKeys.length - 1] : null;
     }
 
+    // Check for heading level
+    let headingLevel: 1 | 2 | 3 | 4 | 5 | 6 | null = null;
+    for (const level of [1, 2, 3, 4, 5, 6] as const) {
+      if (editor.isActive('heading', { level })) {
+        headingLevel = level;
+        break;
+      }
+    }
+
     const activeMarks = {
       bold: editor.isActive('bold'),
       italic: editor.isActive('italic'),
@@ -198,6 +213,7 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
       orderedList: editor.isActive('orderedList'),
       richTextLink: editor.isActive('richTextLink'),
       dynamicStyleKey,
+      headingLevel,
     };
 
     set({ activeMarks });
@@ -208,7 +224,7 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
 
     const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
 
-    // Determine which text style is active (prioritize dynamicStyle, then marks over lists)
+    // Determine which text style is active (prioritize dynamicStyle, then inline marks, then block styles)
     let textStyleKey: string | null = null;
     if (dynamicStyleKey) {
       textStyleKey = dynamicStyleKey;
@@ -224,6 +240,8 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
       textStyleKey = 'subscript';
     } else if (activeMarks.superscript) {
       textStyleKey = 'superscript';
+    } else if (headingLevel) {
+      textStyleKey = `h${headingLevel}`;
     } else if (activeMarks.bulletList) {
       textStyleKey = 'bulletList';
     } else if (activeMarks.orderedList) {
@@ -286,6 +304,17 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     const { editor } = get();
     if (!editor) return;
     editor.chain().focus().toggleOrderedList().run();
+    get().updateActiveMarks();
+  },
+
+  setHeading: (level) => {
+    const { editor } = get();
+    if (!editor) return;
+    if (level === null) {
+      editor.chain().focus().setParagraph().run();
+    } else {
+      editor.chain().focus().toggleHeading({ level }).run();
+    }
     get().updateActiveMarks();
   },
 

@@ -41,6 +41,72 @@ export function getTextStyleLabel(key: string, style?: TextStyle): string {
  * Used in text element templates and can be overridden per layer
  */
 export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
+  // Heading styles (h1-h6) - matching RichTextEditor prose styles
+  h1: {
+    label: 'Heading 1',
+    classes: 'block text-3xl font-semibold mt-6 first:mt-0 mb-4',
+    design: {
+      layout: { display: 'block' },
+      typography: { fontSize: '3xl', fontWeight: 'semibold' },
+      spacing: { marginTop: '6', marginBottom: '4' },
+    },
+  },
+  h2: {
+    label: 'Heading 2',
+    classes: 'block text-2xl font-semibold mt-5 first:mt-0 mb-3',
+    design: {
+      layout: { display: 'block' },
+      typography: { fontSize: '2xl', fontWeight: 'semibold' },
+      spacing: { marginTop: '5', marginBottom: '3' },
+    },
+  },
+  h3: {
+    label: 'Heading 3',
+    classes: 'block text-xl font-semibold mt-4 first:mt-0 mb-2',
+    design: {
+      layout: { display: 'block' },
+      typography: { fontSize: 'xl', fontWeight: 'semibold' },
+      spacing: { marginTop: '4', marginBottom: '2' },
+    },
+  },
+  h4: {
+    label: 'Heading 4',
+    classes: 'block text-lg font-semibold mt-3 first:mt-0 mb-2',
+    design: {
+      layout: { display: 'block' },
+      typography: { fontSize: 'lg', fontWeight: 'semibold' },
+      spacing: { marginTop: '3', marginBottom: '2' },
+    },
+  },
+  h5: {
+    label: 'Heading 5',
+    classes: 'block text-base font-semibold mt-3 first:mt-0 mb-1',
+    design: {
+      layout: { display: 'block' },
+      typography: { fontSize: 'base', fontWeight: 'semibold' },
+      spacing: { marginTop: '3', marginBottom: '1' },
+    },
+  },
+  h6: {
+    label: 'Heading 6',
+    classes: 'block text-sm font-semibold mt-3 first:mt-0 mb-1',
+    design: {
+      layout: { display: 'block' },
+      typography: { fontSize: 'sm', fontWeight: 'semibold' },
+      spacing: { marginTop: '3', marginBottom: '1' },
+    },
+  },
+  // Paragraph style - block display with spacing and line height
+  paragraph: {
+    label: 'Paragraph',
+    classes: 'block mb-4 last:mb-0 leading-relaxed',
+    design: {
+      layout: { display: 'block' },
+      typography: { lineHeight: 'relaxed' },
+      spacing: { marginBottom: '4' },
+    },
+  },
+  // Inline formatting marks
   bold: {
     label: 'Bold',
     classes: 'font-bold',
@@ -329,11 +395,11 @@ function renderNestedRichTextContent(
   timezone: string = 'UTC'
 ): React.ReactNode[] {
   // richTextValue should be a Tiptap doc structure: { type: 'doc', content: [...] }
-  if (!richTextValue || typeof richTextValue !== 'object') {
+  if (!richTextValue) {
     return [];
   }
 
-  // If it's a string (legacy format), try to parse it
+  // Parse string to object if needed (published pages may store as JSON string)
   let parsed = richTextValue;
   if (typeof richTextValue === 'string') {
     try {
@@ -344,9 +410,93 @@ function renderNestedRichTextContent(
     }
   }
 
+  // After parsing, verify it's an object
+  if (typeof parsed !== 'object') {
+    return [];
+  }
+
   // Handle Tiptap doc structure
   if (parsed.type === 'doc' && Array.isArray(parsed.content)) {
-    // Extract all inline nodes from the nested content
+    // Check if content has block elements that need proper block rendering
+    // (headings, multiple paragraphs, lists)
+    const hasBlockStructure = parsed.content.length > 1 ||
+      parsed.content.some((block: any) =>
+        block.type === 'heading' ||
+        block.type === 'bulletList' ||
+        block.type === 'orderedList'
+      );
+
+    if (hasBlockStructure) {
+      // Render each block properly to preserve structure
+      // Use spans instead of p/h tags since we're inside another element
+      return parsed.content.map((block: any, blockIdx: number) => {
+        const blockKey = `${key}-block-${blockIdx}`;
+
+        if (block.type === 'heading') {
+          const level = block.attrs?.level || 1;
+          const styleKey = `h${level}`;
+          const headingClass = textStyles?.[styleKey]?.classes ??
+            DEFAULT_TEXT_STYLES[styleKey]?.classes ?? '';
+          const content = block.content
+            ? renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone)
+            : [];
+          const props: Record<string, any> = { key: blockKey, className: headingClass };
+          if (isEditMode) {
+            props['data-style'] = styleKey;
+          }
+          return React.createElement('span', props, ...content);
+        }
+
+        if (block.type === 'paragraph') {
+          const paragraphClass = textStyles?.paragraph?.classes ??
+            DEFAULT_TEXT_STYLES.paragraph?.classes ?? '';
+          const content = block.content
+            ? renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone)
+            : [];
+          const props: Record<string, any> = { key: blockKey, className: paragraphClass };
+          if (isEditMode) {
+            props['data-style'] = 'paragraph';
+          }
+          return React.createElement('span', props, ...content);
+        }
+
+        if (block.type === 'bulletList' || block.type === 'orderedList') {
+          const listClass = textStyles?.[block.type]?.classes ??
+            DEFAULT_TEXT_STYLES[block.type]?.classes ?? '';
+          const tag = block.type === 'bulletList' ? 'ul' : 'ol';
+          const listProps: Record<string, any> = { key: blockKey, className: listClass };
+          if (isEditMode) {
+            listProps['data-style'] = block.type;
+          }
+          const items = block.content?.map((item: any, itemIdx: number) => {
+            const itemClass = textStyles?.listItem?.classes ??
+              DEFAULT_TEXT_STYLES.listItem?.classes ?? '';
+            const itemContent = item.content?.flatMap((itemBlock: any) => {
+              if (itemBlock.type === 'paragraph' && itemBlock.content) {
+                return renderInlineContent(itemBlock.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+              }
+              return [];
+            }) || [];
+            const itemProps: Record<string, any> = { key: `${blockKey}-item-${itemIdx}`, className: itemClass };
+            if (isEditMode) {
+              itemProps['data-style'] = 'listItem';
+            }
+            return React.createElement('li', itemProps, ...itemContent);
+          }) || [];
+          return React.createElement(tag, listProps, ...items);
+        }
+
+        // Fallback: render inline content
+        if (block.content) {
+          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+          return React.createElement('span', { key: blockKey }, ...content);
+        }
+
+        return null;
+      }).filter(Boolean);
+    }
+
+    // Simple case: flatten to inline nodes
     const inlineNodes = extractInlineNodesFromRichText(parsed.content);
 
     if (inlineNodes.length === 0) {
@@ -400,17 +550,29 @@ function renderInlineContent(
       const { fieldType, rawValue } = getVariableNodeData(node, collectionItemData, pageCollectionItemData);
 
       // Handle rich_text fields - render nested Tiptap content
-      if (fieldType === 'rich_text' && rawValue && typeof rawValue === 'object') {
-        return renderNestedRichTextContent(
-          rawValue,
-          key,
-          collectionItemData,
-          pageCollectionItemData,
-          textStyles,
-          isEditMode,
-          linkContext,
-          timezone
-        );
+      if (fieldType === 'rich_text' && rawValue) {
+        // Parse JSON string if needed (published pages store as string)
+        let richTextValue: unknown = rawValue;
+        if (typeof rawValue === 'string') {
+          try {
+            richTextValue = JSON.parse(rawValue);
+          } catch {
+            // If parsing fails, fall through to text rendering
+            richTextValue = null;
+          }
+        }
+        if (richTextValue && typeof richTextValue === 'object') {
+          return renderNestedRichTextContent(
+            richTextValue,
+            key,
+            collectionItemData,
+            pageCollectionItemData,
+            textStyles,
+            isEditMode,
+            linkContext,
+            timezone
+          );
+        }
       }
 
       // For other field types, render as text
@@ -444,17 +606,37 @@ function renderBlock(
   const key = `block-${idx}`;
 
   if (block.type === 'paragraph') {
+    const paragraphClass = textStyles?.paragraph?.classes ?? DEFAULT_TEXT_STYLES.paragraph?.classes ?? '';
+
     if (!block.content || block.content.length === 0) {
       // Use span for empty paragraphs when in restrictive tags
       const tag = useSpanForParagraphs ? 'span' : 'p';
-      const attrs = useSpanForParagraphs ? { key, className: 'block' } : { key };
+      const attrs = useSpanForParagraphs ? { key, className: 'block' } : { key, className: paragraphClass };
       return React.createElement(tag, attrs, React.createElement('br'));
     }
     // Use span with block class when inside restrictive tags
     if (useSpanForParagraphs) {
-      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
+      return React.createElement('span', { key, className: paragraphClass || 'block' }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
     }
-    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
+    return React.createElement('p', { key, className: paragraphClass }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
+  }
+
+  if (block.type === 'heading') {
+    const level = block.attrs?.level as 1 | 2 | 3 | 4 | 5 | 6 || 1;
+    const styleKey = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+    const headingClass = textStyles?.[styleKey]?.classes ?? DEFAULT_TEXT_STYLES[styleKey]?.classes ?? '';
+    // Use span when inside restrictive tags (p, h1-h6, etc.) to avoid invalid HTML nesting
+    const tag = useSpanForParagraphs ? 'span' : styleKey;
+
+    if (!block.content || block.content.length === 0) {
+      return React.createElement(tag, { key, className: headingClass }, React.createElement('br'));
+    }
+
+    const headingProps: Record<string, any> = { key, className: headingClass };
+    if (isEditMode) {
+      headingProps['data-style'] = styleKey;
+    }
+    return React.createElement(tag, headingProps, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
   }
 
   if (block.type === 'bulletList') {
