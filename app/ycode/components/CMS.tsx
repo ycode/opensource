@@ -23,6 +23,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { useCollaborationPresenceStore, getResourceLockKey } from '@/stores/useCollaborationPresenceStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
@@ -105,7 +106,6 @@ interface ItemLockInfo {
 // Sortable row component for drag and drop
 interface SortableRowProps {
   item: CollectionItemWithValues;
-  isManualMode: boolean;
   isSaving?: boolean;
   children: React.ReactNode;
   onDuplicate: () => void;
@@ -113,7 +113,7 @@ interface SortableRowProps {
   lockInfo?: ItemLockInfo;
 }
 
-function SortableRow({ item, isManualMode, isSaving, children, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
+function SortableRow({ item, isSaving, children, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -121,7 +121,7 @@ function SortableRow({ item, isManualMode, isSaving, children, onDuplicate, onDe
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id, disabled: !isManualMode || isSaving });
+  } = useSortable({ id: item.id, disabled: isSaving });
 
   const isLockedByOther = lockInfo?.isLocked;
   const isDisabled = isLockedByOther || isSaving;
@@ -130,7 +130,7 @@ function SortableRow({ item, isManualMode, isSaving, children, onDuplicate, onDe
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : isDisabled ? 0.6 : 1,
-    cursor: isManualMode ? 'grab' : isDisabled ? 'not-allowed' : 'pointer',
+    cursor: isDisabled ? 'not-allowed' : 'grab',
   };
 
   return (
@@ -143,7 +143,7 @@ function SortableRow({ item, isManualMode, isSaving, children, onDuplicate, onDe
         ref={setNodeRef}
         style={style}
         {...attributes}
-        {...(isManualMode && !isSaving ? listeners : {})}
+        {...(!isSaving ? listeners : {})}
         onContextMenu={isSaving ? (e) => e.preventDefault() : undefined}
         className={`group border-b hover:bg-secondary/50 transition-colors ${isDisabled ? 'bg-secondary/30' : ''}`}
       >
@@ -355,6 +355,7 @@ const CMS = React.memo(function CMS() {
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
   const timezone = useSettingsStore((state) => state.settingsByKey.timezone as string | null) ?? 'UTC';
+  const refetchLayersForCollection = useCollectionLayerStore((state) => state.refetchLayersForCollection);
 
   const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem, navigateToCollections } = useEditorUrl();
 
@@ -391,6 +392,10 @@ const CMS = React.memo(function CMS() {
   const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
   const [deleteCollectionDialogOpen, setDeleteCollectionDialogOpen] = useState(false);
   const [deleteCollectionId, setDeleteCollectionId] = useState<string | null>(null);
+
+  // Manual order switch dialog state
+  const [switchToManualDialogOpen, setSwitchToManualDialogOpen] = useState(false);
+  const [pendingDragEvent, setPendingDragEvent] = useState<DragEndEvent | null>(null);
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
@@ -892,14 +897,12 @@ const CMS = React.memo(function CMS() {
     }
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  // Extracted reorder logic for use in both direct reorder and after dialog confirmation
+  const performReorder = async (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (!over || active.id === over.id || !selectedCollectionId) {
-      return;
-    }
+    if (!over || !selectedCollectionId) return;
 
-    // Find the indices of the dragged and target items
     const oldIndex = sortedItems.findIndex(item => item.id === active.id);
     const newIndex = sortedItems.findIndex(item => item.id === over.id);
 
@@ -920,9 +923,54 @@ const CMS = React.memo(function CMS() {
       await reorderItems(selectedCollectionId, updates);
       // Reset to page 1 after reordering to show the new order
       setCurrentPage(1);
+      // Refetch collection layers on the canvas to reflect new order
+      refetchLayersForCollection(selectedCollectionId);
     } catch (error) {
       console.error('Failed to reorder items:', error);
     }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id || !selectedCollectionId) {
+      return;
+    }
+
+    // If not in manual mode OR search is active, show confirmation dialog
+    if (!isManualMode || searchQuery) {
+      setPendingDragEvent(event);
+      setSwitchToManualDialogOpen(true);
+      return;
+    }
+
+    // Already in manual mode with no search - proceed with reorder
+    await performReorder(event);
+  };
+
+  // Handler for confirming switch to manual mode from dialog
+  const handleConfirmSwitchToManual = async () => {
+    if (!selectedCollectionId || !pendingDragEvent) return;
+
+    // Use the currently sorted field, or fall back to first visible field
+    const currentSortField = selectedCollection?.sorting?.field;
+    const fieldId = currentSortField || collectionFields.find(f => !f.hidden)?.id;
+    if (!fieldId) return;
+
+    // Switch to manual mode
+    await updateCollectionSorting(selectedCollectionId, {
+      field: fieldId,
+      direction: 'manual',
+    });
+
+    // Clear search query
+    setSearchQuery('');
+
+    // Perform the pending reorder
+    await performReorder(pendingDragEvent);
+
+    // Clear pending state
+    setPendingDragEvent(null);
   };
 
   const handleToggleItemSelection = (itemId: string) => {
@@ -1444,7 +1492,6 @@ const CMS = React.memo(function CMS() {
                   <SortableRow
                     key={item.id}
                     item={item}
-                    isManualMode={isManualMode}
                     isSaving={isTempId(item.id)}
                     onDuplicate={() => handleDuplicateItem(item.id)}
                     onDelete={() => handleDeleteItem(item.id)}
@@ -2005,6 +2052,18 @@ const CMS = React.memo(function CMS() {
         description="Are you sure you want to delete this collection? This action cannot be undone."
         confirmLabel="Delete"
         onConfirm={handleConfirmDeleteCollection}
+      />
+      <ConfirmDialog
+        open={switchToManualDialogOpen}
+        onOpenChange={(open) => {
+          setSwitchToManualDialogOpen(open);
+          if (!open) setPendingDragEvent(null);
+        }}
+        title="Switch to manual order"
+        description="You cannot manually order CMS items when they are sorted by a specific field or a search filter is applied. Do you want to switch to manual sorting and remove any search filter?"
+        confirmLabel="Switch to manual order"
+        confirmVariant="default"
+        onConfirm={handleConfirmSwitchToManual}
       />
       </div>
     </div>

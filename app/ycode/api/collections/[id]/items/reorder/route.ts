@@ -16,10 +16,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const collectionId = parseInt(id, 10);
+    const { id: collectionId } = await params;
     
-    if (isNaN(collectionId)) {
+    if (!collectionId) {
       return noCache({ error: 'Invalid collection ID' }, 400);
     }
     
@@ -36,8 +35,8 @@ export async function POST(
     
     // Validate updates format
     for (const update of updates) {
-      if (typeof update.id !== 'number' || typeof update.manual_order !== 'number') {
-        return noCache({ error: 'Each update must have id and manual_order as numbers' }, 400);
+      if (typeof update.id !== 'string' || typeof update.manual_order !== 'number') {
+        return noCache({ error: 'Each update must have id as string and manual_order as number' }, 400);
       }
     }
     
