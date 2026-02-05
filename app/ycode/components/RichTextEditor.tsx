@@ -408,10 +408,10 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
           'rich-text-editor',
           // Compact variant (default) - size-based text and padding
           !isFullVariant && size === 'xs' && 'min-h-[2rem] text-xs leading-5.5 px-2 py-1 rounded-lg',
-          !isFullVariant && size === 'sm' && 'min-h-[2.5rem] text-sm leading-6 px-3 py-1.5 rounded-xl',
+          !isFullVariant && size === 'sm' && 'min-h-[2.5rem] text-sm leading-6 px-3 py-1.5 rounded-lg',
           // Full variant - larger text, more padding, prose styles for headings
           isFullVariant && [
-            'min-h-[200px] leading-relaxed px-3 py-2.5 rounded-md',
+            'min-h-[200px] leading-relaxed px-3 py-2.5',
             'prose prose-sm dark:prose-invert max-w-none',
             '[&>*:first-child]:mt-0',
             '[&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h1]:mb-4',
