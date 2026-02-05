@@ -1,5 +1,6 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
 import { getSupabaseAdmin } from '../supabase-server';
+import { migrations } from '../migrations-loader';
 
 /**
  * Template Service
@@ -221,6 +222,76 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
 }
 
 /**
+ * Get migrations that need to be run for a template.
+ * Returns all migrations that come AFTER the template's lastMigration.
+ *
+ * @param templateLastMigration - The last migration the template was created with
+ * @returns Array of migrations to run
+ */
+function getPendingMigrationsForTemplate(
+  templateLastMigration: string | null | undefined
+): typeof migrations {
+  // If no lastMigration, return all migrations (template predates tracking)
+  if (!templateLastMigration) {
+    console.log('[getPendingMigrations] No lastMigration, will run all migrations');
+    return migrations;
+  }
+
+  // Find the index of the template's last migration
+  const templateIndex = migrations.findIndex(
+    (m) => m.name === templateLastMigration
+  );
+
+  if (templateIndex === -1) {
+    // Migration not found - could be a newer version or renamed
+    // Conservative approach: assume template is up-to-date
+    console.log(`[getPendingMigrations] Migration ${templateLastMigration} not found, assuming up-to-date`);
+    return [];
+  }
+
+  // Return all migrations AFTER the template's last migration
+  const pendingMigrations = migrations.slice(templateIndex + 1);
+  console.log(`[getPendingMigrations] Found ${pendingMigrations.length} pending migrations after ${templateLastMigration}`);
+  return pendingMigrations;
+}
+
+/**
+ * Run pending migrations for a template.
+ * This ensures template data is transformed to match the current schema.
+ *
+ * @param knex - Knex client
+ * @param templateLastMigration - The last migration the template was created with
+ */
+async function runPendingMigrationsForTemplate(
+  knex: Awaited<ReturnType<typeof getKnexClient>>,
+  templateLastMigration: string | null | undefined
+): Promise<void> {
+  const pendingMigrations = getPendingMigrationsForTemplate(templateLastMigration);
+
+  if (pendingMigrations.length === 0) {
+    console.log('[runPendingMigrations] No pending migrations to run');
+    return;
+  }
+
+  console.log(`[runPendingMigrations] Running ${pendingMigrations.length} pending migrations...`);
+
+  for (const migration of pendingMigrations) {
+    try {
+      console.log(`[runPendingMigrations] Running migration: ${migration.name}`);
+      await migration.up(knex);
+      console.log(`[runPendingMigrations] Completed migration: ${migration.name}`);
+    } catch (error) {
+      // Log the error but continue - migrations should be idempotent
+      // Schema changes (ADD COLUMN IF NOT EXISTS) will no-op
+      // Data changes should use WHERE clauses that are safe on new data
+      console.warn(`[runPendingMigrations] Migration ${migration.name} failed (may be expected for schema-only migrations):`, error);
+    }
+  }
+
+  console.log('[runPendingMigrations] Pending migrations complete');
+}
+
+/**
  * Apply a template to the database
  *
  * This will:
@@ -327,6 +398,12 @@ export async function applyTemplate(
     // won't roll back the template
     console.log('[applyTemplate] Copying template assets to user storage...');
     await copyTemplateAssetsToUserStorage(knex);
+
+    // 4. Run any pending migrations for this template
+    // This transforms template data to match the current schema
+    // (migrations should be idempotent - schema changes no-op, data changes use safe WHERE clauses)
+    console.log('[applyTemplate] Running pending migrations for template...');
+    await runPendingMigrationsForTemplate(knex, template.lastMigration);
 
     console.log('[applyTemplate] Template applied successfully');
 

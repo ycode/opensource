@@ -17,7 +17,7 @@ export const maxDuration = 120;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { templateId, templateName, description } = body;
+    const { templateId, templateName, description, email } = body;
 
     // Validate required fields
     if (!templateId || !templateName) {
@@ -42,7 +42,8 @@ export async function POST(request: NextRequest) {
     const result = await exportAndUploadTemplate(
       templateId,
       templateName,
-      description || ''
+      description || '',
+      email || ''
     );
 
     if (!result.success) {

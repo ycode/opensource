@@ -97,6 +97,8 @@ export interface TemplateManifest {
     components: number;
     collections: number;
   };
+  submitterEmail?: string;
+  lastMigration?: string;
 }
 
 export interface ExportResult {
@@ -190,6 +192,33 @@ function formatSqlValue(
 }
 
 /**
+ * Get the name of the latest migration that has been run.
+ * This is stored with the template so we can run any newer migrations
+ * when the template is applied.
+ */
+async function getLatestMigrationName(
+  knex: Awaited<ReturnType<typeof getKnexClient>>
+): Promise<string | null> {
+  try {
+    // Check if migrations table exists
+    const tableExists = await knex.schema.hasTable('migrations');
+    if (!tableExists) {
+      console.log('[getLatestMigrationName] migrations table does not exist');
+      return null;
+    }
+
+    const result = await knex('migrations')
+      .orderBy('migration_time', 'desc')
+      .first('name');
+
+    return result?.name || null;
+  } catch (error) {
+    console.error('[getLatestMigrationName] Failed:', error);
+    return null;
+  }
+}
+
+/**
  * Export the current database content as template SQL
  *
  * @param templateId - ID for the template (used in asset source)
@@ -199,7 +228,8 @@ function formatSqlValue(
 export async function exportTemplateSQL(
   templateId: string,
   templateName: string,
-  description = ''
+  description = '',
+  submitterEmail = ''
 ): Promise<ExportResult> {
   // Test database connection first
   const canConnect = await testKnexConnection();
@@ -354,6 +384,10 @@ export async function exportTemplateSQL(
       sqlStatements.push('');
     }
 
+    // Get the latest migration name for template versioning
+    const lastMigration = await getLatestMigrationName(knex);
+    console.log(`[exportTemplateSQL] Latest migration: ${lastMigration || 'none'}`);
+
     // Build manifest
     const manifest: TemplateManifest = {
       id: templateId,
@@ -365,6 +399,8 @@ export async function exportTemplateSQL(
         sqlStatements.some((s) => s.includes(`INSERT INTO ${t}`))
       ),
       stats,
+      submitterEmail: submitterEmail || undefined,
+      lastMigration: lastMigration || undefined,
     };
 
     return {
@@ -458,7 +494,8 @@ export async function collectTemplateAssets(): Promise<
 export async function exportAndUploadTemplate(
   templateId: string,
   templateName: string,
-  description = ''
+  description = '',
+  submitterEmail = ''
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // 1. Generate export
@@ -466,7 +503,8 @@ export async function exportAndUploadTemplate(
     const exportResult = await exportTemplateSQL(
       templateId,
       templateName,
-      description
+      description,
+      submitterEmail
     );
 
     if (!exportResult.success) {

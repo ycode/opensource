@@ -1262,6 +1262,7 @@ const debouncedValue = useDebounce(value, 500);
 - [ ] Run `npm run lint:fix` and `npm run type-check`?
 - [ ] Sanitize design property inputs with `removeSpaces`?
 - [ ] Use `useControlledInput` for input state management?
+- [ ] **Migrations are idempotent (safe to run multiple times)?**
 
 ---
 
@@ -1540,6 +1541,109 @@ z.string().refine((val) => val.startsWith('test'), {
 6. **Run linters before committing** - Catch issues early
 7. **Prefer composition over duplication** - DRY principle
 8. **Use TypeScript properly** - Types are documentation
+
+---
+
+## 🗃️ 24. Database Migrations (CRITICAL for Templates)
+
+### ALWAYS Write Idempotent Migrations
+
+Migrations MUST be safe to run multiple times. This is critical because:
+1. **Template System**: When applying templates, migrations run on freshly inserted template data
+2. **Schema already exists**: The database schema is already up-to-date when template migrations run
+3. **Data transformations**: Only the data parts actually execute on template data
+
+### Schema Changes: Use IF EXISTS / IF NOT EXISTS
+
+```typescript
+// ✅ CORRECT: Idempotent schema changes
+export async function up(knex: Knex): Promise<void> {
+  // Check before adding column
+  const hasColumn = await knex.schema.hasColumn('pages', 'new_field');
+  if (!hasColumn) {
+    await knex.schema.alterTable('pages', (table) => {
+      table.string('new_field').defaultTo('');
+    });
+  }
+}
+
+// ✅ CORRECT: Raw SQL with IF NOT EXISTS
+await knex.raw(`
+  ALTER TABLE pages 
+  ADD COLUMN IF NOT EXISTS new_field TEXT DEFAULT '';
+`);
+
+// ❌ WRONG: Will fail if column exists
+await knex.schema.alterTable('pages', (table) => {
+  table.string('new_field').defaultTo('');
+});
+```
+
+### Data Transformations: Use Safe WHERE Clauses
+
+```typescript
+// ✅ CORRECT: Only updates rows that need it
+await knex.raw(`
+  UPDATE pages 
+  SET slug = LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]+', '-', 'g'))
+  WHERE slug IS NULL OR slug = '';
+`);
+
+// ❌ WRONG: Overwrites all data on every run
+await knex('pages').update({ 
+  slug: knex.raw("LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]+', '-', 'g'))") 
+});
+```
+
+### Template-Affecting Tables
+
+These tables are exported/imported with templates - migrations affecting them MUST be idempotent:
+- `pages`, `page_folders`, `page_layers`
+- `components`
+- `collections`, `collection_fields`, `collection_items`, `collection_item_values`
+- `assets`, `asset_folders`
+- `layer_styles`
+- `locales`, `translations`
+
+### Migration Checklist
+
+- [ ] Schema changes use `IF NOT EXISTS` or check `hasColumn()`
+- [ ] Data updates use `WHERE` clauses that skip already-transformed rows
+- [ ] New NOT NULL columns have DEFAULT values
+- [ ] Migration can run twice without error
+- [ ] Migration can run on fresh template data
+
+### Full Example
+
+```typescript
+import { Knex } from 'knex';
+
+export async function up(knex: Knex): Promise<void> {
+  // 1. Add column (idempotent)
+  const hasColumn = await knex.schema.hasColumn('pages', 'seo_title');
+  if (!hasColumn) {
+    await knex.schema.alterTable('pages', (table) => {
+      table.string('seo_title').defaultTo('');
+    });
+  }
+
+  // 2. Transform data (idempotent - only empty values)
+  await knex.raw(`
+    UPDATE pages 
+    SET seo_title = LEFT(name, 60)
+    WHERE seo_title IS NULL OR seo_title = '';
+  `);
+}
+
+export async function down(knex: Knex): Promise<void> {
+  const hasColumn = await knex.schema.hasColumn('pages', 'seo_title');
+  if (hasColumn) {
+    await knex.schema.alterTable('pages', (table) => {
+      table.dropColumn('seo_title');
+    });
+  }
+}
+```
 
 ---
 

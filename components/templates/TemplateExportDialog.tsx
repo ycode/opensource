@@ -24,6 +24,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { generateId } from '@/lib/utils';
 import { Empty, EmptyMedia, EmptyDescription, EmptyTitle } from '../ui/empty';
 import Icon from '../ui/icon';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 interface TemplateExportDialogProps {
   open: boolean;
@@ -36,6 +37,7 @@ export function TemplateExportDialog({
   onOpenChange,
   onSuccess,
 }: TemplateExportDialogProps) {
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -78,6 +80,7 @@ export function TemplateExportDialog({
           templateId,
           templateName: templateName.trim(),
           description: description.trim(),
+          email: user?.email || '',
         }),
       });
 
