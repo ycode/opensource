@@ -27,9 +27,19 @@ export function extractInlineNodesFromRichText(
         marks: combinedMarks.length > 0 ? combinedMarks : undefined,
       });
     } else if (node.type === 'paragraph' && node.content) {
-      // Flatten paragraph content, preserving marks
-      result.push(...extractInlineNodesFromRichText(node.content, parentMarks));
+      // Preserve paragraph styling by adding a dynamicStyle mark
+      const paragraphMark = { type: 'dynamicStyle', attrs: { styleKeys: ['paragraph'] } };
+      const marksWithParagraph = [...parentMarks, paragraphMark];
+      result.push(...extractInlineNodesFromRichText(node.content, marksWithParagraph));
       // Add space between paragraphs when flattening
+      result.push({ type: 'text', text: ' ' });
+    } else if (node.type === 'heading' && node.content) {
+      // Preserve heading styling by adding a dynamicStyle mark with the heading level
+      const level = node.attrs?.level || 1;
+      const headingMark = { type: 'dynamicStyle', attrs: { styleKeys: [`h${level}`] } };
+      const marksWithHeading = [...parentMarks, headingMark];
+      result.push(...extractInlineNodesFromRichText(node.content, marksWithHeading));
+      // Add space after heading when flattening
       result.push({ type: 'text', text: ' ' });
     } else if (node.type === 'dynamicVariable') {
       // Preserve dynamic variables with combined marks

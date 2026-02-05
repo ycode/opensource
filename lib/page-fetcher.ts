@@ -8,6 +8,7 @@ import { isFieldVariable, isAssetVariable, createDynamicTextVariable, createDyna
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveComponents } from '@/lib/resolve-components';
 import { extractInlineNodesFromRichText, isTiptapDoc } from '@/lib/tiptap-utils';
+import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 // Pagination context passed through to resolveCollectionLayers
 export interface PaginationContext {
@@ -2247,6 +2248,24 @@ function renderTiptapToHtml(content: any, textStyles?: Record<string, any>): str
               text = `<a href="${escapeHtml(mark.attrs.href)}"${target}${rel}${classAttr}>${text}</a>`;
             }
             break;
+          case 'dynamicStyle': {
+            // Handle dynamic styles (headings, paragraphs, custom styles)
+            const styleKeys: string[] = mark.attrs?.styleKeys || [];
+            // Backwards compatibility: single styleKey
+            if (styleKeys.length === 0 && mark.attrs?.styleKey) {
+              styleKeys.push(mark.attrs.styleKey);
+            }
+            // Merge layer textStyles with defaults
+            const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+            const classes = styleKeys
+              .map(k => mergedStyles[k]?.classes || '')
+              .filter(Boolean)
+              .join(' ');
+            if (classes) {
+              text = `<span class="${escapeHtml(classes)}">${text}</span>`;
+            }
+            break;
+          }
         }
       }
     }
@@ -2255,10 +2274,32 @@ function renderTiptapToHtml(content: any, textStyles?: Record<string, any>): str
 
   // Handle paragraph
   if (content.type === 'paragraph') {
+    const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+    const paragraphClass = mergedStyles?.paragraph?.classes || '';
     const innerHtml = content.content
       ? content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('')
       : '';
-    return innerHtml; // Return without <p> wrapper for inline text layers
+    // Wrap in span with paragraph styles for proper block display
+    if (paragraphClass) {
+      return `<span class="${escapeHtml(paragraphClass)}">${innerHtml}</span>`;
+    }
+    return innerHtml;
+  }
+
+  // Handle heading
+  if (content.type === 'heading') {
+    const level = content.attrs?.level || 1;
+    const styleKey = `h${level}`;
+    const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+    const headingClass = mergedStyles?.[styleKey]?.classes || '';
+    const innerHtml = content.content
+      ? content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('')
+      : '';
+    // Use span to avoid nesting issues (h1 inside p is invalid)
+    if (headingClass) {
+      return `<span class="${escapeHtml(headingClass)}">${innerHtml}</span>`;
+    }
+    return innerHtml;
   }
 
   // Handle doc (root)

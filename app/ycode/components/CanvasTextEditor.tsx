@@ -26,6 +26,7 @@ import Superscript from '@tiptap/extension-superscript';
 import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
 import ListItem from '@tiptap/extension-list-item';
+import Heading from '@tiptap/extension-heading';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 import type { Layer, TextStyle, CollectionField, Collection } from '@/types';
 import type { FieldVariable } from '@/types';
@@ -297,6 +298,36 @@ function createListItemExtension(textStyles?: Record<string, TextStyle>) {
 }
 
 /**
+ * Create custom Paragraph extension with layer textStyles class
+ */
+function createParagraphExtension(textStyles?: Record<string, TextStyle>) {
+  const paragraphClass = textStyles?.paragraph?.classes ?? DEFAULT_TEXT_STYLES.paragraph?.classes ?? '';
+
+  return Paragraph.extend({
+    renderHTML({ HTMLAttributes }) {
+      return ['p', mergeAttributes(HTMLAttributes, { class: paragraphClass }), 0];
+    },
+  });
+}
+
+/**
+ * Create custom Heading extension with layer textStyles classes for each level
+ */
+function createHeadingExtension(textStyles?: Record<string, TextStyle>) {
+  return Heading.extend({
+    renderHTML({ node, HTMLAttributes }) {
+      const level = node.attrs.level as 1 | 2 | 3 | 4 | 5 | 6;
+      const styleKey = `h${level}` as const;
+      const headingClass = textStyles?.[styleKey]?.classes ?? DEFAULT_TEXT_STYLES[styleKey]?.classes ?? '';
+
+      return [`h${level}`, mergeAttributes(HTMLAttributes, { class: headingClass }), 0];
+    },
+  }).configure({
+    levels: [1, 2, 3, 4, 5, 6],
+  });
+}
+
+/**
  * Create custom RichTextLink extension with layer textStyles class
  */
 function createRichTextLinkExtension(textStyles?: Record<string, TextStyle>) {
@@ -428,7 +459,7 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   // Dynamic styles use textStylesRef for real-time class lookups
   const extensions = useMemo(() => [
     Document,
-    Paragraph,
+    createParagraphExtension(textStylesRef.current),
     Text,
     DynamicVariable,
     createRichTextLinkExtension(textStylesRef.current),
@@ -441,6 +472,7 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     createBulletListExtension(textStylesRef.current),
     createOrderedListExtension(textStylesRef.current),
     createListItemExtension(textStylesRef.current),
+    createHeadingExtension(textStylesRef.current),
     createDynamicStyleExtension(textStylesRef),
   ], []);
 
@@ -823,15 +855,25 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   // Handle clicks on styled text to select that style for editing
   const handleEditorClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
+    const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
 
-    // Check if clicked element or its parents have data-style-key
+    // Check if clicked element or its parents have data-style-key (for dynamicStyle marks)
     const styledElement = target.closest('[data-style-key]') as HTMLElement;
     if (styledElement) {
       const styleKey = styledElement.getAttribute('data-style-key');
       if (styleKey) {
-        // Import from the store isn't ideal here, but needed for click handling
-        const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
         setActiveTextStyleKey(styleKey);
+        return;
+      }
+    }
+
+    // Also check for data-style (for headings, paragraphs, lists from nested rich text)
+    const blockStyleElement = target.closest('[data-style]') as HTMLElement;
+    if (blockStyleElement) {
+      const styleKey = blockStyleElement.getAttribute('data-style');
+      if (styleKey) {
+        setActiveTextStyleKey(styleKey);
+        return;
       }
     }
   }, []);

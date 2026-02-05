@@ -21,7 +21,7 @@ import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
-import { renderRichText, hasBlockElements, type RichTextLinkContext } from '@/lib/text-format-utils';
+import { renderRichText, hasBlockElements, DEFAULT_TEXT_STYLES, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -865,8 +865,14 @@ const LayerItem: React.FC<{
 
   // Build className with editor states if in edit mode
   // Use cn() for cleaner conditional class handling and automatic conflict resolution
+  // When layer tag is p and has text, add paragraph default classes (block, margin) so the wrapper displays correctly
+  const paragraphClasses = htmlTag === 'p' && layer.variables?.text
+    ? (layer.textStyles?.paragraph?.classes ?? DEFAULT_TEXT_STYLES.paragraph?.classes ?? '')
+    : '';
+
   const fullClassName = isEditMode ? cn(
     classesString,
+    paragraphClasses,
     enableDragDrop && !isEditing && !isLockedByOther && 'cursor-default',
     // Selection/hover outlines are now rendered by SelectionOverlay component (outside iframe)
     isDragging && 'opacity-30',
@@ -874,7 +880,7 @@ const LayerItem: React.FC<{
     isLockedByOther && 'opacity-90 pointer-events-none select-none',
     // Add ycode-layer class for editor styling
     'ycode-layer'
-  ) : classesString;
+  ) : cn(classesString, paragraphClasses);
 
   // Check if layer should be hidden (hide completely in both edit mode and public pages)
   if (layer.settings?.hidden) {
