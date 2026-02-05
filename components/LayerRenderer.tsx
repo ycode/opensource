@@ -21,7 +21,7 @@ import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
-import { renderRichText, hasBlockElements, DEFAULT_TEXT_STYLES, type RichTextLinkContext } from '@/lib/text-format-utils';
+import { renderRichText, hasBlockElements, getTextStyleClasses, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -867,7 +867,7 @@ const LayerItem: React.FC<{
   // Use cn() for cleaner conditional class handling and automatic conflict resolution
   // When layer tag is p and has text, add paragraph default classes (block, margin) so the wrapper displays correctly
   const paragraphClasses = htmlTag === 'p' && layer.variables?.text
-    ? (layer.textStyles?.paragraph?.classes ?? DEFAULT_TEXT_STYLES.paragraph?.classes ?? '')
+    ? getTextStyleClasses(layer.textStyles, 'paragraph')
     : '';
 
   const fullClassName = isEditMode ? cn(

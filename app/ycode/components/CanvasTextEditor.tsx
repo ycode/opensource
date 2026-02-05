@@ -27,7 +27,7 @@ import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
 import ListItem from '@tiptap/extension-list-item';
 import Heading from '@tiptap/extension-heading';
-import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
+import { getTextStyleClasses } from '@/lib/text-format-utils';
 import type { Layer, TextStyle, CollectionField, Collection } from '@/types';
 import type { FieldVariable } from '@/types';
 import { Badge } from '@/components/ui/badge';
@@ -184,11 +184,9 @@ const DynamicVariable = Node.create({
  * Create custom Bold extension with layer textStyles class
  */
 function createBoldExtension(textStyles?: Record<string, TextStyle>) {
-  const boldClass = textStyles?.bold?.classes ?? DEFAULT_TEXT_STYLES.bold?.classes;
-
   return Bold.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['strong', mergeAttributes(HTMLAttributes, { class: boldClass }), 0];
+      return ['strong', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'bold') }), 0];
     },
   });
 }
@@ -197,11 +195,9 @@ function createBoldExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Italic extension with layer textStyles class
  */
 function createItalicExtension(textStyles?: Record<string, TextStyle>) {
-  const italicClass = textStyles?.italic?.classes ?? DEFAULT_TEXT_STYLES.italic?.classes;
-
   return Italic.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['em', mergeAttributes(HTMLAttributes, { class: italicClass }), 0];
+      return ['em', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'italic') }), 0];
     },
   });
 }
@@ -210,11 +206,9 @@ function createItalicExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Underline extension with layer textStyles class
  */
 function createUnderlineExtension(textStyles?: Record<string, TextStyle>) {
-  const underlineClass = textStyles?.underline?.classes ?? DEFAULT_TEXT_STYLES.underline?.classes;
-
   return Underline.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['u', mergeAttributes(HTMLAttributes, { class: underlineClass }), 0];
+      return ['u', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'underline') }), 0];
     },
   });
 }
@@ -223,11 +217,9 @@ function createUnderlineExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Strike extension with layer textStyles class
  */
 function createStrikeExtension(textStyles?: Record<string, TextStyle>) {
-  const strikeClass = textStyles?.strike?.classes ?? DEFAULT_TEXT_STYLES.strike?.classes;
-
   return Strike.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['s', mergeAttributes(HTMLAttributes, { class: strikeClass }), 0];
+      return ['s', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'strike') }), 0];
     },
   });
 }
@@ -236,11 +228,9 @@ function createStrikeExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Subscript extension with layer textStyles class
  */
 function createSubscriptExtension(textStyles?: Record<string, TextStyle>) {
-  const subscriptClass = textStyles?.subscript?.classes ?? DEFAULT_TEXT_STYLES.subscript?.classes;
-
   return Subscript.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['sub', mergeAttributes(HTMLAttributes, { class: subscriptClass }), 0];
+      return ['sub', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'subscript') }), 0];
     },
   });
 }
@@ -249,11 +239,9 @@ function createSubscriptExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Superscript extension with layer textStyles class
  */
 function createSuperscriptExtension(textStyles?: Record<string, TextStyle>) {
-  const superscriptClass = textStyles?.superscript?.classes ?? DEFAULT_TEXT_STYLES.superscript?.classes;
-
   return Superscript.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['sup', mergeAttributes(HTMLAttributes, { class: superscriptClass }), 0];
+      return ['sup', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'superscript') }), 0];
     },
   });
 }
@@ -262,11 +250,9 @@ function createSuperscriptExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom BulletList extension with layer textStyles class
  */
 function createBulletListExtension(textStyles?: Record<string, TextStyle>) {
-  const bulletListClass = textStyles?.bulletList?.classes ?? DEFAULT_TEXT_STYLES.bulletList?.classes;
-
   return BulletList.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['ul', mergeAttributes(HTMLAttributes, { class: bulletListClass }), 0];
+      return ['ul', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'bulletList') }), 0];
     },
   });
 }
@@ -275,11 +261,9 @@ function createBulletListExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom OrderedList extension with layer textStyles class
  */
 function createOrderedListExtension(textStyles?: Record<string, TextStyle>) {
-  const orderedListClass = textStyles?.orderedList?.classes ?? DEFAULT_TEXT_STYLES.orderedList?.classes;
-
   return OrderedList.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['ol', mergeAttributes(HTMLAttributes, { class: orderedListClass }), 0];
+      return ['ol', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'orderedList') }), 0];
     },
   });
 }
@@ -288,11 +272,9 @@ function createOrderedListExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom ListItem extension with layer textStyles class
  */
 function createListItemExtension(textStyles?: Record<string, TextStyle>) {
-  const listItemClass = textStyles?.listItem?.classes ?? DEFAULT_TEXT_STYLES.listItem?.classes;
-
   return ListItem.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['li', mergeAttributes(HTMLAttributes, { class: listItemClass }), 0];
+      return ['li', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'listItem') }), 0];
     },
   });
 }
@@ -301,11 +283,9 @@ function createListItemExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Paragraph extension with layer textStyles class
  */
 function createParagraphExtension(textStyles?: Record<string, TextStyle>) {
-  const paragraphClass = textStyles?.paragraph?.classes ?? DEFAULT_TEXT_STYLES.paragraph?.classes ?? '';
-
   return Paragraph.extend({
     renderHTML({ HTMLAttributes }) {
-      return ['p', mergeAttributes(HTMLAttributes, { class: paragraphClass }), 0];
+      return ['p', mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, 'paragraph') }), 0];
     },
   });
 }
@@ -318,9 +298,8 @@ function createHeadingExtension(textStyles?: Record<string, TextStyle>) {
     renderHTML({ node, HTMLAttributes }) {
       const level = node.attrs.level as 1 | 2 | 3 | 4 | 5 | 6;
       const styleKey = `h${level}` as const;
-      const headingClass = textStyles?.[styleKey]?.classes ?? DEFAULT_TEXT_STYLES[styleKey]?.classes ?? '';
 
-      return [`h${level}`, mergeAttributes(HTMLAttributes, { class: headingClass }), 0];
+      return [`h${level}`, mergeAttributes(HTMLAttributes, { class: getTextStyleClasses(textStyles, styleKey) }), 0];
     },
   }).configure({
     levels: [1, 2, 3, 4, 5, 6],
@@ -331,7 +310,7 @@ function createHeadingExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom RichTextLink extension with layer textStyles class
  */
 function createRichTextLinkExtension(textStyles?: Record<string, TextStyle>) {
-  const linkClass = textStyles?.link?.classes ?? DEFAULT_TEXT_STYLES.link?.classes;
+  const linkClass = getTextStyleClasses(textStyles, 'link');
 
   return RichTextLink.extend({
     addOptions() {
