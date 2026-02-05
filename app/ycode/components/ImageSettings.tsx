@@ -399,13 +399,13 @@ export default function ImageSettings(props: ImageSettingsProps) {
             <Button
               asChild
               variant="purple"
-              className="!justify-between w-full"
+              className="justify-between! w-full"
               onClick={handleUnlinkImageVariable}
             >
               <div>
                 <span>{linkedImageVariable.name}</span>
                 <Button
-                  className="!size-4 !p-0"
+                  className="size-4! p-0!"
                   variant="outline"
                 >
                   <Icon name="x" className="size-2" />
@@ -447,7 +447,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
               // Validate asset type - allow both images and icons (SVGs)
               const isImage = asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES);
               const isSvg = asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS);
-              
+
               if (!isImage && !isSvg) {
                 toast.error('Invalid asset type', {
                   description: 'Please select an image or SVG file.',

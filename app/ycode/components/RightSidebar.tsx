@@ -70,7 +70,7 @@ import { sanitizeHtmlId } from '@/lib/html-utils';
 import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
-import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
+import { DEFAULT_TEXT_STYLES, getTextStyle } from '@/lib/text-format-utils';
 import { buildFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
 
 // 7. Types
@@ -557,9 +557,9 @@ const RightSidebar = React.memo(function RightSidebar({
   // Sync classesInput when selectedLayer or activeTextStyleKey changes
   useEffect(() => {
     // In text edit mode with a text style selected, show classes for that text style
-    if (showTextStyleControls && activeTextStyleKey && selectedLayer?.textStyles?.[activeTextStyleKey]) {
-      const textStyleClasses = selectedLayer.textStyles[activeTextStyleKey].classes;
-      setClassesInput(textStyleClasses || '');
+    if (showTextStyleControls && activeTextStyleKey) {
+      const textStyle = getTextStyle(selectedLayer?.textStyles, activeTextStyleKey);
+      setClassesInput(textStyle?.classes || '');
     }
     // Otherwise, show classes for the layer
     else if (!selectedLayer?.classes) {
@@ -1602,7 +1602,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
     return (
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
-        <Tabs value="" className="flex flex-col min-h-0 !gap-0">
+        <Tabs value="" className="flex flex-col min-h-0 gap-0!">
           <div>
             <TabsList className="w-full">
               <TabsTrigger value="design" disabled>Design</TabsTrigger>
@@ -1645,7 +1645,7 @@ const RightSidebar = React.memo(function RightSidebar({
               }
             >
               <div className="bg-purple-500/20 text-purple-700 dark:text-purple-300 pl-2 pr-3 h-10 rounded-lg flex items-center gap-2">
-                <div className="p-1.5 bg-current/20 rounded-[8px]">
+                <div className="p-1.5 bg-current/20 rounded-xl">
                   <Icon name="component" className="size-3" />
                 </div>
                 <span>{component.name}</span>
@@ -1862,7 +1862,7 @@ const RightSidebar = React.memo(function RightSidebar({
                       <span>{cls}</span>
                       <Button
                         onClick={() => removeClass(cls)}
-                        className="!size-4 !p-0 -mr-1"
+                        className="size-4! p-0! -mr-1"
                         variant="outline"
                         disabled={isLockedByOther}
                       >
@@ -2100,13 +2100,13 @@ const RightSidebar = React.memo(function RightSidebar({
                         <Button
                           asChild
                           variant="purple"
-                          className="!justify-between"
+                          className="justify-between!"
                           onClick={handleUnlinkVariable}
                         >
                           <div>
                             <span>{linkedVariable.name}</span>
                             <Button
-                              className="!size-4 !p-0"
+                              className="size-4! p-0!"
                               variant="outline"
                             >
                               <Icon name="x" className="size-2" />
@@ -2116,7 +2116,7 @@ const RightSidebar = React.memo(function RightSidebar({
                       ) : (isTextEditingOnCanvas && editingLayerIdOnCanvas === selectedLayerId) ? (
                         // Don't render RichTextEditor while canvas text editor is active
                         // to prevent race conditions when saving
-                        <Empty className="min-h-[2rem] py-2">
+                        <Empty className="min-h-8 py-2">
                           <EmptyDescription>You are editing the text directly on canvas.</EmptyDescription>
                         </Empty>
                       ) : (

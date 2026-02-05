@@ -44,66 +44,66 @@ export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
   // Heading styles (h1-h6) - matching RichTextEditor prose styles
   h1: {
     label: 'Heading 1',
-    classes: 'block text-3xl font-semibold mt-6 first:mt-0 mb-4',
+    classes: 'block text-[30px] font-semibold mt-[24px] first:mt-0 mb-[16px]',
     design: {
       layout: { display: 'block' },
-      typography: { fontSize: '3xl', fontWeight: 'semibold' },
-      spacing: { marginTop: '6', marginBottom: '4' },
+      typography: { fontSize: '30px', fontWeight: 'semibold' },
+      spacing: { marginTop: '24px', marginBottom: '16px' },
     },
   },
   h2: {
     label: 'Heading 2',
-    classes: 'block text-2xl font-semibold mt-5 first:mt-0 mb-3',
+    classes: 'block text-[24px] font-semibold mt-[20px] first:mt-0 mb-[12px]',
     design: {
       layout: { display: 'block' },
-      typography: { fontSize: '2xl', fontWeight: 'semibold' },
-      spacing: { marginTop: '5', marginBottom: '3' },
+      typography: { fontSize: '24px', fontWeight: 'semibold' },
+      spacing: { marginTop: '20px', marginBottom: '12px' },
     },
   },
   h3: {
     label: 'Heading 3',
-    classes: 'block text-xl font-semibold mt-4 first:mt-0 mb-2',
+    classes: 'block text-[20px] font-semibold mt-[16px] first:mt-0 mb-[8px]',
     design: {
       layout: { display: 'block' },
-      typography: { fontSize: 'xl', fontWeight: 'semibold' },
-      spacing: { marginTop: '4', marginBottom: '2' },
+      typography: { fontSize: '20px', fontWeight: 'semibold' },
+      spacing: { marginTop: '16px', marginBottom: '8px' },
     },
   },
   h4: {
     label: 'Heading 4',
-    classes: 'block text-lg font-semibold mt-3 first:mt-0 mb-2',
+    classes: 'block text-[18px] font-semibold mt-[12px] first:mt-0 mb-[8px]',
     design: {
       layout: { display: 'block' },
-      typography: { fontSize: 'lg', fontWeight: 'semibold' },
-      spacing: { marginTop: '3', marginBottom: '2' },
+      typography: { fontSize: '18px', fontWeight: 'semibold' },
+      spacing: { marginTop: '12px', marginBottom: '8px' },
     },
   },
   h5: {
     label: 'Heading 5',
-    classes: 'block text-base font-semibold mt-3 first:mt-0 mb-1',
+    classes: 'block text-[16px] font-semibold mt-[12px] first:mt-0 mb-[4px]',
     design: {
       layout: { display: 'block' },
-      typography: { fontSize: 'base', fontWeight: 'semibold' },
-      spacing: { marginTop: '3', marginBottom: '1' },
+      typography: { fontSize: '16px', fontWeight: 'semibold' },
+      spacing: { marginTop: '12px', marginBottom: '4px' },
     },
   },
   h6: {
     label: 'Heading 6',
-    classes: 'block text-sm font-semibold mt-3 first:mt-0 mb-1',
+    classes: 'block text-[14px] font-semibold mt-[12px] first:mt-0 mb-[4px]',
     design: {
       layout: { display: 'block' },
-      typography: { fontSize: 'sm', fontWeight: 'semibold' },
-      spacing: { marginTop: '3', marginBottom: '1' },
+      typography: { fontSize: '14px', fontWeight: 'semibold' },
+      spacing: { marginTop: '12px', marginBottom: '4px' },
     },
   },
   // Paragraph style - block display with spacing and line height
   paragraph: {
     label: 'Paragraph',
-    classes: 'block mb-4 last:mb-0 leading-relaxed',
+    classes: 'block mb-[16px] last:mb-0 leading-relaxed',
     design: {
       layout: { display: 'block' },
       typography: { lineHeight: 'relaxed' },
-      spacing: { marginBottom: '4' },
+      spacing: { marginBottom: '16px' },
     },
   },
   // Inline formatting marks
@@ -151,11 +151,11 @@ export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
   },
   code: {
     label: 'Code',
-    classes: 'font-mono bg-muted px-1 py-0.5 rounded text-sm',
+    classes: 'font-mono bg-muted px-[4px] py-[2px] rounded text-[14px]',
     design: {
-      typography: { fontFamily: 'mono', fontSize: 'sm' },
+      typography: { fontFamily: 'mono', fontSize: '14px' },
       backgrounds: { backgroundColor: 'muted' },
-      spacing: { paddingLeft: '1', paddingRight: '1', paddingTop: '0.5', paddingBottom: '0.5' },
+      spacing: { paddingLeft: '4px', paddingRight: '4px', paddingTop: '2px', paddingBottom: '2px' },
       borders: { borderRadius: 'rounded' },
     },
   },
@@ -171,16 +171,16 @@ export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
   },
   bulletList: {
     label: 'Bullet List',
-    classes: 'ml-2 pl-4 list-disc',
+    classes: 'ml-[8px] pl-[16px] list-disc',
     design: {
-      spacing: { marginLeft: '2', paddingLeft: '4' },
+      spacing: { marginLeft: '8px', paddingLeft: '16px' },
     },
   },
   orderedList: {
     label: 'Ordered List',
-    classes: 'ml-2 pl-5 list-decimal',
+    classes: 'ml-[8px] pl-[20px] list-decimal',
     design: {
-      spacing: { marginLeft: '2', paddingLeft: '5' },
+      spacing: { marginLeft: '8px', paddingLeft: '20px' },
     },
   },
   listItem: {
@@ -188,6 +188,30 @@ export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
     classes: '',
   },
 };
+
+/**
+ * Get a text style by key, falling back to DEFAULT_TEXT_STYLES
+ * @param textStyles - Layer's custom text styles (may be undefined)
+ * @param key - Text style key (e.g., 'h1', 'bold', 'paragraph')
+ */
+export function getTextStyle(
+  textStyles: Record<string, TextStyle> | undefined,
+  key: string
+): TextStyle | undefined {
+  return textStyles?.[key] ?? DEFAULT_TEXT_STYLES[key];
+}
+
+/**
+ * Get text style classes by key, falling back to DEFAULT_TEXT_STYLES
+ * @param textStyles - Layer's custom text styles (may be undefined)
+ * @param key - Text style key (e.g., 'h1', 'bold', 'paragraph')
+ */
+export function getTextStyleClasses(
+  textStyles: Record<string, TextStyle> | undefined,
+  key: string
+): string {
+  return textStyles?.[key]?.classes ?? DEFAULT_TEXT_STYLES[key]?.classes ?? '';
+}
 
 /**
  * Create a Tiptap text object from a plain string
@@ -270,8 +294,7 @@ function renderTextNode(
   let text: React.ReactNode = node.text || '';
 
   // Helper: use layer textStyles if set, otherwise fall back to DEFAULT_TEXT_STYLES
-  const getMarkClass = (markKey: string) =>
-    textStyles?.[markKey]?.classes ?? DEFAULT_TEXT_STYLES[markKey]?.classes;
+  const getMarkClass = (markKey: string) => getTextStyleClasses(textStyles, markKey);
 
   // Apply marks in reverse order (innermost to outermost)
   if (node.marks && Array.isArray(node.marks)) {
@@ -606,7 +629,7 @@ function renderBlock(
   const key = `block-${idx}`;
 
   if (block.type === 'paragraph') {
-    const paragraphClass = textStyles?.paragraph?.classes ?? DEFAULT_TEXT_STYLES.paragraph?.classes ?? '';
+    const paragraphClass = getTextStyleClasses(textStyles, 'paragraph');
 
     if (!block.content || block.content.length === 0) {
       // Use span for empty paragraphs when in restrictive tags
@@ -624,7 +647,7 @@ function renderBlock(
   if (block.type === 'heading') {
     const level = block.attrs?.level as 1 | 2 | 3 | 4 | 5 | 6 || 1;
     const styleKey = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
-    const headingClass = textStyles?.[styleKey]?.classes ?? DEFAULT_TEXT_STYLES[styleKey]?.classes ?? '';
+    const headingClass = getTextStyleClasses(textStyles, styleKey);
     // Use span when inside restrictive tags (p, h1-h6, etc.) to avoid invalid HTML nesting
     const tag = useSpanForParagraphs ? 'span' : styleKey;
 
@@ -642,7 +665,7 @@ function renderBlock(
   if (block.type === 'bulletList') {
     const ulProps: Record<string, any> = {
       key,
-      className: textStyles?.bulletList?.classes ?? DEFAULT_TEXT_STYLES.bulletList?.classes,
+      className: getTextStyleClasses(textStyles, 'bulletList'),
     };
     if (isEditMode) {
       ulProps['data-style'] = 'bulletList';
@@ -659,7 +682,7 @@ function renderBlock(
   if (block.type === 'orderedList') {
     const olProps: Record<string, any> = {
       key,
-      className: textStyles?.orderedList?.classes ?? DEFAULT_TEXT_STYLES.orderedList?.classes,
+      className: getTextStyleClasses(textStyles, 'orderedList'),
     };
     if (isEditMode) {
       olProps['data-style'] = 'orderedList';
@@ -701,7 +724,7 @@ function renderListItem(
 
   const liProps: Record<string, any> = {
     key,
-    className: textStyles?.listItem?.classes ?? DEFAULT_TEXT_STYLES.listItem?.classes,
+    className: getTextStyleClasses(textStyles, 'listItem'),
   };
   if (isEditMode) {
     liProps['data-style'] = 'listItem';

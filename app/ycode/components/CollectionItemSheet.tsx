@@ -12,6 +12,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
 import {
   Sheet,
@@ -379,7 +380,7 @@ export default function CollectionItemSheet({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent onOpenAutoFocus={handleOpenAutoFocus}>
+      <SheetContent onOpenAutoFocus={handleOpenAutoFocus} aria-describedby={undefined}>
         <SheetHeader>
           <SheetTitle>
             {editingItem ? 'Edit' : 'Create'} {collection?.name} Item
@@ -609,6 +610,20 @@ export default function CollectionItemSheet({
                                 </div>
                               );
                             })()
+                          ) : field.type === 'boolean' ? (
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                id={`${field.id}-boolean`}
+                                checked={formField.value === 'true'}
+                                onCheckedChange={(checked) => formField.onChange(checked ? 'true' : 'false')}
+                              />
+                              <Label
+                                htmlFor={`${field.id}-boolean`}
+                                className="text-xs text-muted-foreground font-normal cursor-pointer gap-1"
+                              >
+                                Value is set to <span className="text-foreground">{formField.value === 'true' ? 'YES' : 'NO'}</span>
+                              </Label>
+                            </div>
                           ) : field.key === 'name' ? (
                             <Input
                               ref={nameInputRef}
