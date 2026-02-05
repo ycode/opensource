@@ -39,6 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Separator } from '@/components/ui/separator';
 import Icon from '@/components/ui/icon';
@@ -46,9 +47,17 @@ import { cn } from '@/lib/utils';
 import { assetFoldersApi, assetsApi, uploadFileApi } from '@/lib/api';
 import type { AssetFolder, Asset } from '@/types';
 import type { AssetUsageResult, CmsItemUsageEntry } from '@/lib/asset-usage-utils';
-import { getAcceptString, getAssetIcon, getOptimizedImageUrl, isAssetOfType, getAssetCategoryFromMimeType } from '@/lib/asset-utils';
+import { getAcceptString, getAssetIcon, getOptimizedImageUrl, isAssetOfType, matchesCategoryFilter, normalizeCategoryFilter } from '@/lib/asset-utils';
 import { ASSET_CATEGORIES } from '@/lib/asset-constants';
-import type { AssetCategory } from '@/types';
+import type { AssetCategory, AssetCategoryFilter } from '@/types';
+
+const FILE_MANAGER_CATEGORY_OPTIONS: ReadonlyArray<{ id: AssetCategory; label: string; icon: 'icon' | 'image' | 'video' | 'audio' | 'file-text' }> = [
+  { id: ASSET_CATEGORIES.ICONS, label: 'Icons', icon: 'icon' },
+  { id: ASSET_CATEGORIES.IMAGES, label: 'Images', icon: 'image' },
+  { id: ASSET_CATEGORIES.VIDEOS, label: 'Videos', icon: 'video' },
+  { id: ASSET_CATEGORIES.AUDIO, label: 'Audio', icon: 'audio' },
+  { id: ASSET_CATEGORIES.DOCUMENTS, label: 'Documents', icon: 'file-text' },
+];
 import {
   flattenAssetFolderTree,
   hasChildFolders,
@@ -71,7 +80,7 @@ interface FileManagerDialogProps {
   onOpenChange: (open: boolean) => void;
   onAssetSelect?: (asset: Asset) => void | false;
   assetId?: string | null;
-  category?: AssetCategory | 'all' | null;
+  category?: AssetCategoryFilter;
 }
 
 interface FolderRowProps {
@@ -524,12 +533,15 @@ export default function FileManagerDialog({
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [uploadingAssets, setUploadingAssets] = useState<Array<{ id: string; filename: string; file: File }>>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<AssetCategory | 'all'>(category || 'all');
+  // Selected categories as array (null means 'all')
+  const [selectedCategories, setSelectedCategories] = useState<AssetCategory[] | null>(
+    () => normalizeCategoryFilter(category ?? null)
+  );
 
-  // Update selectedCategory when category prop changes
+  // Update selectedCategories when category prop changes
   useEffect(() => {
     if (category !== undefined) {
-      setSelectedCategory(category || 'all');
+      setSelectedCategories(normalizeCategoryFilter(category ?? null));
     }
   }, [category]);
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
@@ -616,11 +628,10 @@ export default function FileManagerDialog({
 
       // Filter by category client-side (since category is UI-specific)
       let filteredAssets = result.assets;
-      if (selectedCategory !== 'all') {
-        filteredAssets = result.assets.filter((asset) => {
-          const assetCategory = getAssetCategoryFromMimeType(asset.mime_type);
-          return assetCategory === selectedCategory;
-        });
+      if (selectedCategories !== null) {
+        filteredAssets = result.assets.filter((asset) =>
+          matchesCategoryFilter(asset.mime_type, selectedCategories)
+        );
       }
 
       if (reset || page === 1) {
@@ -642,7 +653,7 @@ export default function FileManagerDialog({
     } finally {
       setIsLoadingAssets(false);
     }
-  }, [fetchAssets, selectedFolderId, debouncedSearch, selectedCategory, getAllDescendantFolderIds, isLoadingAssets]);
+  }, [fetchAssets, selectedFolderId, debouncedSearch, selectedCategories, getAllDescendantFolderIds, isLoadingAssets]);
 
   // Reset and reload when folder, search, or category changes
   useEffect(() => {
@@ -650,7 +661,7 @@ export default function FileManagerDialog({
     setCurrentPage(1);
     setHasMoreAssets(true);
     loadAssets(1, true);
-  }, [selectedFolderId, debouncedSearch, selectedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedFolderId, debouncedSearch, selectedCategories]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Infinite scroll observer
   useEffect(() => {
@@ -1581,19 +1592,93 @@ export default function FileManagerDialog({
                   </InputGroup>
                 </div>
 
-                <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as AssetCategory | 'all')}>
-                  <SelectTrigger className="w-35">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all"><Icon name="layers" className="size-3" /> All types</SelectItem>
-                    <SelectItem value={ASSET_CATEGORIES.ICONS}><Icon name="icon" className="size-3" /> Icons</SelectItem>
-                    <SelectItem value={ASSET_CATEGORIES.IMAGES}><Icon name="image" className="size-3" /> Images</SelectItem>
-                    <SelectItem value={ASSET_CATEGORIES.VIDEOS}><Icon name="video" className="size-3" /> Videos</SelectItem>
-                    <SelectItem value={ASSET_CATEGORIES.AUDIO}><Icon name="audio" className="size-3" /> Audio</SelectItem>
-                    <SelectItem value={ASSET_CATEGORIES.DOCUMENTS}><Icon name="file-text" className="size-3" /> Documents</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Category filter multi-select */}
+                <Popover modal>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="w-35 justify-between gap-1 font-normal"
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        {selectedCategories === null || selectedCategories.length === 0 ? (
+                          <>
+                            <Icon name="layers" className="size-3 shrink-0 text-muted-foreground" />
+                            <span className="truncate">All types</span>
+                          </>
+                        ) : (
+                          <>
+                            {selectedCategories.map((c) => {
+                              const opt = FILE_MANAGER_CATEGORY_OPTIONS.find((o) => o.id === c);
+                              return opt ? (
+                                <Icon
+                                  key={c}
+                                  name={opt.icon}
+                                  className="size-3 shrink-0 text-muted-foreground"
+                                />
+                              ) : null;
+                            })}
+                            <span className="truncate">
+                              {selectedCategories
+                                .map((c) => FILE_MANAGER_CATEGORY_OPTIONS.find((o) => o.id === c)?.label)
+                                .filter(Boolean)
+                                .join(', ')}
+                            </span>
+                          </>
+                        )}
+                      </span>
+                      <Icon name="chevronCombo" className="size-2.5 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="min-w-35 w-auto p-1" align="start">
+                    <div className="flex flex-col">
+                      <label
+                        className={cn(
+                          'flex items-center gap-2 rounded-md px-2 py-1.5 text-xs cursor-pointer hover:bg-accent',
+                          selectedCategories === null && 'bg-accent'
+                        )}
+                      >
+                        <Checkbox
+                          checked={selectedCategories === null}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedCategories(null);
+                          }}
+                        />
+                        <Icon name="layers" className="size-3 text-muted-foreground" />
+                        All types
+                      </label>
+                      {FILE_MANAGER_CATEGORY_OPTIONS.map(({ id, label, icon }) => {
+                        // Only show checked if explicitly selected (not when "All" is selected)
+                        const checked = selectedCategories !== null && selectedCategories.includes(id);
+                        return (
+                          <label
+                            key={id}
+                            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs cursor-pointer hover:bg-accent"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(c) => {
+                                setSelectedCategories((prev) => {
+                                  if (prev === null) {
+                                    // Was "All", now select only this category
+                                    return [id];
+                                  }
+                                  if (c) {
+                                    return prev.includes(id) ? prev : [...prev, id];
+                                  }
+                                  const next = prev.filter((x) => x !== id);
+                                  return next.length === 0 ? null : next;
+                                });
+                              }}
+                            />
+                            <Icon name={icon} className="size-3 text-muted-foreground" />
+                            {label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
 
                 <Separator orientation="vertical" className="h-7! shrink-0 mx-0.5" />
               </div>
@@ -1858,7 +1943,7 @@ export default function FileManagerDialog({
                       No files found
                     </div>
                     <div className="text-muted-foreground">
-                      {searchQuery.trim() || selectedCategory !== 'all'
+                      {searchQuery.trim() || selectedCategories !== null
                         ? 'No files were found using the current filters'
                         : selectedFolderId === null
                           ? 'No files'

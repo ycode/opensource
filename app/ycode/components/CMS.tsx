@@ -32,6 +32,7 @@ import { formatDateInTimezone } from '@/lib/date-format-utils';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { slugify } from '@/lib/collection-utils';
+import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
 import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon } from '@/lib/collection-field-utils';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
@@ -1486,9 +1487,12 @@ const CMS = React.memo(function CMS() {
                         );
                       }
 
-                      // Image fields - show thumbnail preview with filename in tooltip
+                      // Image fields - show thumbnail (match file manager: SVG inline, raster via img + checkerboard)
                       if (field.type === 'image' && value) {
                         const asset = getAsset(value);
+                        const isSvgIcon = asset && (!!asset.content || (asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS)));
+                        const imageUrl = asset?.public_url ?? null;
+                        const showCheckerboard = asset && (isSvgIcon || !!imageUrl);
                         return (
                           <td
                             key={field.id}
@@ -1499,12 +1503,21 @@ const CMS = React.memo(function CMS() {
                               <Tooltip disableHoverableContent>
                                 <TooltipTrigger asChild>
                                   <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 -my-1.5 inline-block">
-                                    <div className="absolute inset-0 opacity-5 bg-checkerboard" />
-                                    {asset.public_url ? (
+                                    {showCheckerboard && (
+                                      <div className="absolute inset-0 opacity-10 bg-checkerboard" />
+                                    )}
+                                    {isSvgIcon && asset.content ? (
+                                      <div
+                                        data-icon
+                                        className="relative w-full h-full flex items-center justify-center p-1 pointer-events-none text-foreground z-10"
+                                        dangerouslySetInnerHTML={{ __html: asset.content }}
+                                      />
+                                    ) : imageUrl ? (
                                       <img
-                                        src={asset.public_url}
+                                        src={getOptimizedImageUrl(imageUrl)}
                                         alt={asset.filename || 'Image'}
-                                        className="relative w-full h-full object-contain z-10"
+                                        className="relative w-full h-full object-contain pointer-events-none z-10"
+                                        loading="lazy"
                                       />
                                     ) : (
                                       <div className="absolute inset-0 flex items-center justify-center z-10">

@@ -802,10 +802,13 @@ const LayerItem: React.FC<{
 
     openFileManager(
       (asset) => {
-        // Validate asset type - only allow images
-        if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+        // Validate asset type - allow both images and icons (SVGs)
+        const isImage = asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES);
+        const isSvg = asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS);
+        
+        if (!isImage && !isSvg) {
           toast.error('Invalid asset type', {
-            description: 'Please select an image file.',
+            description: 'Please select an image or SVG file.',
           });
           return false; // Don't close file manager
         }
@@ -822,7 +825,7 @@ const LayerItem: React.FC<{
         });
       },
       currentAssetId,
-      ASSET_CATEGORIES.IMAGES
+      [ASSET_CATEGORIES.IMAGES, ASSET_CATEGORIES.ICONS]
     );
   }, [isEditMode, isLockedByOther, onLayerUpdate, layer, openFileManager]);
 

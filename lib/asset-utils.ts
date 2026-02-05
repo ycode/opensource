@@ -3,7 +3,7 @@
  * Centralized helpers for asset type detection, formatting, and categorization
  */
 
-import type { AssetCategory } from '@/types';
+import type { AssetCategory, AssetCategoryFilter } from '@/types';
 import {
   ASSET_CATEGORIES,
   ALLOWED_MIME_TYPES,
@@ -115,6 +115,46 @@ export function getAssetCategoryFromMimeType(
   }
 
   return null;
+}
+
+/**
+ * Check if an asset matches the given category filter
+ * Supports single category, array of categories, 'all', or null (shows all)
+ */
+export function matchesCategoryFilter(
+  mimeType: string | undefined | null,
+  filter: AssetCategoryFilter
+): boolean {
+  // Show all if filter is 'all' or null
+  if (filter === 'all' || filter === null) {
+    return true;
+  }
+
+  const assetCategory = getAssetCategoryFromMimeType(mimeType);
+  if (!assetCategory) return false;
+
+  // Single category
+  if (typeof filter === 'string') {
+    return assetCategory === filter;
+  }
+
+  // Array of categories
+  return filter.includes(assetCategory);
+}
+
+/**
+ * Normalize category filter to array format for internal use
+ */
+export function normalizeCategoryFilter(
+  filter: AssetCategoryFilter
+): AssetCategory[] | null {
+  if (filter === 'all' || filter === null) {
+    return null; // null means show all
+  }
+  if (typeof filter === 'string') {
+    return [filter];
+  }
+  return filter;
 }
 
 /**

@@ -544,6 +544,11 @@ export interface PageItemDuplicateResult<T> {
 export type AssetCategory = 'images' | 'videos' | 'audio' | 'documents' | 'icons';
 
 /**
+ * Category filter for file manager - supports single, multiple, or all categories
+ */
+export type AssetCategoryFilter = AssetCategory | AssetCategory[] | 'all' | null;
+
+/**
  * Asset - Represents any uploaded file (images, videos, documents, etc.)
  *
  * The asset system is designed to handle any file type, not just images.

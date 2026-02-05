@@ -458,8 +458,8 @@ export default function ImageSettings(props: ImageSettingsProps) {
               handleImageChange(asset.id);
             },
             currentAssetId,
-            // Pass undefined to show all file types, since we want both images and SVGs
-            undefined
+            // Show both images and icons (SVGs)
+            [ASSET_CATEGORIES.IMAGES, ASSET_CATEGORIES.ICONS]
           );
         };
 

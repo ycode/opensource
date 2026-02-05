@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { EditorState, UIState } from '../types';
-import type { Layer, Breakpoint, Asset, AssetCategory } from '../types';
+import type { Layer, Breakpoint, Asset, AssetCategoryFilter } from '../types';
 import { useCanvasTextEditorStore } from './useCanvasTextEditorStore';
 import { updateUrlQueryParam } from '@/hooks/use-editor-url';
 
@@ -77,7 +77,7 @@ interface EditorActions {
   setHoveredLayerId: (id: string | null) => void;
   setPreviewMode: (enabled: boolean) => void;
   setActiveSidebarTab: (tab: EditorSidebarTab) => void;
-  openFileManager: (onSelect?: ((asset: Asset) => void | false) | null, assetId?: string | null, category?: AssetCategory | 'all' | null) => void;
+  openFileManager: (onSelect?: ((asset: Asset) => void | false) | null, assetId?: string | null, category?: AssetCategoryFilter) => void;
   closeFileManager: () => void;
   setKeyboardShortcutsOpen: (open: boolean) => void;
   openCreateComponentDialog: (layerId: string, defaultName: string) => void;
@@ -120,7 +120,7 @@ interface EditorStoreWithHistory extends EditorState {
     open: boolean;
     onSelect: ((asset: Asset) => void | false) | null;
     assetId: string | null;
-    category: AssetCategory | 'all' | null;
+    category: AssetCategoryFilter;
   };
   keyboardShortcutsOpen: boolean;
   createComponentDialog: {

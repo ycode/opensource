@@ -38,7 +38,7 @@ import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { slugify } from '@/lib/collection-utils';
 import { validateFieldValue, isAssetFieldType, getFieldIcon } from '@/lib/collection-field-utils';
-import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
 import { formatDateInTimezone, localDatetimeToUTC } from '@/lib/date-format-utils';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { toast } from 'sonner';
@@ -504,8 +504,8 @@ export default function CollectionItemSheet({
                                     // Return void to close file manager
                                   },
                                   currentAssetId,
-                                  // For image fields, show all types to include SVGs; otherwise filter by category
-                                  field.type === 'image' ? undefined : assetCategory
+                                  // For image fields, show both images and icons (SVGs); otherwise filter by category
+                                  field.type === 'image' ? [ASSET_CATEGORIES.IMAGES, ASSET_CATEGORIES.ICONS] : assetCategory
                                 );
                               };
 
@@ -522,25 +522,38 @@ export default function CollectionItemSheet({
                                 return parts[1]?.toUpperCase() || 'FILE';
                               };
 
-                              // Get preview URL for images (including SVGs with inline content)
-                              const imageUrl = field.type === 'image' && currentAsset
-                                ? currentAsset.public_url || (currentAsset.content ? `data:image/svg+xml,${encodeURIComponent(currentAsset.content)}` : null)
-                                : null;
+                              // Image field preview: match file manager (SVG inline vs img, checkerboard)
+                              const isImageField = field.type === 'image' && currentAsset;
+                              const isSvgIcon = isImageField && (!!currentAsset!.content || (currentAsset!.mime_type && isAssetOfType(currentAsset!.mime_type, ASSET_CATEGORIES.ICONS)));
+                              const imageUrl = isImageField && currentAsset!.public_url ? currentAsset!.public_url : null;
+                              const showCheckerboard = isImageField && (isSvgIcon || !!imageUrl);
 
                               return (
                                 <div className="bg-input p-2 rounded-lg flex items-center gap-4">
                                   <div className="relative group bg-secondary/30 rounded-md w-full aspect-square overflow-hidden max-w-24">
-                                    {/* Checkerboard pattern for transparency (images only) */}
-                                    {field.type === 'image' && (
-                                      <div className="absolute inset-0 opacity-5 bg-checkerboard" />
+                                    {showCheckerboard && (
+                                      <div className="absolute inset-0 opacity-10 bg-checkerboard" />
                                     )}
 
-                                    {imageUrl ? (
-                                      <img
-                                        src={imageUrl}
-                                        className="relative w-full h-full object-contain z-10"
-                                        alt="Image preview"
-                                      />
+                                    {isImageField ? (
+                                      isSvgIcon && currentAsset!.content ? (
+                                        <div
+                                          data-icon
+                                          className="relative w-full h-full flex items-center justify-center p-2 pointer-events-none text-foreground z-10"
+                                          dangerouslySetInnerHTML={{ __html: currentAsset!.content }}
+                                        />
+                                      ) : imageUrl ? (
+                                        <img
+                                          src={getOptimizedImageUrl(imageUrl)}
+                                          className="relative w-full h-full object-contain pointer-events-none z-10"
+                                          alt="Image preview"
+                                          loading="lazy"
+                                        />
+                                      ) : (
+                                        <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
+                                          <Icon name="image" className="size-6" />
+                                        </div>
+                                      )
                                     ) : (
                                       <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
                                         {/* Show icon for audio/video/document fields */}
