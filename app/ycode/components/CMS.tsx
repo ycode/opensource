@@ -45,6 +45,7 @@ import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import type { CollectionItemWithValues, CollectionField, Collection } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -1640,6 +1641,26 @@ const CMS = React.memo(function CMS() {
                             <span className="block truncate">
                               {displayValue}
                             </span>
+                          </td>
+                        );
+                      }
+
+                      // Boolean fields - display as readonly switch
+                      if (field.type === 'boolean') {
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4 py-5"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            <div className="pointer-events-none">
+                              <Switch
+                                checked={value === 'true'}
+                                size="sm"
+                                tabIndex={-1}
+                                aria-hidden="true"
+                              />
+                            </div>
                           </td>
                         );
                       }
