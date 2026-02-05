@@ -1322,7 +1322,8 @@ export async function resolveCollectionLayers(
           if (collectionFilters?.groups?.length) {
             items = items.filter(item =>
               evaluateVisibility(collectionFilters, {
-                collectionItemData: item.values,
+                collectionLayerData: item.values,
+                pageCollectionData: null,
                 pageCollectionCounts: {},
               })
             );
@@ -1508,7 +1509,8 @@ export async function resolveCollectionLayers(
 
   // Third pass: Filter layers by conditional visibility
   // We need to compute collection counts first, then filter
-  const filteredResult = filterByVisibility(resultWithPagination, parentItemValues);
+  // parentItemValues is the page collection data for dynamic pages
+  const filteredResult = filterByVisibility(resultWithPagination, undefined, parentItemValues);
 
   return filteredResult;
 }
@@ -1547,26 +1549,32 @@ function computeCollectionCounts(layers: Layer[]): Record<string, number> {
 /**
  * Filter layers by conditional visibility rules
  * @param layers - Layer tree to filter
- * @param itemValues - Current collection item values for field conditions
+ * @param collectionLayerData - Current collection layer item values for field conditions
+ * @param pageCollectionData - Page collection data for dynamic pages
  * @returns Filtered layer tree with hidden layers removed
  */
 function filterByVisibility(
   layers: Layer[],
-  itemValues?: Record<string, string>
+  collectionLayerData?: Record<string, string>,
+  pageCollectionData?: Record<string, string> | null
 ): Layer[] {
   // First compute all collection counts
   const pageCollectionCounts = computeCollectionCounts(layers);
 
-  function filterLayer(layer: Layer, currentItemValues?: Record<string, string>): Layer | null {
+  function filterLayer(
+    layer: Layer,
+    currentCollectionLayerData?: Record<string, string>
+  ): Layer | null {
     // Use stored item values from cloned collection layers if available
     // This ensures children of collection items have access to the correct item values
-    const effectiveItemValues = layer._collectionItemValues || currentItemValues;
+    const effectiveCollectionLayerData = layer._collectionItemValues || currentCollectionLayerData;
 
     // Check conditional visibility
     const conditionalVisibility = layer.variables?.conditionalVisibility;
     if (conditionalVisibility && conditionalVisibility.groups?.length > 0) {
       const isVisible = evaluateVisibility(conditionalVisibility, {
-        collectionItemData: effectiveItemValues,
+        collectionLayerData: effectiveCollectionLayerData,
+        pageCollectionData,
         pageCollectionCounts,
       });
       if (!isVisible) {
@@ -1577,7 +1585,7 @@ function filterByVisibility(
     // Recursively filter children, passing down the effective item values
     if (layer.children) {
       const filteredChildren = layer.children
-        .map(child => filterLayer(child, effectiveItemValues))
+        .map(child => filterLayer(child, effectiveCollectionLayerData))
         .filter((child): child is Layer => child !== null);
 
       return {
@@ -1590,7 +1598,7 @@ function filterByVisibility(
   }
 
   return layers
-    .map(layer => filterLayer(layer, itemValues))
+    .map(layer => filterLayer(layer, collectionLayerData))
     .filter((layer): layer is Layer => layer !== null);
 }
 

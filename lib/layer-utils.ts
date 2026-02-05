@@ -7,6 +7,7 @@ import { cn, generateId } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
+import { resolveFieldFromSources } from '@/lib/cms-variables-utils';
 import { getInheritedValue } from '@/lib/tailwind-class-mapper';
 import { cloneDeep } from 'lodash';
 import { layerHasLink, hasLinkInTree, hasRichTextLinks } from '@/lib/link-utils';
@@ -624,24 +625,29 @@ export function getSiblingIds(layers: Layer[], layerId: string): string[] {
 }
 
 /**
- * Resolve field value from collection item data
- * @param fieldVariable - The FieldVariable containing field_id to resolve
- * @param collectionItemData - The collection item with values (field_id -> value)
+ * Resolve field value from collection item data using source-aware resolution
+ * @param fieldVariable - The FieldVariable containing field_id and optional source
+ * @param collectionItemData - Collection layer item data (field_id -> value)
+ * @param pageCollectionItemData - Page collection item data for dynamic pages
  * @returns The resolved value or undefined if not found
  */
 export function resolveFieldValue(
   fieldVariable: FieldVariable,
-  collectionItemData?: Record<string, string>
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string> | null
 ): string | undefined {
-  if (!collectionItemData) {
-    return undefined;
-  }
-
   const fieldId = fieldVariable.data.field_id;
   if (!fieldId) {
     return undefined;
   }
-  return collectionItemData[fieldId];
+
+  // Use source-aware resolution (respects source: 'page' | 'collection')
+  return resolveFieldFromSources(
+    fieldId,
+    fieldVariable.data.source,
+    collectionItemData,
+    pageCollectionItemData
+  );
 }
 
 /**
@@ -1107,8 +1113,10 @@ export function findAllCollectionLayers(layers: Layer[], topLevelOnly: boolean =
  * Context for evaluating visibility conditions
  */
 export interface VisibilityContext {
-  /** Field values from parent collection item (field_id -> value) */
-  collectionItemData?: Record<string, string>;
+  /** Field values from collection layer item (field_id -> value) */
+  collectionLayerData?: Record<string, string>;
+  /** Field values from page collection (for dynamic pages) */
+  pageCollectionData?: Record<string, string> | null;
   /** Item counts for each collection layer on the page (layerId -> count) */
   pageCollectionCounts?: Record<string, number>;
   /** Field definitions for type-aware comparison */
@@ -1125,7 +1133,7 @@ function evaluateCondition(
   condition: import('@/types').VisibilityCondition,
   context: VisibilityContext
 ): boolean {
-  const { collectionItemData, pageCollectionCounts, collectionFields } = context;
+  const { collectionLayerData, pageCollectionData, pageCollectionCounts } = context;
 
   if (condition.source === 'page_collection') {
     // Page collection conditions
@@ -1153,12 +1161,13 @@ function evaluateCondition(
     }
   }
 
-  // Collection field conditions
+  // Collection field conditions - use source-aware resolution
   if (condition.source === 'collection_field') {
     const fieldId = condition.fieldId;
     if (!fieldId) return true;
 
-    const rawValue = collectionItemData?.[fieldId];
+    // Use source-aware resolution (collection layer data first, then page data)
+    const rawValue = resolveFieldFromSources(fieldId, undefined, collectionLayerData, pageCollectionData);
     const value = rawValue ?? '';
     const compareValue = condition.value ?? '';
     const fieldType = condition.fieldType || 'text';
