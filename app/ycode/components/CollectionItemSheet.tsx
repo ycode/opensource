@@ -37,7 +37,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
-import { slugify } from '@/lib/collection-utils';
+import { slugify, normalizeBooleanValue } from '@/lib/collection-utils';
 import { validateFieldValue, isAssetFieldType, getFieldIcon } from '@/lib/collection-field-utils';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
 import { formatDateInTimezone, localDatetimeToUTC } from '@/lib/date-format-utils';
@@ -191,14 +191,24 @@ export default function CollectionItemSheet({
       // Ensure all values are defined (not undefined)
       const values: Record<string, any> = {};
       collectionFields.forEach(field => {
-        values[field.id] = editingItem.values[field.id] ?? '';
+        let value = editingItem.values[field.id] ?? '';
+        // Normalize boolean values to strings
+        if (field.type === 'boolean') {
+          value = normalizeBooleanValue(value);
+        }
+        values[field.id] = value;
       });
       form.reset(values);
     } else {
       // Reset with default values for new items
       const defaultValues: Record<string, any> = {};
       collectionFields.forEach(field => {
-        defaultValues[field.id] = field.default || '';
+        let value = field.default || '';
+        // Normalize boolean values to strings
+        if (field.type === 'boolean') {
+          value = normalizeBooleanValue(value);
+        }
+        defaultValues[field.id] = value;
       });
       form.reset(defaultValues);
     }
@@ -252,6 +262,13 @@ export default function CollectionItemSheet({
 
   const handleSubmit = (values: Record<string, any>) => {
     if (!collectionId) return;
+
+    // Normalize boolean values to strings before submitting
+    collectionFields.forEach(field => {
+      if (field.type === 'boolean' && field.id in values) {
+        values[field.id] = normalizeBooleanValue(values[field.id]);
+      }
+    });
 
     let hasErrors = false;
 

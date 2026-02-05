@@ -9,6 +9,26 @@ import { sanitizeSlug } from './page-utils';
  */
 
 /**
+ * Normalize a boolean value to string 'true' or 'false'
+ * Handles various input types: boolean, string, number
+ */
+export function normalizeBooleanValue(value: any): string {
+  const numVal = Number(value);
+  return (value === 'true' || value === 'yes' || value === '1' || numVal === 1 || (typeof value === 'boolean' && value)) 
+    ? 'true' 
+    : 'false';
+}
+
+/**
+ * Check if a value represents a truthy boolean
+ * Handles various input types: boolean, string, number
+ */
+export function isTruthyBooleanValue(value: any): boolean {
+  const numVal = Number(value);
+  return value === 'true' || value === 'yes' || value === '1' || numVal === 1;
+}
+
+/**
  * Sort collections by order field
  * If two collections have the same order, sort by name alphabetically
  * If two collections have the same order and name, sort by created_at time
@@ -43,9 +63,10 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
   if (value === null || value === undefined || value === '') return null;
 
   switch (type) {
-    case 'number':
+    case 'number': {
       const num = parseFloat(value);
       return isNaN(num) ? null : num;
+    }
 
     case 'boolean':
       return value === 'true' || value === '1' || value === 'yes';
@@ -54,10 +75,11 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
       // Return as ISO string for consistency
       return value;
 
-    case 'reference':
+    case 'reference': {
       // Return as number (ID of referenced item)
       const refId = parseInt(value, 10);
       return isNaN(refId) ? null : refId;
+    }
 
     case 'rich_text':
       // Parse TipTap JSON from stored string
@@ -107,6 +129,10 @@ export function valueToString(value: any, type: CollectionFieldType): string | n
 
   switch (type) {
     case 'boolean':
+      // Handle both boolean and string values
+      if (typeof value === 'string') {
+        return (value === 'true' || value === '1' || value === 'yes') ? 'true' : 'false';
+      }
       return value ? 'true' : 'false';
 
     case 'number':

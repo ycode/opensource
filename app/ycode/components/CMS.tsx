@@ -32,7 +32,7 @@ import { formatDate } from '@/lib/utils';
 import { formatDateInTimezone } from '@/lib/date-format-utils';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { slugify } from '@/lib/collection-utils';
+import { slugify, isTruthyBooleanValue } from '@/lib/collection-utils';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
 import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon } from '@/lib/collection-field-utils';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
@@ -1694,6 +1694,7 @@ const CMS = React.memo(function CMS() {
 
                       // Boolean fields - display as readonly switch
                       if (field.type === 'boolean') {
+                        const isTrue = isTruthyBooleanValue(value);
                         return (
                           <td
                             key={field.id}
@@ -1702,7 +1703,7 @@ const CMS = React.memo(function CMS() {
                           >
                             <div className="pointer-events-none">
                               <Switch
-                                checked={value === 'true'}
+                                checked={isTrue}
                                 size="sm"
                                 tabIndex={-1}
                                 aria-hidden="true"
