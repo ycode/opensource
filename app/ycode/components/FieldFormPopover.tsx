@@ -30,9 +30,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
-import { FIELD_TYPES, type FieldType } from '@/lib/collection-field-utils';
+import { Switch } from '@/components/ui/switch';
+import { FIELD_TYPES, ASSET_FIELD_TYPES, type FieldType } from '@/lib/collection-field-utils';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
-import type { CollectionField } from '@/types';
+import type { CollectionField, CollectionFieldData } from '@/types';
 
 interface FieldFormPopoverProps {
   trigger?: React.ReactNode;
@@ -44,6 +45,7 @@ interface FieldFormPopoverProps {
     type: FieldType;
     default: string;
     reference_collection_id?: string | null;
+    data?: CollectionFieldData;
   }) => void | Promise<void>;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -66,6 +68,9 @@ export default function FieldFormPopover({
   const [fieldDefault, setFieldDefault] = useState(mode === 'edit' && field ? (field.default || '') : '');
   const [referenceCollectionId, setReferenceCollectionId] = useState<string | null>(
     mode === 'edit' && field ? (field.reference_collection_id || null) : null
+  );
+  const [fieldMultiple, setFieldMultiple] = useState(
+    mode === 'edit' && field ? (field.data?.multiple || false) : false
   );
 
   // Get collections for reference field dropdown
@@ -94,6 +99,9 @@ export default function FieldFormPopover({
   // Check if current field type requires a reference collection
   const isReferenceType = fieldType === 'reference' || fieldType === 'multi_reference';
 
+  // Check if current field type supports multiple files
+  const isAssetType = ASSET_FIELD_TYPES.includes(fieldType);
+
   // Initialize form values when field changes or dialog opens (for edit mode)
   useEffect(() => {
     if (mode === 'edit' && field && open) {
@@ -101,6 +109,7 @@ export default function FieldFormPopover({
       setFieldType(field.type);
       setFieldDefault(field.default || '');
       setReferenceCollectionId(field.reference_collection_id || null);
+      setFieldMultiple(field.data?.multiple || false);
       setHasChangedType(false);
     } else if (mode === 'create' && open) {
       // Reset for create mode
@@ -108,6 +117,7 @@ export default function FieldFormPopover({
       setFieldType('text');
       setFieldDefault('');
       setReferenceCollectionId(null);
+      setFieldMultiple(false);
       setHasChangedType(false);
     }
   }, [mode, field, open]);
@@ -123,6 +133,13 @@ export default function FieldFormPopover({
     }
   }, [isReferenceType, hasChangedType]);
 
+  // Clear multiple setting when user switches away from asset types
+  useEffect(() => {
+    if (hasChangedType && !isAssetType) {
+      setFieldMultiple(false);
+    }
+  }, [isAssetType, hasChangedType]);
+
   const handleSubmit = async () => {
     if (!fieldName.trim()) return;
 
@@ -134,6 +151,7 @@ export default function FieldFormPopover({
       type: fieldType,
       default: fieldDefault,
       reference_collection_id: isReferenceType ? referenceCollectionId : null,
+      data: isAssetType ? { multiple: fieldMultiple } : undefined,
     });
 
     // Reset form after successful submission
@@ -142,6 +160,7 @@ export default function FieldFormPopover({
       setFieldType('text');
       setFieldDefault('');
       setReferenceCollectionId(null);
+      setFieldMultiple(false);
     }
   };
 
@@ -153,6 +172,7 @@ export default function FieldFormPopover({
         setFieldType('text');
         setFieldDefault('');
         setReferenceCollectionId(null);
+        setFieldMultiple(false);
       }
     }
     onOpenChange?.(newOpen);
@@ -239,6 +259,29 @@ export default function FieldFormPopover({
                 </SelectGroup>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+      )}
+
+      {/* Multiple files toggle - only show for asset types */}
+      {isAssetType && (
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor="field-multiple" className="text-right">
+            Multiple
+          </Label>
+          <div className="col-span-3 flex items-center gap-2">
+            <Switch
+              id="field-multiple"
+              checked={fieldMultiple}
+              onCheckedChange={setFieldMultiple}
+              disabled={mode === 'edit' && field?.data?.multiple === true}
+            />
+            <Label
+              htmlFor="field-multiple"
+              className="text-xs text-muted-foreground font-normal cursor-pointer"
+            >
+              Allows multiple files
+            </Label>
           </div>
         </div>
       )}

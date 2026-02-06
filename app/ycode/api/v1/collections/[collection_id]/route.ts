@@ -63,7 +63,6 @@ export async function GET(
         slug: field.key || field.name.toLowerCase().replace(/\s+/g, '-'),
         type: field.type,
         isRequired: field.fillable,
-        ...(field.data?.validations && { validations: field.data.validations }),
       }));
 
     return NextResponse.json({

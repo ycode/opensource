@@ -169,6 +169,14 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
+ * Get file extension from mime type
+ */
+export function getFileExtension(mimeType: string): string {
+  const parts = mimeType.split('/');
+  return parts[1]?.toUpperCase() || 'FILE';
+}
+
+/**
  * File validation result type
  */
 export interface FileValidationResult {

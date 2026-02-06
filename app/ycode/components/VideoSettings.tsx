@@ -147,7 +147,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
 
   // Filter fields to only show video-bindable field types
   const videoFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, VIDEO_FIELD_TYPES);
+    const filtered = filterFieldGroupsByType(fieldGroups, VIDEO_FIELD_TYPES, { excludeMultipleAsset: true });
     return flattenFieldGroups(filtered);
   }, [fieldGroups]);
 

@@ -375,20 +375,31 @@ export function isMediaFieldType(fieldType: CollectionFieldType | undefined | nu
   return fieldType != null && MEDIA_FIELD_TYPES.includes(fieldType);
 }
 
+/** Check if a field allows multiple assets */
+export function isMultipleAssetField(field: CollectionField): boolean {
+  return isAssetFieldType(field.type) && field.data?.multiple === true;
+}
+
 /**
  * Filter field groups to only include fields of specified types.
  * Returns empty array if no matching fields exist.
+ * When options.excludeMultipleAsset is true, also excludes fields with multiple assets.
  */
 export function filterFieldGroupsByType(
   fieldGroups: FieldGroup[] | undefined,
-  allowedTypes: CollectionFieldType[]
+  allowedTypes: CollectionFieldType[],
+  options?: { excludeMultipleAsset?: boolean }
 ): FieldGroup[] {
   if (!fieldGroups || fieldGroups.length === 0) return [];
 
   return fieldGroups
     .map(group => ({
       ...group,
-      fields: group.fields.filter(field => allowedTypes.includes(field.type)),
+      fields: group.fields.filter(field => {
+        if (!allowedTypes.includes(field.type)) return false;
+        if (options?.excludeMultipleAsset && isMultipleAssetField(field)) return false;
+        return true;
+      }),
     }))
     .filter(group => group.fields.length > 0);
 }

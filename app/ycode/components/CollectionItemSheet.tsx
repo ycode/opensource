@@ -38,16 +38,138 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { slugify, normalizeBooleanValue } from '@/lib/collection-utils';
-import { validateFieldValue, isAssetFieldType, getFieldIcon } from '@/lib/collection-field-utils';
-import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
+import { validateFieldValue, isAssetFieldType, isMultipleAssetField, getFieldIcon } from '@/lib/collection-field-utils';
+import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType, formatFileSize, getFileExtension } from '@/lib/asset-utils';
 import { formatDateInTimezone, localDatetimeToUTC } from '@/lib/date-format-utils';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import CollectionLinkFieldInput from './CollectionLinkFieldInput';
-import type { CollectionItemWithValues } from '@/types';
+import type { Asset, CollectionFieldType, CollectionItemWithValues } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+
+// Asset field configuration maps
+const ASSET_CATEGORY_MAP = {
+  image: ASSET_CATEGORIES.IMAGES,
+  audio: ASSET_CATEGORIES.AUDIO,
+  video: ASSET_CATEGORIES.VIDEOS,
+  document: ASSET_CATEGORIES.DOCUMENTS,
+} as const;
+
+const FIELD_LABEL_MAP = { image: 'image', audio: 'audio', video: 'video', document: 'document' } as const;
+const ADD_BUTTON_LABEL_MAP = { image: 'an image', audio: 'an audio', video: 'a video', document: 'a document' } as const;
+
+/** Get asset category filter for a field type */
+function getAssetCategoryForField(fieldType: CollectionFieldType) {
+  return ASSET_CATEGORY_MAP[fieldType as keyof typeof ASSET_CATEGORY_MAP] ?? ASSET_CATEGORIES.DOCUMENTS;
+}
+
+/** Get label for a field type */
+function getFieldLabel(fieldType: CollectionFieldType) {
+  return FIELD_LABEL_MAP[fieldType as keyof typeof FIELD_LABEL_MAP] ?? 'file';
+}
+
+/** Validate asset type for a field */
+function isValidAssetType(asset: Asset, fieldType: CollectionFieldType): boolean {
+  if (fieldType === 'image') {
+    return !!(asset.mime_type && (isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) || isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS)));
+  }
+  const category = getAssetCategoryForField(fieldType);
+  return !!(asset.mime_type && isAssetOfType(asset.mime_type, category));
+}
+
+/** Get file manager category filter for a field type */
+function getFileManagerCategory(fieldType: CollectionFieldType) {
+  return fieldType === 'image' ? [ASSET_CATEGORIES.IMAGES, ASSET_CATEGORIES.ICONS] : getAssetCategoryForField(fieldType);
+}
+
+interface AssetFieldCardProps {
+  asset: Asset | null;
+  fieldType: CollectionFieldType;
+  onChangeFile: () => void;
+  onRemove: () => void;
+}
+
+/** Reusable card component for displaying an asset in a CMS field */
+function AssetFieldCard({ asset, fieldType, onChangeFile, onRemove }: AssetFieldCardProps) {
+  const isImageField = fieldType === 'image' && asset;
+  const isSvgIcon = isImageField && (!!asset!.content || (asset!.mime_type && isAssetOfType(asset!.mime_type, ASSET_CATEGORIES.ICONS)));
+  const imageUrl = isImageField && asset!.public_url ? asset!.public_url : null;
+  const showCheckerboard = isImageField && (isSvgIcon || !!imageUrl);
+
+  return (
+    <div className="bg-input p-2 rounded-lg flex items-center gap-4">
+      <div className="relative group bg-secondary/30 rounded-md w-full aspect-square overflow-hidden max-w-24 shrink-0">
+        {showCheckerboard && (
+          <div className="absolute inset-0 opacity-10 bg-checkerboard" />
+        )}
+        {isImageField ? (
+          isSvgIcon && asset!.content ? (
+            <div
+              data-icon
+              className="relative w-full h-full flex items-center justify-center p-2 pointer-events-none text-foreground z-10"
+              dangerouslySetInnerHTML={{ __html: asset!.content }}
+            />
+          ) : imageUrl ? (
+            <img
+              src={getOptimizedImageUrl(imageUrl)}
+              className="relative w-full h-full object-contain pointer-events-none z-10"
+              alt="Image preview"
+              loading="lazy"
+            />
+          ) : (
+            <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
+              <Icon name="image" className="size-6" />
+            </div>
+          )
+        ) : (
+          <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
+            {asset && <Icon name={getFieldIcon(fieldType)} className="size-6" />}
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+        {asset && (
+          <div className="flex flex-col gap-1">
+            <Label className="truncate">{asset.filename}</Label>
+            <span className="text-xs text-current/60 inline-flex gap-2 items-center flex-wrap">
+              {getFileExtension(asset.mime_type)}
+              <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
+              {formatFileSize(asset.file_size)}
+              {asset.width && asset.height && (
+                <>
+                  <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
+                  {asset.width}×{asset.height}
+                </>
+              )}
+            </span>
+          </div>
+        )}
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); onChangeFile(); }}
+          >
+            {asset ? 'Change file' : 'Choose file'}
+          </Button>
+          {asset && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface CollectionItemSheetProps {
   open: boolean;
@@ -483,147 +605,142 @@ export default function CollectionItemSheet({
                                 formField.onChange(utcValue);
                               }}
                             />
+                          ) : isMultipleAssetField(field) ? (
+                            /* Multiple Asset Field */
+                            (() => {
+                              // Handle both array (from castValue) and JSON string formats
+                              let assetIds: string[] = [];
+                              const rawValue = formField.value;
+                              if (Array.isArray(rawValue)) {
+                                assetIds = rawValue;
+                              } else if (typeof rawValue === 'string' && rawValue) {
+                                try {
+                                  const parsed = JSON.parse(rawValue);
+                                  assetIds = Array.isArray(parsed) ? parsed : [];
+                                } catch {
+                                  assetIds = [];
+                                }
+                              }
+
+                              const fieldLabel = getFieldLabel(field.type);
+                              const addButtonLabel = ADD_BUTTON_LABEL_MAP[field.type as keyof typeof ADD_BUTTON_LABEL_MAP] ?? 'a file';
+
+                              const showInvalidTypeError = () => {
+                                const article = fieldLabel === 'audio' ? 'an' : 'a';
+                                toast.error('Invalid asset type', {
+                                  description: `Please select ${article} ${fieldLabel} file.`,
+                                });
+                              };
+
+                              const handleAddAsset = () => {
+                                openFileManager(
+                                  (asset) => {
+                                    if (!isValidAssetType(asset, field.type)) {
+                                      showInvalidTypeError();
+                                      return false;
+                                    }
+                                    if (!assetIds.includes(asset.id)) {
+                                      formField.onChange(JSON.stringify([...assetIds, asset.id]));
+                                    }
+                                  },
+                                  undefined,
+                                  getFileManagerCategory(field.type)
+                                );
+                              };
+
+                              const handleReplaceAsset = (oldAssetId: string) => {
+                                openFileManager(
+                                  (asset) => {
+                                    if (!isValidAssetType(asset, field.type)) {
+                                      showInvalidTypeError();
+                                      return false;
+                                    }
+                                    formField.onChange(JSON.stringify(assetIds.map(id => id === oldAssetId ? asset.id : id)));
+                                  },
+                                  oldAssetId,
+                                  getFileManagerCategory(field.type)
+                                );
+                              };
+
+                              const handleRemoveAsset = (assetId: string) => {
+                                formField.onChange(JSON.stringify(assetIds.filter(id => id !== assetId)));
+                              };
+
+                              return (
+                                <div className="space-y-2">
+                                  {assetIds.length > 0 && (
+                                    <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))]">
+                                      {assetIds.map((assetId) => (
+                                        <AssetFieldCard
+                                          key={assetId}
+                                          asset={getAsset(assetId)}
+                                          fieldType={field.type}
+                                          onChangeFile={() => handleReplaceAsset(assetId)}
+                                          onRemove={() => handleRemoveAsset(assetId)}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={(e) => { e.stopPropagation(); handleAddAsset(); }}
+                                  >
+                                    <Icon name="plus" className="size-3" />
+                                    Add {addButtonLabel}
+                                  </Button>
+                                </div>
+                              );
+                            })()
                           ) : isAssetFieldType(field.type) ? (
-                            /* Asset Field - File Manager UI (Image, Audio, Video, Document) */
+                            /* Single Asset Field */
                             (() => {
                               const currentAssetId = formField.value || null;
                               const currentAsset = currentAssetId ? getAsset(currentAssetId) : null;
-                              const assetFilename = currentAsset?.filename || null;
-
-                              // Determine asset category and labels based on field type
-                              const assetCategoryMap = {
-                                image: ASSET_CATEGORIES.IMAGES,
-                                audio: ASSET_CATEGORIES.AUDIO,
-                                video: ASSET_CATEGORIES.VIDEOS,
-                                document: ASSET_CATEGORIES.DOCUMENTS,
-                              } as const;
-                              const assetCategory = assetCategoryMap[field.type as keyof typeof assetCategoryMap] ?? ASSET_CATEGORIES.DOCUMENTS;
-                              const fieldLabelMap = { image: 'image or SVG', audio: 'audio', video: 'video', document: 'document' } as const;
-                              const fieldLabel = fieldLabelMap[field.type as keyof typeof fieldLabelMap] ?? 'file';
+                              const fieldLabel = getFieldLabel(field.type);
+                              const addButtonLabel = ADD_BUTTON_LABEL_MAP[field.type as keyof typeof ADD_BUTTON_LABEL_MAP] ?? 'a file';
 
                               const handleOpenFileManager = () => {
                                 openFileManager(
                                   (asset) => {
-                                    // Validate asset type - for images, also accept SVGs (ICONS category)
-                                    const isValidType = field.type === 'image'
-                                      ? asset.mime_type && (isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) || isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS))
-                                      : asset.mime_type && isAssetOfType(asset.mime_type, assetCategory);
-
-                                    if (!isValidType) {
+                                    if (!isValidAssetType(asset, field.type)) {
                                       const article = fieldLabel === 'audio' ? 'an' : 'a';
                                       toast.error('Invalid asset type', {
                                         description: `Please select ${article} ${fieldLabel} file.`,
                                       });
-                                      return false; // Don't close file manager
+                                      return false;
                                     }
-
-                                    // Set the asset ID as the field value
                                     formField.onChange(asset.id);
-                                    // Return void to close file manager
                                   },
                                   currentAssetId,
-                                  // For image fields, show both images and icons (SVGs); otherwise filter by category
-                                  field.type === 'image' ? [ASSET_CATEGORIES.IMAGES, ASSET_CATEGORIES.ICONS] : assetCategory
+                                  getFileManagerCategory(field.type)
                                 );
                               };
 
-                              // Helper to format file size
-                              const formatFileSize = (bytes: number): string => {
-                                if (bytes < 1024) return `${bytes} B`;
-                                if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-                                return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-                              };
-
-                              // Helper to get file extension from mime type
-                              const getFileExtension = (mimeType: string): string => {
-                                const parts = mimeType.split('/');
-                                return parts[1]?.toUpperCase() || 'FILE';
-                              };
-
-                              // Image field preview: match file manager (SVG inline vs img, checkerboard)
-                              const isImageField = field.type === 'image' && currentAsset;
-                              const isSvgIcon = isImageField && (!!currentAsset!.content || (currentAsset!.mime_type && isAssetOfType(currentAsset!.mime_type, ASSET_CATEGORIES.ICONS)));
-                              const imageUrl = isImageField && currentAsset!.public_url ? currentAsset!.public_url : null;
-                              const showCheckerboard = isImageField && (isSvgIcon || !!imageUrl);
+                              if (!currentAsset) {
+                                return (
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    className="w-fit"
+                                    onClick={(e) => { e.stopPropagation(); handleOpenFileManager(); }}
+                                  >
+                                    <Icon name="plus" className="size-3" />
+                                    Add {addButtonLabel}
+                                  </Button>
+                                );
+                              }
 
                               return (
-                                <div className="bg-input p-2 rounded-lg flex items-center gap-4">
-                                  <div className="relative group bg-secondary/30 rounded-md w-full aspect-square overflow-hidden max-w-24">
-                                    {showCheckerboard && (
-                                      <div className="absolute inset-0 opacity-10 bg-checkerboard" />
-                                    )}
-
-                                    {isImageField ? (
-                                      isSvgIcon && currentAsset!.content ? (
-                                        <div
-                                          data-icon
-                                          className="relative w-full h-full flex items-center justify-center p-2 pointer-events-none text-foreground z-10"
-                                          dangerouslySetInnerHTML={{ __html: currentAsset!.content }}
-                                        />
-                                      ) : imageUrl ? (
-                                        <img
-                                          src={getOptimizedImageUrl(imageUrl)}
-                                          className="relative w-full h-full object-contain pointer-events-none z-10"
-                                          alt="Image preview"
-                                          loading="lazy"
-                                        />
-                                      ) : (
-                                        <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
-                                          <Icon name="image" className="size-6" />
-                                        </div>
-                                      )
-                                    ) : (
-                                      <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
-                                        {/* Show icon for audio/video/document fields */}
-                                        {field.type !== 'image' && currentAsset && (
-                                          <Icon name={getFieldIcon(field.type)} className="size-6" />
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                                    {currentAsset && (
-                                      <div className="flex flex-col gap-1">
-                                        <Label className="truncate">{assetFilename}</Label>
-                                        <span className="text-xs text-current/60 inline-flex gap-2 items-center">
-                                          {getFileExtension(currentAsset.mime_type)}
-                                          <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
-                                          {formatFileSize(currentAsset.file_size)}
-                                          {currentAsset.width && currentAsset.height && (
-                                            <>
-                                              <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
-                                              {currentAsset.width}×{currentAsset.height}
-                                            </>
-                                          )}
-                                        </span>
-                                      </div>
-                                    )}
-
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        type="button" variant="secondary"
-                                        size="sm" onClick={(e) => {e.stopPropagation();handleOpenFileManager();}}
-                                      >
-                                        {assetFilename ? 'Change file' : 'Choose file'}
-                                      </Button>
-
-                                      {currentAssetId && (
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            formField.onChange('');
-                                          }}
-                                        >
-                                          Remove
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </div>
-
+                                <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))]">
+                                  <AssetFieldCard
+                                    asset={currentAsset}
+                                    fieldType={field.type}
+                                    onChangeFile={handleOpenFileManager}
+                                    onRemove={() => formField.onChange('')}
+                                  />
                                 </div>
                               );
                             })()

@@ -59,6 +59,20 @@ export async function PUT(
       );
     }
 
+    // Get existing field to check protected settings
+    const existingField = await getFieldById(fieldId);
+    if (!existingField) {
+      return noCache({ error: 'Field not found' }, 404);
+    }
+
+    // Prevent disabling multiple once it's enabled (would cause data loss)
+    if (existingField.data?.multiple === true && body.data?.multiple === false) {
+      return noCache(
+        { error: 'Cannot disable multiple files setting once enabled' },
+        400
+      );
+    }
+
     const field = await updateField(fieldId, body);
 
     return noCache({ data: field });

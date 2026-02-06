@@ -807,6 +807,11 @@ export interface UpdateCollectionData {
   order?: number;
 }
 
+/** Field-specific settings stored in the data column */
+export interface CollectionFieldData {
+  multiple?: boolean; // For asset fields - allow multiple files
+}
+
 export interface CreateCollectionFieldData {
   name: string;
   key?: string | null;
@@ -817,7 +822,7 @@ export interface CreateCollectionFieldData {
   collection_id: string; // UUID
   reference_collection_id?: string | null; // UUID
   hidden?: boolean;
-  data?: Record<string, any>;
+  data?: CollectionFieldData;
   is_published?: boolean;
 }
 
@@ -830,7 +835,7 @@ export interface UpdateCollectionFieldData {
   order?: number;
   reference_collection_id?: string | null; // UUID
   hidden?: boolean;
-  data?: Record<string, any>;
+  data?: CollectionFieldData;
 }
 
 export interface CollectionField {
@@ -847,7 +852,7 @@ export interface CollectionField {
   updated_at: string;
   deleted_at: string | null;
   hidden: boolean;
-  data: Record<string, any>;
+  data: CollectionFieldData;
   is_published: boolean;
 }
 
