@@ -1005,11 +1005,22 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const collectionVariable = editingLayerParentCollection
       ? getCollectionVariable(editingLayerParentCollection)
       : null;
+
+    // Check if parent is a multi-asset collection
+    const isMultiAssetParent = collectionVariable?.source_field_type === 'multi_asset';
+    const multiAssetContext = isMultiAssetParent && collectionVariable.source_field_id
+      ? {
+        sourceFieldId: collectionVariable.source_field_id,
+        source: (collectionVariable.source_field_source || 'collection') as 'page' | 'collection',
+      }
+      : null;
+
     return buildFieldGroups({
       collectionLayer: collectionVariable ? { collectionId: collectionVariable.id } : null,
       page: currentPage,
       fieldsByCollectionId: collectionFieldsFromStore,
       collections: collectionsFromStore,
+      multiAssetContext,
     });
   }, [editingLayerParentCollection, currentPage, collectionFieldsFromStore, collectionsFromStore]);
 

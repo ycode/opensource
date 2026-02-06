@@ -868,14 +868,16 @@ export function getLayerIcon(
  * Get the label for a layer (for display in the UI)
  *
  * @param layer - The layer to get the name for
- * @param context - Optional context (component_name, collection_name)
+ * @param context - Optional context (component_name, collection_name, source_field_name)
  * @param breakpoint - Optional breakpoint for layout-aware names
  */
 export function getLayerName(
   layer: Layer,
   context?: {
-    component_name?: string | undefined | null,
-    collection_name?: string | undefined | null,
+    component_name?: string | undefined | null;
+    collection_name?: string | undefined | null;
+    /** When collection is bound to a field (reference/multi-reference/multi-asset), the field name */
+    source_field_name?: string | undefined | null;
   },
   breakpoint?: Breakpoint
 ): string {
@@ -889,9 +891,10 @@ export function getLayerName(
     return context?.component_name || 'Component';
   }
 
-  // Use collection name with formatting
+  // Use field name or collection name in parentheses after "Collection"
   if (getCollectionVariable(layer)) {
-    return `Collection${context?.collection_name ? ` (${context.collection_name})` : ''}`;
+    const label = context?.source_field_name ?? context?.collection_name;
+    return label ? `Collection (${label})` : 'Collection';
   }
 
   // Layout layers (Columns, Rows, Grid) - breakpoint-aware names

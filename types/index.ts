@@ -990,8 +990,9 @@ export interface CollectionVariable {
   sort_order?: 'asc' | 'desc'; // Only used when sort_by is a field ID
   limit?: number; // Maximum number of items to show (deprecated when pagination enabled)
   offset?: number; // Number of items to skip (deprecated when pagination enabled)
-  source_field_id?: string; // Reference field ID from parent item (for filtered collection source)
-  source_field_type?: 'reference' | 'multi_reference'; // Type of source field (single vs multi)
+  source_field_id?: string; // Field ID from parent item (reference or multi-asset field)
+  source_field_type?: 'reference' | 'multi_reference' | 'multi_asset'; // Type of source field
+  source_field_source?: 'page' | 'collection'; // Source of the field (page data or collection layer)
   filters?: ConditionalVisibility; // Filter conditions to apply to collection items
   pagination?: CollectionPaginationConfig; // Pagination settings for collection
 }
