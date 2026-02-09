@@ -34,6 +34,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { cn } from '@/lib/utils';
 import { flattenTree, type FlattenedItem } from '@/lib/tree-utilities';
 import { canHaveChildren, getLayerIcon, getLayerName, getCollectionVariable, canMoveLayer } from '@/lib/layer-utils';
+import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 import { hasStyleOverrides } from '@/lib/layer-style-utils';
 import { getUserInitials, getDisplayName } from '@/lib/collaboration-utils';
 import { getBreakpointPrefix } from '@/lib/breakpoint-utils';
@@ -80,6 +81,7 @@ function getLayerDisplayLabel(
   context?: {
     component_name?: string | undefined | null;
     collection_name?: string | undefined | null;
+    source_field_name?: string | undefined | null;
   },
   breakpoint?: Breakpoint
 ): string {
@@ -183,6 +185,7 @@ const LayerRow = React.memo(function LayerRow({
   const getStyleById = useLayerStylesStore((state) => state.getStyleById);
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const collections = useCollectionsStore((state) => state.collections);
+  const fieldsByCollectionId = useCollectionsStore((state) => state.fields);
 
   // Use selective subscriptions to avoid re-renders when unrelated state changes
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
@@ -234,9 +237,12 @@ const LayerRow = React.memo(function LayerRow({
 
   // Also check new variables structure
   const collectionVariable = getCollectionVariable(node.layer);
-  const finalCollectionName = collectionVariable?.id
+  const finalCollectionName = collectionVariable?.id && collectionVariable.id !== MULTI_ASSET_COLLECTION_ID
     ? collections.find(c => c.id === collectionVariable.id)?.name
     : collectionName;
+  const sourceFieldName = collectionVariable?.source_field_id
+    ? (Object.values(fieldsByCollectionId).flat().find((f) => f.id === collectionVariable.source_field_id)?.name ?? null)
+    : null;
 
   // Component instances should not show children in the tree (unless editing master)
   // Children can only be edited via "Edit master component"
@@ -286,7 +292,7 @@ const LayerRow = React.memo(function LayerRow({
                   className={cn(
                     'absolute z-10 top-0 bottom-0 w-px ',
                     shouldHighlight && 'bg-white/30',
-                    isSelected && '!bg-white/10',
+                    isSelected && 'bg-white/10!',
                     isChildOfSelected && 'dark:bg-white/10 bg-neutral-900/10',
                     !shouldHighlight && !isChildOfSelected && 'dark:bg-secondary bg-neutral-900/10',
                   )}
@@ -372,7 +378,7 @@ const LayerRow = React.memo(function LayerRow({
                   }
                 }}
                 className={cn(
-                  'w-4 h-4 flex items-center justify-center flex-shrink-0',
+                  'w-4 h-4 flex items-center justify-center shrink-0',
                   isCollapsed ? '' : 'rotate-90',
                   shouldHideChildren && 'opacity-30 cursor-not-allowed'
                 )}
@@ -381,11 +387,11 @@ const LayerRow = React.memo(function LayerRow({
                 <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
               </button>
             ) : (
-              <div className="w-4 h-4 flex-shrink-0" />
+              <div className="w-4 h-4 shrink-0" />
             )
           ) : (
-            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
-              <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
+            <div className="w-4 h-4 shrink-0 flex items-center justify-center">
+              <div className={cn('ml-px w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
             </div>
           )}
 
@@ -410,16 +416,17 @@ const LayerRow = React.memo(function LayerRow({
           )}
 
           {/* Label (breakpoint-aware for layout layers, text content for text layers) */}
-          <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+          <span className="grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
             {getLayerDisplayLabel(node.layer, {
               component_name: appliedComponent?.name,
               collection_name: finalCollectionName,
+              source_field_name: sourceFieldName ?? undefined,
             }, activeBreakpoint)}
           </span>
 
           {/* Lock Indicator - show when layer is locked by another user */}
           {isLockedByOther && (
-            <div className="mr-2 flex-shrink-0">
+            <div className="mr-2 shrink-0">
               <CollaboratorBadge
                 collaborator={{
                   userId: lockOwnerUser?.user_id || '',
@@ -434,7 +441,7 @@ const LayerRow = React.memo(function LayerRow({
 
           {/* Style Indicator - temporarily disabled */}
           {/* {node.layer.styleId && (
-            <div className="flex items-center gap-1 mr-2 flex-shrink-0">
+            <div className="flex items-center gap-1 mr-2 shrink-0">
               <LayersIcon className="w-3 h-3 text-purple-400" />
               {(() => {
                 const appliedStyle = getStyleById(node.layer.styleId);
@@ -450,7 +457,7 @@ const LayerRow = React.memo(function LayerRow({
             <Icon
               name="zap"
               className={cn(
-                'size-3 mr-2 flex-shrink-0',
+                'size-3 mr-2 shrink-0',
                 activeInteractionTriggerLayerId === node.id ? 'text-white/80' : 'text-white/40'
               )}
             />
@@ -461,7 +468,7 @@ const LayerRow = React.memo(function LayerRow({
             <Icon
               name="zap-outline"
               className={cn(
-                'size-3 mr-2 flex-shrink-0',
+                'size-3 mr-2 shrink-0',
                 activeInteractionTargetLayerIds.includes(node.id) ? 'text-white/70' : 'text-white/40'
               )}
             />
@@ -509,7 +516,7 @@ function EndDropZone({
           className="absolute top-0 left-0 right-0 h-[1.5px] z-50 ml-2 bg-primary"
         >
           <div
-            className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary"
+            className="absolute -bottom-0.75 -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary"
           />
         </div>
       )}
@@ -617,8 +624,8 @@ export default function LayersTree({
   // Get component by ID function for drag overlay
   const { getComponentById } = useComponentsStore();
 
-  // Get collections from store
-  const { collections } = useCollectionsStore();
+  // Get collections and fields from store
+  const { collections, fields: fieldsByCollectionId } = useCollectionsStore();
 
   // Use prop or store state (prop takes precedence for compatibility)
   const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
@@ -701,16 +708,20 @@ export default function LayersTree({
     [activeId, flattenedNodes]
   );
 
-  // Get collection name for active node (for drag overlay)
-  const activeNodeCollectionName = useMemo(() => {
-    if (!activeNode) return undefined;
+  // Get collection label for active node (for drag overlay): field name or collection name
+  const activeNodeCollectionContext = useMemo(() => {
+    if (!activeNode) return { collection_name: undefined as string | undefined, source_field_name: undefined as string | undefined };
     const collectionVariable = getCollectionVariable(activeNode.layer);
-    return collectionVariable?.id
+    const collectionName = collectionVariable?.id && collectionVariable.id !== MULTI_ASSET_COLLECTION_ID
       ? collections.find(c => c.id === collectionVariable.id)?.name
       : activeNode.layer.collection?.id
         ? collections.find(c => c.id === activeNode.layer.collection?.id)?.name
         : undefined;
-  }, [activeNode, collections]);
+    const sourceFieldName = collectionVariable?.source_field_id
+      ? (Object.values(fieldsByCollectionId).flat().find((f) => f.id === collectionVariable.source_field_id)?.name ?? undefined)
+      : undefined;
+    return { collection_name: collectionName, source_field_name: sourceFieldName };
+  }, [activeNode, collections, fieldsByCollectionId]);
 
   // Configure sensors for drag detection
   const sensors = useSensors(
@@ -1543,7 +1554,7 @@ export default function LayersTree({
               return (
                 <>
                   {draggedComponent ? (
-                    <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
+                    <ComponentIcon className="w-3 h-3 shrink-0 mx-1.5 opacity-75" />
                   ) : layerIcon ? (
                     <Icon
                       name={layerIcon}
@@ -1561,7 +1572,8 @@ export default function LayersTree({
             <span className="pointer-events-none">
               {getLayerDisplayLabel(activeNode.layer, {
                 component_name: activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId)?.name : null,
-                collection_name: activeNodeCollectionName,
+                collection_name: activeNodeCollectionContext.collection_name,
+                source_field_name: activeNodeCollectionContext.source_field_name,
               }, activeBreakpoint)}
             </span>
           </div>

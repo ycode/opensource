@@ -34,7 +34,7 @@ import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { slugify, isTruthyBooleanValue } from '@/lib/collection-utils';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
-import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon } from '@/lib/collection-field-utils';
+import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
@@ -44,7 +44,7 @@ import FieldFormPopover from './FieldFormPopover';
 import CollectionItemSheet from './CollectionItemSheet';
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import type { CollectionItemWithValues, CollectionField, Collection } from '@/types';
+import type { CollectionItemWithValues, CollectionField, Collection, CollectionFieldData } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -108,13 +108,14 @@ interface ItemLockInfo {
 interface SortableRowProps {
   item: CollectionItemWithValues;
   isSaving?: boolean;
+  isManualMode?: boolean;
   children: React.ReactNode;
   onDuplicate: () => void;
   onDelete: () => void;
   lockInfo?: ItemLockInfo;
 }
 
-function SortableRow({ item, isSaving, children, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
+function SortableRow({ item, isSaving, isManualMode, children, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -127,11 +128,14 @@ function SortableRow({ item, isSaving, children, onDuplicate, onDelete, lockInfo
   const isLockedByOther = lockInfo?.isLocked;
   const isDisabled = isLockedByOther || isSaving;
 
+  const cursor =
+    isDisabled ? 'not-allowed' : isDragging ? 'grabbing' : isManualMode ? 'grab' : 'pointer';
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : isDisabled ? 0.6 : 1,
-    cursor: isDisabled ? 'not-allowed' : 'grab',
+    cursor,
   };
 
   return (
@@ -1166,6 +1170,7 @@ const CMS = React.memo(function CMS() {
     type: FieldType;
     default: string;
     reference_collection_id?: string | null;
+    data?: CollectionFieldData;
   }) => {
     if (!selectedCollectionId) return;
 
@@ -1182,6 +1187,7 @@ const CMS = React.memo(function CMS() {
         key: null,
         hidden: false,
         reference_collection_id: data.reference_collection_id || null,
+        data: data.data,
       });
 
       // No reload needed - store already updated local state optimistically
@@ -1332,15 +1338,22 @@ const CMS = React.memo(function CMS() {
     type: FieldType;
     default: string;
     reference_collection_id?: string | null;
+    data?: CollectionFieldData;
   }) => {
     if (!selectedCollectionId || !editingField) return;
 
     try {
+      // Merge new data with existing data to preserve other settings
+      const mergedData = data.data
+        ? { ...editingField.data, ...data.data }
+        : editingField.data;
+
       // Store updates local state optimistically
       await updateField(selectedCollectionId, editingField.id, {
         name: data.name,
         default: data.default || null,
         reference_collection_id: data.reference_collection_id,
+        data: mergedData,
       });
 
       // No reload needed - store already updated local state optimistically
@@ -1494,6 +1507,7 @@ const CMS = React.memo(function CMS() {
                     key={item.id}
                     item={item}
                     isSaving={isTempId(item.id)}
+                    isManualMode={isManualMode}
                     onDuplicate={() => handleDuplicateItem(item.id)}
                     onDelete={() => handleDeleteItem(item.id)}
                     lockInfo={getItemLockInfo(item.id)}
@@ -1537,77 +1551,132 @@ const CMS = React.memo(function CMS() {
 
                       // Image fields - show thumbnail (match file manager: SVG inline, raster via img + checkerboard)
                       if (field.type === 'image' && value) {
-                        const asset = getAsset(value);
-                        const isSvgIcon = asset && (!!asset.content || (asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS)));
-                        const imageUrl = asset?.public_url ?? null;
-                        const showCheckerboard = asset && (isSvgIcon || !!imageUrl);
+                        // Handle multi-asset fields (value is an array)
+                        const assetIds: string[] = isMultipleAssetField(field)
+                          ? (Array.isArray(value) ? value : [])
+                          : [value as string];
+
+                        if (assetIds.length === 0) {
+                          return (
+                            <td
+                              key={field.id}
+                              className="px-4 py-5 text-muted-foreground"
+                              onClick={() => !isManualMode && handleEditItem(item)}
+                            >
+                              -
+                            </td>
+                          );
+                        }
+
                         return (
                           <td
                             key={field.id}
                             className="px-4"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
-                            {asset ? (
-                              <Tooltip disableHoverableContent>
-                                <TooltipTrigger asChild>
-                                  <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 -my-1.5 inline-block">
-                                    {showCheckerboard && (
-                                      <div className="absolute inset-0 opacity-10 bg-checkerboard" />
-                                    )}
-                                    {isSvgIcon && asset.content ? (
-                                      <div
-                                        data-icon
-                                        className="relative w-full h-full flex items-center justify-center p-1 pointer-events-none text-foreground z-10"
-                                        dangerouslySetInnerHTML={{ __html: asset.content }}
-                                      />
-                                    ) : imageUrl ? (
-                                      <img
-                                        src={getOptimizedImageUrl(imageUrl)}
-                                        alt={asset.filename || 'Image'}
-                                        className="relative w-full h-full object-contain pointer-events-none z-10"
-                                        loading="lazy"
-                                      />
-                                    ) : (
-                                      <div className="absolute inset-0 flex items-center justify-center z-10">
-                                        <Icon name="image" className="size-3.5 text-muted-foreground" />
+                            <div className="flex items-center gap-1 -my-1.5">
+                              {assetIds.slice(0, 3).map((assetId, idx) => {
+                                const asset = getAsset(assetId);
+                                const isSvgIcon = asset && (!!asset.content || (asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS)));
+                                const imageUrl = asset?.public_url ?? null;
+                                const showCheckerboard = asset && (isSvgIcon || !!imageUrl);
+
+                                return asset ? (
+                                  <Tooltip key={assetId} disableHoverableContent>
+                                    <TooltipTrigger asChild>
+                                      <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 inline-block">
+                                        {showCheckerboard && (
+                                          <div className="absolute inset-0 opacity-10 bg-checkerboard" />
+                                        )}
+                                        {isSvgIcon && asset.content ? (
+                                          <div
+                                            data-icon
+                                            className="relative w-full h-full flex items-center justify-center p-1 pointer-events-none text-foreground z-10"
+                                            dangerouslySetInnerHTML={{ __html: asset.content }}
+                                          />
+                                        ) : imageUrl ? (
+                                          <img
+                                            src={getOptimizedImageUrl(imageUrl)}
+                                            alt={asset.filename || 'Image'}
+                                            className="relative w-full h-full object-contain pointer-events-none z-10"
+                                            loading="lazy"
+                                          />
+                                        ) : (
+                                          <div className="absolute inset-0 flex items-center justify-center z-10">
+                                            <Icon name="image" className="size-3.5 text-muted-foreground" />
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{asset.filename}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <div key={idx} className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 inline-block">
+                                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                                      <Icon name="image" className="size-3.5 text-muted-foreground" />
+                                    </div>
                                   </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{asset.filename}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                                );
+                              })}
+                              {assetIds.length > 3 && (
+                                <span className="text-xs text-muted-foreground">+{assetIds.length - 3}</span>
+                              )}
+                            </div>
                           </td>
                         );
                       }
 
                       // Audio/Video/Document fields - show icon with filename in tooltip
                       if ((field.type === 'audio' || field.type === 'video' || field.type === 'document') && value) {
-                        const asset = getAsset(value);
+                        // Handle multi-asset fields (value is an array)
+                        const assetIds: string[] = isMultipleAssetField(field)
+                          ? (Array.isArray(value) ? value : [])
+                          : [value as string];
+
+                        if (assetIds.length === 0) {
+                          return (
+                            <td
+                              key={field.id}
+                              className="px-4 py-5 text-muted-foreground"
+                              onClick={() => !isManualMode && handleEditItem(item)}
+                            >
+                              -
+                            </td>
+                          );
+                        }
+
                         return (
                           <td
                             key={field.id}
                             className="px-4"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
-                            {asset ? (
-                              <Tooltip disableHoverableContent>
-                                <TooltipTrigger asChild>
-                                  <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 flex items-center justify-center -my-1.5">
+                            <div className="flex items-center gap-1 -my-1.5">
+                              {assetIds.slice(0, 3).map((assetId, idx) => {
+                                const asset = getAsset(assetId);
+                                return asset ? (
+                                  <Tooltip key={assetId} disableHoverableContent>
+                                    <TooltipTrigger asChild>
+                                      <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 flex items-center justify-center">
+                                        <Icon name={getFieldIcon(field.type)} className="size-3.5 text-muted-foreground" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{asset.filename}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <div key={idx} className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 flex items-center justify-center">
                                     <Icon name={getFieldIcon(field.type)} className="size-3.5 text-muted-foreground" />
                                   </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{asset.filename}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                                );
+                              })}
+                              {assetIds.length > 3 && (
+                                <span className="text-xs text-muted-foreground">+{assetIds.length - 3}</span>
+                              )}
+                            </div>
                           </td>
                         );
                       }

@@ -118,7 +118,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
 
   // Filter fields to only show image-bindable field types (image or text for URL)
   const imageFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, IMAGE_FIELD_TYPES);
+    const filtered = filterFieldGroupsByType(fieldGroups, IMAGE_FIELD_TYPES, { excludeMultipleAsset: true });
     return flattenFieldGroups(filtered);
   }, [fieldGroups]);
 

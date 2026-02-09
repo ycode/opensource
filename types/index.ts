@@ -807,6 +807,11 @@ export interface UpdateCollectionData {
   order?: number;
 }
 
+/** Field-specific settings stored in the data column */
+export interface CollectionFieldData {
+  multiple?: boolean; // For asset fields - allow multiple files
+}
+
 export interface CreateCollectionFieldData {
   name: string;
   key?: string | null;
@@ -817,7 +822,7 @@ export interface CreateCollectionFieldData {
   collection_id: string; // UUID
   reference_collection_id?: string | null; // UUID
   hidden?: boolean;
-  data?: Record<string, any>;
+  data?: CollectionFieldData;
   is_published?: boolean;
 }
 
@@ -830,7 +835,7 @@ export interface UpdateCollectionFieldData {
   order?: number;
   reference_collection_id?: string | null; // UUID
   hidden?: boolean;
-  data?: Record<string, any>;
+  data?: CollectionFieldData;
 }
 
 export interface CollectionField {
@@ -847,7 +852,7 @@ export interface CollectionField {
   updated_at: string;
   deleted_at: string | null;
   hidden: boolean;
-  data: Record<string, any>;
+  data: CollectionFieldData;
   is_published: boolean;
 }
 
@@ -985,8 +990,9 @@ export interface CollectionVariable {
   sort_order?: 'asc' | 'desc'; // Only used when sort_by is a field ID
   limit?: number; // Maximum number of items to show (deprecated when pagination enabled)
   offset?: number; // Number of items to skip (deprecated when pagination enabled)
-  source_field_id?: string; // Reference field ID from parent item (for filtered collection source)
-  source_field_type?: 'reference' | 'multi_reference'; // Type of source field (single vs multi)
+  source_field_id?: string; // Field ID from parent item (reference or multi-asset field)
+  source_field_type?: 'reference' | 'multi_reference' | 'multi_asset'; // Type of source field
+  source_field_source?: 'page' | 'collection'; // Source of the field (page data or collection layer)
   filters?: ConditionalVisibility; // Filter conditions to apply to collection items
   pagination?: CollectionPaginationConfig; // Pagination settings for collection
 }

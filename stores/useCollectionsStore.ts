@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { collectionsApi } from '@/lib/api';
 import { sortCollectionsByOrder } from '@/lib/collection-utils';
+import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 import type { Collection, CollectionField, CollectionItemWithValues, CreateCollectionData, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
 
 /**
@@ -316,6 +317,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
   // Fields
   loadFields: async (collectionId: string | null, search?: string) => {
+    // Skip virtual collections (multi-asset)
+    if (collectionId === MULTI_ASSET_COLLECTION_ID) {
+      return;
+    }
+
     set({ isLoading: true, error: null });
 
     try {
@@ -448,6 +454,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
   // Items
   loadItems: async (collectionId: string, page?: number, limit?: number) => {
+    // Skip virtual collections (multi-asset)
+    if (collectionId === MULTI_ASSET_COLLECTION_ID) {
+      return;
+    }
+
     set({ isLoading: true, error: null });
 
     try {
