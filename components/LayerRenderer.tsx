@@ -18,7 +18,7 @@ import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-util
 import { isValidLinkSettings } from '@/lib/link-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
-import { parseMultiReferenceValue } from '@/lib/collection-utils';
+import { parseMultiReferenceValue, resolveReferenceFieldsSync } from '@/lib/collection-utils';
 import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -729,6 +729,7 @@ const LayerItem: React.FC<{
   const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
   const fieldsByCollectionId = useCollectionsStore((state) => state.fields);
+  const itemsByCollectionId = useCollectionsStore((state) => state.items);
   const allCollectionItems = React.useMemo(() => layerData || [], [layerData]);
 
   // Get the source for multi-asset field resolution
@@ -1803,19 +1804,32 @@ const LayerItem: React.FC<{
       return (
         <>
           {collectionItems.map((item, index) => {
-            // Merge parent collection data with item values
+            // Get collection fields for reference resolution
+            const collectionFields = collectionId ? fieldsByCollectionId[collectionId] || [] : [];
+
+            // Resolve reference fields to add relationship paths (e.g., "refFieldId.targetFieldId")
+            const enhancedItemValues = collectionFields.length > 0
+              ? resolveReferenceFieldsSync(
+                item.values || {},
+                collectionFields,
+                itemsByCollectionId,
+                fieldsByCollectionId
+              )
+              : (item.values || {});
+
+            // Merge parent collection data with enhanced item values
             // Parent data provides access to fields from outer collection layers
-            // Item values (including virtual asset fields) take precedence
+            // Enhanced item values (with resolved references) take precedence
             const mergedItemData = {
               ...collectionLayerData,
-              ...(item.values || {}),
+              ...enhancedItemValues,
             };
 
             // Build layer data map for layer-specific field resolution
-            // Add this collection layer's item data to the map
+            // Add this collection layer's enhanced data (with resolved references) to the map
             const updatedLayerDataMap = {
               ...effectiveLayerDataMap,
-              [layer.id]: item.values || {},
+              [layer.id]: enhancedItemValues,
             };
 
             return (
