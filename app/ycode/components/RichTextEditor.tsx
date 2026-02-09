@@ -402,7 +402,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
     editorProps: {
       attributes: {
         class: cn(
-          'w-full min-w-0 border border-transparent bg-input transition-[color,box-shadow] outline-none rounded-lg',
+          'w-full min-w-0 border border-transparent bg-input transition-[color,box-shadow] outline-none rounded-lg flex flex-col gap-3',
           'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[0px]',
           'disabled:cursor-not-allowed disabled:opacity-50',
           'rich-text-editor',

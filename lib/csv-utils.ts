@@ -6,6 +6,193 @@
 
 import type { CollectionField, CollectionFieldType } from '@/types';
 
+// TipTap JSON types
+interface TipTapMark {
+  type: string;
+  attrs?: Record<string, unknown>;
+}
+
+interface TipTapNode {
+  type: string;
+  content?: TipTapNode[];
+  text?: string;
+  marks?: TipTapMark[];
+  attrs?: Record<string, unknown>;
+}
+
+/**
+ * Convert HTML string to TipTap JSON format
+ * Handles common HTML tags: p, strong, b, em, i, u, s, strike, ol, ul, li, h1-h6, blockquote, br, a
+ * Preserves the original order of elements
+ */
+function htmlToTipTapJSON(html: string): TipTapNode {
+  // Check if the string looks like HTML
+  const hasHtmlTags = /<[a-z][\s\S]*>/i.test(html);
+
+  if (!hasHtmlTags) {
+    // Plain text - wrap in paragraph
+    return {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: html ? [{ type: 'text', text: html }] : [],
+        },
+      ],
+    };
+  }
+
+  const content: TipTapNode[] = [];
+
+  // Clean up the HTML
+  const cleanHtml = html
+    .replace(/\s+class="[^"]*"/gi, '') // Remove class attributes
+    .replace(/<br\s*\/?>/gi, '\n'); // Normalize br tags
+
+  // Regex to match block-level elements in order
+  // Matches: <p>, <ol>, <ul>, <h1-6>, <blockquote>, <div>
+  const blockRegex = /<(p|ol|ul|h[1-6]|blockquote|div)(?:\s[^>]*)?>[\s\S]*?<\/\1>/gi;
+
+  let lastIndex = 0;
+  let match;
+
+  while ((match = blockRegex.exec(cleanHtml)) !== null) {
+    const tagName = match[1].toLowerCase();
+    const fullMatch = match[0];
+
+    // Process any text between the last match and this one
+    if (match.index > lastIndex) {
+      const textBetween = cleanHtml.slice(lastIndex, match.index).trim();
+      if (textBetween) {
+        const plainText = decodeHtmlEntities(textBetween.replace(/<[^>]+>/g, '').trim());
+        if (plainText) {
+          content.push({
+            type: 'paragraph',
+            content: [{ type: 'text', text: plainText }],
+          });
+        }
+      }
+    }
+
+    // Process the matched element
+    if (tagName === 'p' || tagName === 'div') {
+      // Paragraph
+      const innerContent = fullMatch.replace(/<\/?(?:p|div)[^>]*>/gi, '').trim();
+      const textContent = decodeHtmlEntities(innerContent.replace(/<[^>]+>/g, '').trim());
+      if (textContent) {
+        content.push({
+          type: 'paragraph',
+          content: [{ type: 'text', text: textContent }],
+        });
+      }
+    } else if (tagName === 'ol' || tagName === 'ul') {
+      // List
+      const isOrdered = tagName === 'ol';
+      const listItems: TipTapNode[] = [];
+
+      // Extract list items
+      const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+      let liMatch;
+      while ((liMatch = liRegex.exec(fullMatch)) !== null) {
+        let itemContent = liMatch[1].trim();
+        // Remove nested <p> tags inside list items
+        itemContent = itemContent.replace(/<\/?p[^>]*>/gi, '').trim();
+        const itemText = decodeHtmlEntities(itemContent.replace(/<[^>]+>/g, '').trim());
+
+        if (itemText) {
+          listItems.push({
+            type: 'listItem',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: itemText }],
+              },
+            ],
+          });
+        }
+      }
+
+      if (listItems.length > 0) {
+        content.push({
+          type: isOrdered ? 'orderedList' : 'bulletList',
+          content: listItems,
+        });
+      }
+    } else if (tagName.match(/^h[1-6]$/)) {
+      // Heading
+      const level = parseInt(tagName[1], 10);
+      const innerContent = fullMatch.replace(/<\/?h[1-6][^>]*>/gi, '').trim();
+      const textContent = decodeHtmlEntities(innerContent.replace(/<[^>]+>/g, '').trim());
+      if (textContent) {
+        content.push({
+          type: 'heading',
+          attrs: { level },
+          content: [{ type: 'text', text: textContent }],
+        });
+      }
+    } else if (tagName === 'blockquote') {
+      // Blockquote
+      const innerContent = fullMatch.replace(/<\/?blockquote[^>]*>/gi, '').trim();
+      const textContent = decodeHtmlEntities(innerContent.replace(/<[^>]+>/g, '').trim());
+      if (textContent) {
+        content.push({
+          type: 'blockquote',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: textContent }],
+            },
+          ],
+        });
+      }
+    }
+
+    lastIndex = match.index + fullMatch.length;
+  }
+
+  // Process any remaining text after the last match
+  if (lastIndex < cleanHtml.length) {
+    const remaining = cleanHtml.slice(lastIndex).trim();
+    if (remaining) {
+      const plainText = decodeHtmlEntities(remaining.replace(/<[^>]+>/g, '').trim());
+      if (plainText) {
+        content.push({
+          type: 'paragraph',
+          content: [{ type: 'text', text: plainText }],
+        });
+      }
+    }
+  }
+
+  // Ensure we have at least one content node
+  if (content.length === 0) {
+    content.push({
+      type: 'paragraph',
+      content: [],
+    });
+  }
+
+  return {
+    type: 'doc',
+    content,
+  };
+}
+
+/**
+ * Decode HTML entities
+ */
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)))
+    .replace(/&#x([a-fA-F0-9]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 export interface ParsedCSV {
   headers: string[];
   rows: Record<string, string>[];
@@ -144,21 +331,8 @@ export function convertValueForFieldType(
     }
 
     case 'rich_text':
-      // Wrap in TipTap JSON format
-      return JSON.stringify({
-        type: 'doc',
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: trimmedValue,
-              },
-            ],
-          },
-        ],
-      });
+      // Convert HTML to TipTap JSON format
+      return JSON.stringify(htmlToTipTapJSON(trimmedValue));
 
     case 'image':
     case 'video':
