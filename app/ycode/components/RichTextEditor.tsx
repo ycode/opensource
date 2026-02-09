@@ -402,13 +402,13 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
     editorProps: {
       attributes: {
         class: cn(
-          'w-full min-w-0 border border-transparent bg-input transition-[color,box-shadow] outline-none',
+          'w-full min-w-0 border border-transparent bg-input transition-[color,box-shadow] outline-none rounded-lg',
           'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[0px]',
           'disabled:cursor-not-allowed disabled:opacity-50',
           'rich-text-editor',
           // Compact variant (default) - size-based text and padding
-          !isFullVariant && size === 'xs' && 'min-h-[2rem] text-xs leading-5.5 px-2 py-1 rounded-lg',
-          !isFullVariant && size === 'sm' && 'min-h-[2.5rem] text-sm leading-6 px-3 py-1.5 rounded-lg',
+          !isFullVariant && size === 'xs' && 'min-h-[2rem] text-xs leading-5.5 px-2 py-1',
+          !isFullVariant && size === 'sm' && 'min-h-[2.5rem] text-sm leading-6 px-3 py-1.5',
           // Full variant - larger text, more padding
           // Element styles (h1-h6, p, ul, ol, li, blockquote, code) defined in globals.css
           isFullVariant && 'rich-text-editor-full min-h-[200px] leading-relaxed px-3 py-2.5',

@@ -42,6 +42,7 @@ import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
 import FieldFormPopover from './FieldFormPopover';
 import CollectionItemSheet from './CollectionItemSheet';
+import CSVImportDialog from './CSVImportDialog';
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import type { CollectionItemWithValues, CollectionField, Collection, CollectionFieldData } from '@/types';
@@ -401,6 +402,9 @@ const CMS = React.memo(function CMS() {
   // Manual order switch dialog state
   const [switchToManualDialogOpen, setSwitchToManualDialogOpen] = useState(false);
   const [pendingDragEvent, setPendingDragEvent] = useState<DragEndEvent | null>(null);
+
+  // CSV import dialog state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
@@ -1939,6 +1943,16 @@ const CMS = React.memo(function CMS() {
             onReorder={handleReorderFields}
           />
 
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setImportDialogOpen(true)}
+              disabled={!selectedCollectionId || collectionFields.length === 0}
+            >
+              <Icon name="upload" />
+              Import
+            </Button>
+
           <Button
             size="sm"
             variant="secondary"
@@ -2156,6 +2170,20 @@ const CMS = React.memo(function CMS() {
         confirmVariant="default"
         onConfirm={handleConfirmSwitchToManual}
       />
+
+      {/* CSV Import Dialog */}
+      {selectedCollectionId && (
+        <CSVImportDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          collectionId={selectedCollectionId}
+          fields={collectionFields}
+          onImportComplete={() => {
+            // Refresh collection items after import
+            loadItems(selectedCollectionId, currentPage, pageSize);
+          }}
+        />
+      )}
       </div>
     </div>
   );
