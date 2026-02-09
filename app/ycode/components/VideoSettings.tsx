@@ -21,7 +21,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
@@ -29,7 +31,7 @@ import {
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType, DEFAULT_ASSETS } from '@/lib/asset-utils';
-import { VIDEO_FIELD_TYPES, TEXT_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
+import { VIDEO_FIELD_TYPES, TEXT_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon, encodeFieldSelection, parseFieldSelection, getEncodedFieldValue } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -145,21 +147,25 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
     });
   }, [layer, onLayerUpdate]);
 
-  // Filter fields to only show video-bindable field types
-  const videoFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, VIDEO_FIELD_TYPES, { excludeMultipleAsset: true });
-    return flattenFieldGroups(filtered);
+  // Filter field groups to only show video-bindable field types
+  const videoFieldGroups = useMemo(() => {
+    return filterFieldGroupsByType(fieldGroups, VIDEO_FIELD_TYPES, { excludeMultipleAsset: true });
   }, [fieldGroups]);
+
+  // Flatten for internal lookups
+  const videoFields = useMemo(() => {
+    return flattenFieldGroups(videoFieldGroups);
+  }, [videoFieldGroups]);
 
   // Filter field groups to only show text fields (for YouTube Video ID)
   const textFieldGroups = useMemo(() => {
     return filterFieldGroupsByType(fieldGroups, TEXT_FIELD_TYPES);
   }, [fieldGroups]);
 
-  const handleFieldSelect = useCallback((fieldId: string) => {
+  const handleFieldSelect = useCallback((value: string) => {
     if (!layer) return;
 
-    // Create FieldVariable from field ID with actual field type
+    const { fieldId, source, layerId } = parseFieldSelection(value);
     const field = videoFields.find(f => f.id === fieldId);
     const fieldVariable: FieldVariable = {
       type: 'field',
@@ -167,6 +173,8 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
         field_id: fieldId,
         relationships: [],
         field_type: field?.type || null,
+        source,
+        collection_layer_id: layerId,
       },
     };
 
@@ -567,20 +575,25 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
 
               <div className="col-span-2 w-full">
                 <Select
-                  value={selectedField || currentFieldId || ''}
+                  value={getEncodedFieldValue(selectedField || currentFieldId, videoFieldGroups)}
                   onValueChange={handleFieldSelect}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a field" />
                   </SelectTrigger>
                   <SelectContent>
-                    {videoFields.map((field) => (
-                      <SelectItem key={field.id} value={field.id}>
-                        <span className="flex items-center gap-2">
-                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                          {field.name}
-                        </span>
-                      </SelectItem>
+                    {videoFieldGroups.map((group, groupIdx) => (
+                      <SelectGroup key={groupIdx}>
+                        {group.label && <SelectLabel>{group.label}</SelectLabel>}
+                        {group.fields.map((field) => (
+                          <SelectItem key={`${groupIdx}-${field.id}`} value={encodeFieldSelection(field.id, group.source, group.layerId)}>
+                            <span className="flex items-center gap-2">
+                              <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                              {field.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>

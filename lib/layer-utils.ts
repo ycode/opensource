@@ -160,17 +160,7 @@ export function canMoveLayer(layers: Layer[], layerId: string, newParentId: stri
  * Get collection variable from layer (checks variables first, then fallback)
  */
 export function getCollectionVariable(layer: Layer): CollectionVariable | null {
-  if (layer.variables?.collection) {
-    return layer.variables.collection;
-  }
-
-  if (layer.collection?.id) {
-    return {
-      id: layer.collection.id,
-    };
-  }
-
-  return null;
+  return layer.variables?.collection ?? null;
 }
 
 /**
@@ -288,6 +278,51 @@ export function findParentCollectionLayer(layers: Layer[], layerId: string): Lay
   }
 
   return null;
+}
+
+/**
+ * Find all parent collection layers by traversing up the tree
+ * @param layers - Root layers array
+ * @param layerId - ID of the layer to start from
+ * @returns Array of parent collection layers, ordered from nearest to farthest
+ */
+export function findAllParentCollectionLayers(layers: Layer[], layerId: string): Layer[] {
+  const result: Layer[] = [];
+
+  // Helper to find a layer and its parent chain
+  const findLayerWithParents = (layers: Layer[], targetId: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
+    for (const layer of layers) {
+      if (layer.id === targetId) {
+        return { layer, parent };
+      }
+      if (layer.children) {
+        const found = findLayerWithParents(layer.children, targetId, layer);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  // Find the target layer and its parent
+  const layerResult = findLayerWithParents(layers, layerId);
+  if (!layerResult) return result;
+
+  // Traverse up the parent chain collecting all collection layers
+  let current = layerResult.parent;
+  while (current) {
+    // Check if this layer has a collection binding
+    const hasCollectionVariable = !!getCollectionVariable(current);
+
+    if (hasCollectionVariable) {
+      result.push(current);
+    }
+
+    // Move up to the next parent
+    const parentResult = findLayerWithParents(layers, current.id);
+    current = parentResult ? parentResult.parent : null;
+  }
+
+  return result;
 }
 
 /**
@@ -625,28 +660,38 @@ export function getSiblingIds(layers: Layer[], layerId: string): string[] {
 }
 
 /**
- * Resolve field value from collection item data using source-aware resolution
- * @param fieldVariable - The FieldVariable containing field_id and optional source
- * @param collectionItemData - Collection layer item data (field_id -> value)
- * @param pageCollectionItemData - Page collection item data for dynamic pages
+ * Resolve field variable value from collection item data
+ * Uses variables structure for collection binding
+ * @param fieldVariable - FieldVariable with field_id, source, and optional collection_layer_id
+ * @param collectionItemData - Merged collection layer data (field_id → value)
+ * @param pageCollectionItemData - Page collection data for dynamic pages
+ * @param layerDataMap - Optional map of layer ID → item data (for layer-specific resolution)
  * @returns The resolved value or undefined if not found
  */
 export function resolveFieldValue(
   fieldVariable: FieldVariable,
   collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string> | null
+  pageCollectionItemData?: Record<string, string> | null,
+  layerDataMap?: Record<string, Record<string, string>>
 ): string | undefined {
-  const fieldId = fieldVariable.data.field_id;
-  if (!fieldId) {
+  const { field_id, source, collection_layer_id, relationships = [] } = fieldVariable.data;
+  if (!field_id) {
     return undefined;
   }
 
-  // Use source-aware resolution (respects source: 'page' | 'collection')
+  // Build full field path for nested references
+  const fieldPath = relationships.length > 0
+    ? [field_id, ...relationships].join('.')
+    : field_id;
+
+  // Use source-aware resolution with layer-specific support
   return resolveFieldFromSources(
-    fieldId,
-    fieldVariable.data.source,
+    fieldPath,
+    source,
     collectionItemData,
-    pageCollectionItemData
+    pageCollectionItemData,
+    collection_layer_id,
+    layerDataMap
   );
 }
 

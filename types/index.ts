@@ -290,11 +290,6 @@ export interface Layer {
     image?: Record<string, ComponentVariableValue>; // ComponentVariable.id → override value (image)
   };
 
-  // Collection binding (for collection layers)
-  collection?: {
-    id: string; // Collection ID
-  };
-
   // Layer variables (layer collection data & dynamic data for texts, assets, links)
   variables?: LayerVariables;
 
@@ -309,6 +304,8 @@ export interface Layer {
   _collectionItemId?: string;
   // SSR-only property for collection item slug (used for link URL building)
   _collectionItemSlug?: string;
+  // SSR-only property for layer-specific collection data (layer_id -> field values map)
+  _layerDataMap?: Record<string, Record<string, string>>;
   // SSR-only property for master component ID (for translation lookups)
   _masterComponentId?: string;
   // SSR-only property for pagination metadata (when pagination is enabled)
@@ -908,6 +905,8 @@ export interface FieldVariable extends VariableType {
     format?: string;
     /** Source of the field data: 'page' for page collection, 'collection' for collection layer */
     source?: 'page' | 'collection';
+    /** ID of the collection layer this field belongs to (for nested collections) */
+    collection_layer_id?: string;
   };
 }
 

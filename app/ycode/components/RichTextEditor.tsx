@@ -683,7 +683,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
     return null;
   }
 
-  const handleFieldSelect = (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => {
+  const handleFieldSelect = (fieldId: string, relationshipPath: string[], source?: FieldSourceType, layerId?: string) => {
     const field = fields.find(f => f.id === fieldId);
     addFieldVariableInternal({
       type: 'field',
@@ -692,6 +692,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
         relationships: relationshipPath,
         source,
         field_type: field?.type || null,
+        collection_layer_id: layerId,
       },
     });
 

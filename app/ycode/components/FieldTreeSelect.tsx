@@ -27,14 +27,16 @@ interface FieldTreeSelectProps {
   allFields: Record<string, CollectionField[]>;
   /** All collections for looking up collection names */
   collections: Collection[];
-  /** Callback when a field is selected (source is passed when available) */
-  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => void;
+  /** Callback when a field is selected */
+  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType, layerId?: string) => void;
   /** Current relationship path (used internally for recursion) */
   relationshipPath?: string[];
   /** Label for the current collection group */
   collectionLabel?: string;
   /** Source type for these fields (used internally for recursion) */
   source?: FieldSourceType;
+  /** ID of the collection layer these fields belong to */
+  layerId?: string;
   /** Depth level for indentation (used internally) */
   depth?: number;
 }
@@ -73,14 +75,16 @@ function ReferenceFieldGroup({
   onSelect,
   relationshipPath,
   source,
+  layerId,
   depth = 0,
 }: {
   field: CollectionField;
   allFields: Record<string, CollectionField[]>;
   collections: Collection[];
-  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => void;
+  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType, layerId?: string) => void;
   relationshipPath: string[];
   source?: FieldSourceType;
+  layerId?: string;
   depth?: number;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -141,6 +145,7 @@ function ReferenceFieldGroup({
             onSelect={onSelect}
             relationshipPath={[...relationshipPath, field.id]}
             source={source}
+            layerId={layerId}
             depth={depth + 1}
           />
         </div>
@@ -159,6 +164,7 @@ function FieldTreeSelectInner({
   onSelect,
   relationshipPath = [],
   source,
+  layerId,
   depth = 0,
 }: FieldTreeSelectProps) {
   // Filter out multi-reference fields
@@ -178,6 +184,7 @@ function FieldTreeSelectInner({
               onSelect={onSelect}
               relationshipPath={relationshipPath}
               source={source}
+              layerId={layerId}
               depth={depth}
             />
           );
@@ -192,10 +199,10 @@ function FieldTreeSelectInner({
             onSelect={() => {
               if (relationshipPath.length > 0) {
                 // Nested field: include relationship path
-                onSelect(relationshipPath[0], [...relationshipPath.slice(1), field.id], source);
+                onSelect(relationshipPath[0], [...relationshipPath.slice(1), field.id], source, layerId);
               } else {
                 // Root field: no relationship path
-                onSelect(field.id, [], source);
+                onSelect(field.id, [], source, layerId);
               }
             }}
           />
@@ -218,6 +225,7 @@ export default function FieldTreeSelect({
   onSelect,
   collectionLabel,
   source,
+  layerId,
   relationshipPath = [],
   depth = 0,
 }: FieldTreeSelectProps) {
@@ -244,6 +252,7 @@ export default function FieldTreeSelect({
         onSelect={onSelect}
         relationshipPath={relationshipPath}
         source={source}
+        layerId={layerId}
         depth={depth}
       />
     </div>
@@ -258,7 +267,7 @@ interface MultiSourceFieldTreeSelectProps {
   /** All collections for looking up collection names */
   collections: Collection[];
   /** Callback when a field is selected */
-  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => void;
+  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType, layerId?: string) => void;
 }
 
 /**
@@ -295,6 +304,7 @@ export function MultiSourceFieldTreeSelect({
             onSelect={onSelect}
             collectionLabel={group.label}
             source={group.source}
+            layerId={group.layerId}
           />
         </div>
       ))}

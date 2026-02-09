@@ -67,7 +67,7 @@ import { useLayerLocks } from '@/hooks/use-layer-locks';
 import { classesToDesign, mergeDesign, removeConflictsForClass, getRemovedPropertyClasses } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
 import { sanitizeHtmlId } from '@/lib/html-utils';
-import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
+import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, findAllParentCollectionLayers, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 import { DEFAULT_TEXT_STYLES, getTextStyle } from '@/lib/text-format-utils';
@@ -1354,6 +1354,24 @@ const RightSidebar = React.memo(function RightSidebar({
     return findParentCollectionLayer(layers, selectedLayerId);
   }, [selectedLayerId, editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
+  // Find all parent collection layers (for nested collections)
+  const allParentCollectionLayers = useMemo(() => {
+    if (!selectedLayerId || !currentPageId) return [];
+
+    // Get layers from either component draft or page draft
+    let layers: Layer[] = [];
+    if (editingComponentId) {
+      layers = componentDrafts[editingComponentId] || [];
+    } else {
+      const draft = draftsByPageId[currentPageId];
+      layers = draft ? draft.layers : [];
+    }
+
+    if (!layers.length) return [];
+
+    return findAllParentCollectionLayers(layers, selectedLayerId);
+  }, [selectedLayerId, editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
+
   // Get collection fields if parent collection layer exists
   const currentPage = useMemo(() => {
     if (!currentPageId) {
@@ -1393,14 +1411,19 @@ const RightSidebar = React.memo(function RightSidebar({
       }
       : null;
 
+    // Get all parent collection layers (closest first)
+    const parentCollectionLayers = allParentCollectionLayers
+      .map(layer => ({ layerId: layer.id, collectionId: getCollectionVariable(layer)?.id }))
+      .filter((item): item is { layerId: string; collectionId: string } => !!item.collectionId);
+
     return buildFieldGroups({
-      collectionLayer: collectionVariable ? { collectionId: collectionVariable.id } : null,
+      parentCollectionLayers,
       page: currentPage,
       fieldsByCollectionId: fields,
       collections,
       multiAssetContext,
     });
-  }, [parentCollectionLayer, currentPage, fields, collections]);
+  }, [parentCollectionLayer, allParentCollectionLayers, currentPage, fields, collections]);
 
   // Get collection fields for the currently selected collection layer (for Sort By dropdown)
   const selectedCollectionFields = useMemo(() => {

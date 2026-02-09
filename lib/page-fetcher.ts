@@ -962,13 +962,15 @@ async function resolveReferenceFields(
  * @param itemValues - Collection item field values (field_id -> value)
  * @param fields - Optional collection fields (for reference field resolution)
  * @param isPublished - Whether fetching published data
+ * @param layerDataMap - Map of layer ID → item data for layer-specific resolution
  * @returns Layer with resolved field values
  */
 async function injectCollectionData(
   layer: Layer,
   itemValues: Record<string, string>,
   fields?: CollectionField[],
-  isPublished: boolean = true
+  isPublished: boolean = true,
+  layerDataMap?: Record<string, Record<string, string>>
 ): Promise<Layer> {
   // Resolve reference fields if we have field definitions
   let enhancedValues = itemValues;
@@ -997,7 +999,7 @@ async function injectCollectionData(
         };
       }
 
-      const resolvedContent = resolveRichTextVariables(content, enhancedValues);
+      const resolvedContent = resolveRichTextVariables(content, enhancedValues, layerDataMap);
       updates.variables = {
         ...layer.variables,
         text: {
@@ -1084,7 +1086,7 @@ async function injectCollectionData(
         if (child.variables?.collection?.id) {
           return Promise.resolve(child);
         }
-        return injectCollectionData(child, enhancedValues, fields, isPublished);
+        return injectCollectionData(child, enhancedValues, fields, isPublished, layerDataMap);
       })
     );
     updates.children = resolvedChildren;
@@ -1179,10 +1181,12 @@ function hasBlockElementsInInlineVariables(
  * Resolve dynamicVariable nodes in Tiptap JSON content
  * Traverses the content tree and replaces variable nodes with resolved text
  * For rich_text fields, inline the nested Tiptap content
+ * @param layerDataMap - Optional map of layer ID → item data for layer-specific resolution
  */
 function resolveRichTextVariables(
   content: any,
-  itemValues: Record<string, string>
+  itemValues: Record<string, string>,
+  layerDataMap?: Record<string, Record<string, string>>
 ): any {
   if (!content || typeof content !== 'object') {
     return content;
@@ -1195,20 +1199,26 @@ function resolveRichTextVariables(
       const fieldId = variable.data.field_id;
       const fieldType = variable.data.field_type;
       const relationships = variable.data.relationships || [];
+      const collectionLayerId = variable.data.collection_layer_id;
 
+      // Build field path
+      const fullPath = relationships.length > 0
+        ? [fieldId, ...relationships].join('.')
+        : fieldId;
+
+      // Resolve value: use layer-specific data if collection_layer_id is specified
       let value: any;
-      if (relationships.length > 0) {
-        const fullPath = [fieldId, ...relationships].join('.');
-        value = itemValues[fullPath];
+      if (collectionLayerId && layerDataMap?.[collectionLayerId]) {
+        value = layerDataMap[collectionLayerId][fullPath];
       } else {
-        value = itemValues[fieldId];
+        value = itemValues[fullPath];
       }
 
       // Handle rich_text fields - inline the nested Tiptap content
       if (fieldType === 'rich_text' && isTiptapDoc(value)) {
         const inlineNodes = extractInlineNodesFromRichText(value.content, content.marks || []);
         // Recursively resolve any nested dynamic variables
-        return inlineNodes.map(node => resolveRichTextVariables(node, itemValues));
+        return inlineNodes.map(node => resolveRichTextVariables(node, itemValues, layerDataMap));
       }
 
       // Fallback for rich_text that's not a valid doc structure
@@ -1237,7 +1247,7 @@ function resolveRichTextVariables(
   if (Array.isArray(content)) {
     // Flatten arrays that may contain nested arrays from rich_text expansion
     return content.flatMap(node => {
-      const resolved = resolveRichTextVariables(node, itemValues);
+      const resolved = resolveRichTextVariables(node, itemValues, layerDataMap);
       return Array.isArray(resolved) ? resolved : [resolved];
     });
   }
@@ -1248,11 +1258,11 @@ function resolveRichTextVariables(
     if (key === 'content' && Array.isArray(content[key])) {
       // Flatten the content array in case of expanded rich_text nodes
       result[key] = content[key].flatMap((node: any) => {
-        const resolved = resolveRichTextVariables(node, itemValues);
+        const resolved = resolveRichTextVariables(node, itemValues, layerDataMap);
         return Array.isArray(resolved) ? resolved : [resolved];
       });
     } else if (typeof content[key] === 'object' && content[key] !== null) {
-      result[key] = resolveRichTextVariables(content[key], itemValues);
+      result[key] = resolveRichTextVariables(content[key], itemValues, layerDataMap);
     } else {
       result[key] = content[key];
     }
@@ -1281,7 +1291,13 @@ export async function resolveCollectionLayers(
   // Fetch timezone setting for date formatting
   const timezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
 
-  const resolveLayer = async (layer: Layer, itemValues?: Record<string, string>): Promise<Layer> => {
+  const resolveLayer = async (
+    layer: Layer,
+    itemValues?: Record<string, string>,
+    parentLayerDataMap?: Record<string, Record<string, string>>
+  ): Promise<Layer> => {
+    // Merge parent's layer data map with layer's own map
+    const layerDataMap = { ...parentLayerDataMap, ...(layer._layerDataMap || {}) };
     // Check if this is a collection layer
     const isCollectionLayer = !!layer.variables?.collection?.id;
 
@@ -1318,15 +1334,22 @@ export async function resolveCollectionLayers(
 
                 const virtualValues = buildAssetVirtualValues(asset);
 
+                // Build layer data map: add this layer's data to existing map
+                // Must be built before resolving/injecting so children can access parent collection data
+                const updatedLayerDataMap = {
+                  ...layerDataMap,
+                  [layer.id]: virtualValues,
+                };
+
                 // Resolve children for THIS specific asset's virtual values
                 const resolvedChildren = layer.children?.length
-                  ? await Promise.all(layer.children.map(child => resolveLayer(child, virtualValues)))
+                  ? await Promise.all(layer.children.map(child => resolveLayer(child, virtualValues, updatedLayerDataMap)))
                   : [];
 
                 // Inject virtual field data into the resolved children
                 const injectedChildren = await Promise.all(
                   resolvedChildren.map(child =>
-                    injectCollectionData(child, virtualValues, undefined, isPublished)
+                    injectCollectionData(child, virtualValues, undefined, isPublished, updatedLayerDataMap)
                   )
                 );
 
@@ -1344,6 +1367,7 @@ export async function resolveCollectionLayers(
                   children: injectedChildren,
                   _collectionItemValues: virtualValues,
                   _collectionItemId: assetId,
+                  _layerDataMap: updatedLayerDataMap,
                 } as Layer;
               })
             ).then(results => results.filter((item): item is Layer => item !== null));
@@ -1489,16 +1513,23 @@ export async function resolveCollectionLayers(
               // Extract slug for URL building
               const itemSlug = slugField ? (translatedValues[slugField.id] || item.values[slugField.id]) : undefined;
 
+              // Build layer data map: add this layer's data to existing map
+              // Must be built before resolving/injecting so children can access parent collection data
+              const updatedLayerDataMap = {
+                ...layerDataMap,
+                [layer.id]: translatedValues,
+              };
+
               // Resolve children for THIS specific item's values
               // This ensures nested collection layers filter based on this item's reference fields
               const resolvedChildren = layer.children?.length
-                ? await Promise.all(layer.children.map(child => resolveLayer(child, translatedValues)))
+                ? await Promise.all(layer.children.map(child => resolveLayer(child, translatedValues, updatedLayerDataMap)))
                 : [];
 
               // Then inject field data into the resolved children
               const injectedChildren = await Promise.all(
                 resolvedChildren.map(child =>
-                  injectCollectionData(child, translatedValues, collectionFields, isPublished)
+                  injectCollectionData(child, translatedValues, collectionFields, isPublished, updatedLayerDataMap)
                 )
               );
 
@@ -1519,6 +1550,8 @@ export async function resolveCollectionLayers(
                 // Store item ID and slug for URL building in link resolution (SSR only)
                 _collectionItemId: item.id,
                 _collectionItemSlug: itemSlug,
+                // Store layer data map for layer-specific field resolution
+                _layerDataMap: updatedLayerDataMap,
               } as Layer;
             })
           );
@@ -1565,24 +1598,24 @@ export async function resolveCollectionLayers(
           console.error(`Failed to resolve collection layer ${layer.id}:`, error);
           return {
             ...layer,
-            children: layer.children ? await Promise.all(layer.children.map(child => resolveLayer(child, itemValues))) : undefined,
+            children: layer.children ? await Promise.all(layer.children.map(child => resolveLayer(child, itemValues, layerDataMap))) : undefined,
           };
         }
       }
     }
 
-    // Recursively resolve children, passing current item values
+    // Recursively resolve children, passing current item values and layer data map
     if (layer.children) {
       return {
         ...layer,
-        children: await Promise.all(layer.children.map(child => resolveLayer(child, itemValues))),
+        children: await Promise.all(layer.children.map(child => resolveLayer(child, itemValues, layerDataMap))),
       };
     }
 
     return layer;
   };
 
-  const result = await Promise.all(layers.map(layer => resolveLayer(layer, parentItemValues)));
+  const result = await Promise.all(layers.map(layer => resolveLayer(layer, parentItemValues, undefined)));
 
   // Collect pagination metadata from all fragments
   const paginationMetaMap: Record<string, CollectionPaginationMeta> = {};
@@ -1992,7 +2025,7 @@ export async function renderCollectionItemsToHtml(
       // Convert layers to HTML (handles fragments from resolved collections)
       const itemHtml = resolvedLayers
         .map((layer) =>
-          layerToHtml(layer, item.id, pages, folders, collectionItemSlugs, locale, translations, anchorMap, item.values, undefined, assetMap)
+          layerToHtml(layer, item.id, pages, folders, collectionItemSlugs, locale, translations, anchorMap, item.values, undefined, assetMap, undefined)
         )
         .join('');
 
@@ -2463,14 +2496,15 @@ function layerToHtml(
   anchorMap?: Record<string, string>,
   collectionItemData?: Record<string, string>,
   pageCollectionItemData?: Record<string, string>,
-  assetMap?: Record<string, { public_url: string | null }>
+  assetMap?: Record<string, { public_url: string | null }>,
+  layerDataMap?: Record<string, Record<string, string>>
 ): string {
   // Handle fragment layers (created by resolveCollectionLayers for nested collections)
   // Fragments render their children directly without a wrapper element
   if (layer.name === '_fragment' && layer.children) {
     return layer.children
       .map((child) =>
-        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, pageCollectionItemData, assetMap)
+        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, pageCollectionItemData, assetMap, layerDataMap)
       )
       .join('');
   }
@@ -2479,6 +2513,9 @@ function layerToHtml(
   // This ensures layers inside collection items have access to the correct item values
   const effectiveCollectionItemData = layer._collectionItemValues || collectionItemData;
   const effectiveCollectionItemId = layer._collectionItemId || collectionItemId;
+
+  // Build layer data map with stored collection layer data
+  const effectiveLayerDataMap = layer._layerDataMap || layerDataMap;
 
   // Get the HTML tag
   const tag = layer.settings?.tag || layer.name || 'div';
@@ -2549,7 +2586,7 @@ function layerToHtml(
     if (videoSrc && videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
       const rawVideoId = videoSrc.data.video_id || '';
       // Resolve inline variables in video ID (supports CMS binding)
-      const videoId = resolveInlineVariablesFromData(rawVideoId, effectiveCollectionItemData, pageCollectionItemData);
+      const videoId = resolveInlineVariablesFromData(rawVideoId, effectiveCollectionItemData, pageCollectionItemData, 'UTC', effectiveLayerDataMap);
       const privacyMode = layer.attributes?.youtubePrivacyMode === true;
       const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
 
@@ -2572,7 +2609,7 @@ function layerToHtml(
       const childrenHtml = layer.children
         ? layer.children
           .map((child) =>
-            layerToHtml(child, effectiveCollectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, effectiveCollectionItemData, pageCollectionItemData, assetMap)
+            layerToHtml(child, effectiveCollectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, effectiveCollectionItemData, pageCollectionItemData, assetMap, effectiveLayerDataMap)
           )
           .join('')
         : '';
@@ -2734,7 +2771,14 @@ function layerToHtml(
           break;
         case 'field': {
           const fieldId = linkSettings.field?.data?.field_id;
-          const rawValue = fieldId ? effectiveCollectionItemData?.[fieldId] : undefined;
+          const collectionLayerId = linkSettings.field?.data?.collection_layer_id;
+          // Use layer-specific data if collection_layer_id is specified
+          let rawValue: string | undefined;
+          if (collectionLayerId && effectiveLayerDataMap?.[collectionLayerId]) {
+            rawValue = fieldId ? effectiveLayerDataMap[collectionLayerId][fieldId] : undefined;
+          } else {
+            rawValue = fieldId ? effectiveCollectionItemData?.[fieldId] : undefined;
+          }
           if (fieldId && rawValue) {
             const fieldType = linkSettings.field?.data?.field_type;
             hrefValue = resolveFieldLinkValue({
@@ -2799,7 +2843,7 @@ function layerToHtml(
   const childrenHtml = layer.children
     ? layer.children
       .map((child) =>
-        layerToHtml(child, effectiveCollectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, effectiveCollectionItemData, pageCollectionItemData, assetMap)
+        layerToHtml(child, effectiveCollectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, effectiveCollectionItemData, pageCollectionItemData, assetMap, effectiveLayerDataMap)
       )
       .join('')
     : '';
@@ -2822,7 +2866,91 @@ function layerToHtml(
   // Handle self-closing tags
   const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link'];
   if (selfClosingTags.includes(tag)) {
-    return `<${tag} ${attrs.join(' ')} />`;
+    let selfClosingHtml = `<${tag} ${attrs.join(' ')} />`;
+
+    // Wrap with link if layer has link settings
+    const linkSettings = layer.variables?.link;
+    if (linkSettings && linkSettings.type) {
+      let linkHref = '';
+
+      switch (linkSettings.type) {
+        case 'url':
+          linkHref = linkSettings.url?.data?.content || '';
+          break;
+        case 'email':
+          linkHref = linkSettings.email?.data?.content ? `mailto:${linkSettings.email.data.content}` : '';
+          break;
+        case 'phone':
+          linkHref = linkSettings.phone?.data?.content ? `tel:${linkSettings.phone.data.content}` : '';
+          break;
+        case 'page':
+          if (linkSettings.page?.id && pages && folders) {
+            const linkedPage = pages.find(p => p.id === linkSettings.page?.id);
+            if (linkedPage) {
+              linkHref = buildLocalizedSlugPath(linkedPage, folders, 'page', locale, translations);
+            }
+          }
+          break;
+        case 'field': {
+          const fieldId = linkSettings.field?.data?.field_id;
+          const collectionLayerId = linkSettings.field?.data?.collection_layer_id;
+          // Use layer-specific data if collection_layer_id is specified
+          let rawValue: string | undefined;
+          if (collectionLayerId && effectiveLayerDataMap?.[collectionLayerId]) {
+            rawValue = fieldId ? effectiveLayerDataMap[collectionLayerId][fieldId] : undefined;
+          } else {
+            rawValue = fieldId ? effectiveCollectionItemData?.[fieldId] : undefined;
+          }
+          if (fieldId && rawValue) {
+            const fieldType = linkSettings.field?.data?.field_type;
+            linkHref = resolveFieldLinkValue({
+              fieldId,
+              rawValue,
+              fieldType,
+              context: {
+                pages: pages || [],
+                folders: folders || [],
+                collectionItemSlugs,
+                locale,
+                translations,
+                isPreview: false,
+              },
+              assetMap,
+            });
+          }
+          break;
+        }
+      }
+
+      // Append anchor if present
+      if (linkSettings.anchor_layer_id) {
+        const anchorValue = anchorMap?.[linkSettings.anchor_layer_id] || linkSettings.anchor_layer_id;
+        if (linkHref) {
+          linkHref = `${linkHref}#${anchorValue}`;
+        } else {
+          linkHref = `#${anchorValue}`;
+        }
+      }
+
+      // Wrap in <a> tag if we have a valid href
+      if (linkHref) {
+        const linkAttrs: string[] = [`href="${escapeHtml(linkHref)}"`];
+        const linkTarget = linkSettings.target;
+        if (linkTarget) {
+          linkAttrs.push(`target="${escapeHtml(linkTarget)}"`);
+        }
+        const linkRel = linkSettings.rel || (linkTarget === '_blank' ? 'noopener noreferrer' : '');
+        if (linkRel) {
+          linkAttrs.push(`rel="${escapeHtml(linkRel)}"`);
+        }
+        if (linkSettings.download) {
+          linkAttrs.push('download');
+        }
+        selfClosingHtml = `<a ${linkAttrs.join(' ')}>${selfClosingHtml}</a>`;
+      }
+    }
+
+    return selfClosingHtml;
   }
 
   // Render the element
@@ -2866,7 +2994,14 @@ function layerToHtml(
         break;
       case 'field': {
         const wrapFieldId = linkSettings.field?.data?.field_id;
-        const rawValue = wrapFieldId ? effectiveCollectionItemData?.[wrapFieldId] : undefined;
+        const wrapCollectionLayerId = linkSettings.field?.data?.collection_layer_id;
+        // Use layer-specific data if collection_layer_id is specified
+        let rawValue: string | undefined;
+        if (wrapCollectionLayerId && effectiveLayerDataMap?.[wrapCollectionLayerId]) {
+          rawValue = wrapFieldId ? effectiveLayerDataMap[wrapCollectionLayerId][wrapFieldId] : undefined;
+        } else {
+          rawValue = wrapFieldId ? effectiveCollectionItemData?.[wrapFieldId] : undefined;
+        }
         if (wrapFieldId && rawValue) {
           const fieldType = linkSettings.field?.data?.field_type;
           linkHref = resolveFieldLinkValue({

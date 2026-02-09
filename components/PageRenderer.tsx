@@ -312,6 +312,9 @@ export default async function PageRenderer({
       for (const [id, asset] of Object.entries(assetMap)) {
         if (asset.public_url) {
           resolvedAssets[id] = asset.public_url;
+        } else if (asset.content) {
+          // SVG assets have content but no public_url - mark so client doesn't fetch
+          resolvedAssets[id] = '#svg-content';
         }
       }
     } catch (error) {

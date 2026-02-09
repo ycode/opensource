@@ -283,17 +283,25 @@ export function getItemDisplayName(
 /** Source of field data: 'page' for dynamic page data, 'collection' for collection layer data */
 export type FieldSourceType = 'page' | 'collection';
 
-/** A group of fields with a source and label */
+/** A group of fields with a source, label, and optional layer ID */
 export interface FieldGroup {
   fields: CollectionField[];
   label?: string;
   source?: FieldSourceType;
+  /** ID of the collection layer these fields belong to */
+  layerId?: string;
+}
+
+/** Parent collection layer info for field groups */
+export interface ParentCollectionLayer {
+  layerId: string;
+  collectionId: string;
 }
 
 /** Configuration for building field groups */
 export interface BuildFieldGroupsConfig {
-  /** Parent collection layer (if editing inside a collection layer) */
-  collectionLayer?: { collectionId?: string } | null;
+  /** Parent collection layers ordered by closest first (immediate parent → ancestors) */
+  parentCollectionLayers: ParentCollectionLayer[];
   /** Current page (for dynamic page collection) */
   page?: { is_dynamic?: boolean; settings?: { cms?: { collection_id?: string } } } | null;
   /** All collection fields keyed by collection ID */
@@ -309,29 +317,40 @@ export interface BuildFieldGroupsConfig {
  * Returns groups for collection layer fields and/or page collection fields.
  */
 export function buildFieldGroups(config: BuildFieldGroupsConfig): FieldGroup[] | undefined {
-  const { collectionLayer, page, fieldsByCollectionId, collections, multiAssetContext } = config;
+  const { parentCollectionLayers, page, fieldsByCollectionId, collections, multiAssetContext } = config;
   const groups: FieldGroup[] = [];
+  const addedCollectionIds = new Set<string>();
 
   // Add multi-asset virtual fields if inside a multi-asset collection context
   if (multiAssetContext) {
     groups.push({
       fields: buildMultiAssetVirtualFields(),
-      label: 'Asset',
+      label: 'File fields',
       source: multiAssetContext.source,
     });
   }
 
-  // Add collection layer fields if inside a collection layer
-  if (collectionLayer?.collectionId) {
-    const collectionId = collectionLayer.collectionId;
+  // Add collection fields in order (closest first)
+  for (let i = 0; i < parentCollectionLayers.length; i++) {
+    const { layerId, collectionId } = parentCollectionLayers[i];
+    // Skip multi-asset virtual collection and duplicates
+    if (collectionId === MULTI_ASSET_COLLECTION_ID || addedCollectionIds.has(collectionId)) {
+      continue;
+    }
+
     const collectionFields = fieldsByCollectionId[collectionId] || [];
     const collection = collections.find(c => c.id === collectionId);
     if (collectionFields.length > 0) {
+      const isClosest = i === 0;
       groups.push({
         fields: collectionFields,
-        label: collection?.name || 'Collection',
+        label: isClosest
+          ? `Collection fields${collection?.name ? ` (${collection.name})` : ''}`
+          : `Parent fields${collection?.name ? ` (${collection.name})` : ''}`,
         source: 'collection',
+        layerId,
       });
+      addedCollectionIds.add(collectionId);
     }
   }
 
@@ -340,10 +359,11 @@ export function buildFieldGroups(config: BuildFieldGroupsConfig): FieldGroup[] |
   if (page?.is_dynamic && page?.settings?.cms?.collection_id) {
     const pageCollectionId = page.settings.cms.collection_id;
     const pageCollectionFields = fieldsByCollectionId[pageCollectionId] || [];
+    const pageCollection = collections.find(c => c.id === pageCollectionId);
     if (pageCollectionFields.length > 0) {
       groups.push({
         fields: pageCollectionFields,
-        label: 'Page data',
+        label: `Page fields (${pageCollection?.name || 'Collection'})`,
         source: 'page',
       });
     }
@@ -474,4 +494,61 @@ export function hasFieldsMatching(
   predicate: (field: CollectionField) => boolean
 ): boolean {
   return fieldGroups?.some(g => g.fields.some(predicate)) ?? false;
+}
+
+// =============================================================================
+// Field Selection Value Encoding/Parsing (for Select components with layerId)
+// =============================================================================
+
+/** Encoded field selection info */
+export interface FieldSelectionInfo {
+  fieldId: string;
+  source?: FieldSourceType;
+  layerId?: string;
+}
+
+/**
+ * Encode field selection info into a single string value for Select components.
+ * Format: "source:layerId:fieldId" for collection sources, "page::fieldId" for page sources
+ */
+export function encodeFieldSelection(fieldId: string, source?: FieldSourceType, layerId?: string): string {
+  if (source === 'page') {
+    return `page::${fieldId}`;
+  }
+  if (source === 'collection' && layerId) {
+    return `collection:${layerId}:${fieldId}`;
+  }
+  // Legacy format: just field ID (for backwards compatibility)
+  return fieldId;
+}
+
+/**
+ * Parse encoded field selection value back into its components.
+ */
+export function parseFieldSelection(value: string): FieldSelectionInfo {
+  const parts = value.split(':');
+  if (parts.length >= 3 && (parts[0] === 'page' || parts[0] === 'collection')) {
+    return {
+      source: parts[0] as FieldSourceType,
+      layerId: parts[1] || undefined,
+      fieldId: parts.slice(2).join(':'), // Handle field IDs with colons
+    };
+  }
+  // Legacy format: just field ID
+  return { fieldId: value };
+}
+
+/**
+ * Get current field selection value from field groups by field ID.
+ * Returns the encoded value if the field is found in the groups.
+ */
+export function getEncodedFieldValue(fieldId: string | null | undefined, fieldGroups: FieldGroup[] | undefined): string {
+  if (!fieldId || !fieldGroups) return '';
+  for (const group of fieldGroups) {
+    const field = group.fields.find(f => f.id === fieldId);
+    if (field) {
+      return encodeFieldSelection(fieldId, group.source, group.layerId);
+    }
+  }
+  return fieldId; // Fallback to just field ID
 }
