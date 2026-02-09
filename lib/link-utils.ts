@@ -208,10 +208,12 @@ export interface LinkResolutionContext {
   isPreview?: boolean;
   locale?: Locale | null;
   translations?: Record<string, any> | null;
-  getAsset?: (id: string) => { public_url?: string | null } | null;
+  getAsset?: (id: string) => { public_url?: string | null; content?: string | null } | null;
   anchorMap?: Record<string, string>;
   /** Pre-resolved asset URLs (asset_id -> public_url) for SSR */
   resolvedAssets?: Record<string, string>;
+  /** Map of layer ID → item data for layer-specific field resolution */
+  layerDataMap?: Record<string, Record<string, string>>;
 }
 
 /**
@@ -257,8 +259,8 @@ export interface ResolveFieldLinkOptions {
   rawValue: string;
   fieldType?: string | null;
   context: LinkResolutionContext;
-  /** Asset map for SSR (asset_id -> { public_url }) */
-  assetMap?: Record<string, { public_url: string | null }>;
+  /** Asset map for SSR (asset_id -> { public_url, content }) */
+  assetMap?: Record<string, { public_url: string | null; content?: string | null }>;
 }
 
 /**
@@ -295,15 +297,27 @@ export function resolveFieldLinkValue(options: ResolveFieldLinkOptions): string 
     // SSR: use assetMap
     if (assetMap) {
       const asset = assetMap[rawValue];
+      // SVG assets don't have URLs (they use inline content)
+      if (asset && !asset.public_url && asset.content) {
+        return '#no-svg-url';
+      }
       return asset?.public_url || rawValue;
     }
     // SSR: use pre-resolved assets
     if (resolvedAssets?.[rawValue]) {
+      // SVG marker: asset has content but no public URL
+      if (resolvedAssets[rawValue] === '#svg-content') {
+        return '#no-svg-url';
+      }
       return resolvedAssets[rawValue];
     }
     // Client: use getAsset callback
     if (getAsset) {
       const asset = getAsset(rawValue);
+      // SVG assets don't have URLs (they use inline content)
+      if (asset && !asset.public_url && asset.content) {
+        return '#no-svg-url';
+      }
       return asset?.public_url || '';
     }
     return rawValue;
@@ -407,7 +421,12 @@ export function generateLinkHref(
     case 'asset':
       if (linkSettings.asset?.id && getAsset) {
         const asset = getAsset(linkSettings.asset.id);
-        href = asset?.public_url || '';
+        // SVG assets don't have URLs (they use inline content)
+        if (asset && !asset.public_url && asset.content) {
+          href = '#no-svg-url';
+        } else {
+          href = asset?.public_url || '';
+        }
       }
       break;
     case 'page':
@@ -446,8 +465,15 @@ export function generateLinkHref(
     case 'field': {
       // For field-based links, use source to select correct data (page vs collection)
       const source = linkSettings.field?.data?.source;
+      const collectionLayerId = linkSettings.field?.data?.collection_layer_id;
+      const { layerDataMap } = context;
+
       let fieldData: Record<string, string> | undefined;
-      if (source === 'page') {
+
+      // If collection_layer_id is specified, use layer-specific data from layerDataMap
+      if (collectionLayerId && layerDataMap?.[collectionLayerId]) {
+        fieldData = layerDataMap[collectionLayerId];
+      } else if (source === 'page') {
         fieldData = pageCollectionItemData;
       } else if (source === 'collection') {
         fieldData = collectionItemData;

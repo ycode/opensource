@@ -15,7 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import Icon, { type IconProps } from '@/components/ui/icon';
 import SettingsPanel from './SettingsPanel';
 import RichTextEditor from './RichTextEditor';
-import { filterFieldGroupsByType, getFieldIcon, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
+import { filterFieldGroupsByType, getFieldIcon, LINK_FIELD_TYPES, type FieldGroup, encodeFieldSelection, parseFieldSelection, getEncodedFieldValue } from '@/lib/collection-field-utils';
 import {
   Select,
   SelectContent,
@@ -105,9 +105,6 @@ export default function LinkSettings({
   const pageId = linkSettings?.page?.id || null;
   const collectionItemId = linkSettings?.page?.collection_item_id || null;
   const fieldId = linkSettings?.field?.data?.field_id || null;
-  const fieldSource = linkSettings?.field?.data?.source;
-  // Construct select value from source and field_id (e.g., "page-field123" or "collection-field123")
-  const fieldSelectValue = fieldId && fieldSource ? `${fieldSource}-${fieldId}` : (fieldId || null);
   const anchorLayerId = linkSettings?.anchor_layer_id || '';
 
   // Get link behavior from link settings
@@ -185,6 +182,12 @@ export default function LinkSettings({
   const linkFieldGroups = useMemo(
     () => filterFieldGroupsByType(fieldGroups, LINK_FIELD_TYPES, { excludeMultipleAsset: true }),
     [fieldGroups]
+  );
+
+  // Get encoded field selection value that includes source and layerId
+  const fieldSelectValue = useMemo(
+    () => getEncodedFieldValue(fieldId, linkFieldGroups),
+    [fieldId, linkFieldGroups]
   );
 
   // Check if we have collection fields available (from collection layer context)
@@ -419,10 +422,7 @@ export default function LinkSettings({
     (value: string) => {
       if (!layer || !linkSettings) return;
 
-      // Parse source-fieldId format (e.g., "page-field123" -> source: "page", field_id: "field123")
-      const parts = value.split('-');
-      const source = (parts[0] === 'page' || parts[0] === 'collection') ? parts[0] : undefined;
-      const fieldId = source ? parts.slice(1).join('-') : value;
+      const { fieldId, source, layerId } = parseFieldSelection(value);
 
       // Find the field type from linkFieldGroups
       let fieldType: CollectionField['type'] | undefined;
@@ -442,7 +442,8 @@ export default function LinkSettings({
             field_id: fieldId,
             relationships: [],
             field_type: fieldType || null,
-            ...(source && { source }),
+            source,
+            collection_layer_id: layerId,
           },
         },
       });
@@ -785,7 +786,7 @@ export default function LinkSettings({
                     <SelectGroup key={groupIdx}>
                       {group.label && <SelectLabel>{group.label}</SelectLabel>}
                       {group.fields.map((field) => (
-                        <SelectItem key={`${groupIdx}-${field.id}`} value={`${group.source}-${field.id}`}>
+                        <SelectItem key={`${groupIdx}-${field.id}`} value={encodeFieldSelection(field.id, group.source, group.layerId)}>
                           <span className="flex items-center gap-2">
                             <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
                             {field.name}

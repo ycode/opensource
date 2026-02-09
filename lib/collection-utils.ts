@@ -29,6 +29,26 @@ export function isTruthyBooleanValue(value: any): boolean {
 }
 
 /**
+ * Parse a multi-reference field value into an array of IDs
+ * Handles both array (from castValue) and JSON string formats
+ * @param value - The value which could be an array, JSON string, or undefined
+ * @returns Array of string IDs
+ */
+export function parseMultiReferenceValue(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
  * Sort collections by order field
  * If two collections have the same order, sort by name alphabetically
  * If two collections have the same order and name, sort by created_at time
@@ -75,11 +95,9 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
       // Return as ISO string for consistency
       return value;
 
-    case 'reference': {
-      // Return as number (ID of referenced item)
-      const refId = parseInt(value, 10);
-      return isNaN(refId) ? null : refId;
-    }
+    case 'reference':
+      // Return as string (UUID of referenced item)
+      return value;
 
     case 'rich_text':
       // Parse TipTap JSON from stored string

@@ -19,14 +19,16 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
-import { AUDIO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
+import { AUDIO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon, encodeFieldSelection, parseFieldSelection, getEncodedFieldValue } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Slider } from '@/components/ui/slider';
@@ -55,11 +57,15 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
   const openFileManager = useEditorStore((state) => state.openFileManager);
   const getAsset = useAssetsStore((state) => state.getAsset);
 
-  // Filter fields to only show audio-bindable field types (audio or text for URL)
-  const audioFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, AUDIO_FIELD_TYPES, { excludeMultipleAsset: true });
-    return flattenFieldGroups(filtered);
+  // Filter field groups to only show audio-bindable field types
+  const audioFieldGroups = useMemo(() => {
+    return filterFieldGroupsByType(fieldGroups, AUDIO_FIELD_TYPES, { excludeMultipleAsset: true });
   }, [fieldGroups]);
+
+  // Flatten for internal lookups
+  const audioFields = useMemo(() => {
+    return flattenFieldGroups(audioFieldGroups);
+  }, [audioFieldGroups]);
 
   // Detect current field ID if using FieldVariable
   const currentFieldId = useMemo(() => {
@@ -119,10 +125,10 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
     });
   }, [layer, onLayerUpdate]);
 
-  const handleFieldSelect = useCallback((fieldId: string) => {
+  const handleFieldSelect = useCallback((value: string) => {
     if (!layer) return;
 
-    // Create FieldVariable from field ID
+    const { fieldId, source, layerId } = parseFieldSelection(value);
     const field = audioFields.find(f => f.id === fieldId);
     const fieldVariable: FieldVariable = {
       type: 'field',
@@ -130,6 +136,8 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
         field_id: fieldId,
         relationships: [],
         field_type: field?.type || null,
+        source,
+        collection_layer_id: layerId,
       },
     };
 
@@ -365,20 +373,25 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
 
             <div className="col-span-2 w-full">
               <Select
-                value={selectedField || currentFieldId || ''}
+                value={getEncodedFieldValue(selectedField || currentFieldId, audioFieldGroups)}
                 onValueChange={handleFieldSelect}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a field" />
                 </SelectTrigger>
                 <SelectContent>
-                  {audioFields.map((field) => (
-                    <SelectItem key={field.id} value={field.id}>
-                      <span className="flex items-center gap-2">
-                        <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                        {field.name}
-                      </span>
-                    </SelectItem>
+                  {audioFieldGroups.map((group, groupIdx) => (
+                    <SelectGroup key={groupIdx}>
+                      {group.label && <SelectLabel>{group.label}</SelectLabel>}
+                      {group.fields.map((field) => (
+                        <SelectItem key={`${groupIdx}-${field.id}`} value={encodeFieldSelection(field.id, group.source, group.layerId)}>
+                          <span className="flex items-center gap-2">
+                            <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                            {field.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>

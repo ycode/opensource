@@ -1,6 +1,7 @@
 import AnimationInitializer from '@/components/AnimationInitializer';
 import ContentHeightReporter from '@/components/ContentHeightReporter';
 import LayerRenderer from '@/components/LayerRenderer';
+import PasswordForm from '@/components/PasswordForm';
 import { resolveComponents } from '@/lib/resolve-components';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
 import { generateInitialAnimationCSS, type HiddenLayerInfo } from '@/lib/animation-utils';
@@ -9,6 +10,14 @@ import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
 import { getItemWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import type { Layer, Component, Page, CollectionItemWithValues, CollectionField, Locale, PageFolder } from '@/types';
+
+/** Password protection context for 401 error pages */
+export type PasswordProtectionContext = {
+  pageId?: string;
+  folderId?: string;
+  redirectUrl: string;
+  isPublished: boolean;
+};
 
 interface PageRendererProps {
   page: Page;
@@ -25,6 +34,7 @@ interface PageRendererProps {
   globalCustomCodeHead?: string | null; // Global custom code for <head> (pre-fetched)
   globalCustomCodeBody?: string | null; // Global custom code for </body> (pre-fetched)
   ycodeBadge?: boolean; // Whether to show the "Made in Ycode" badge
+  passwordProtection?: PasswordProtectionContext; // For 401 error pages - inject password form
 }
 
 /**
@@ -73,7 +83,10 @@ export default async function PageRenderer({
   globalCustomCodeHead,
   globalCustomCodeBody,
   ycodeBadge = true,
+  passwordProtection,
 }: PageRendererProps) {
+  // Check if this is a 401 error page that needs password form
+  const is401Page = page.error_page === 401;
   // Resolve component instances in the layer tree before rendering
   // If components array is empty, they're already resolved server-side
   const resolvedLayers = components.length > 0
@@ -299,6 +312,9 @@ export default async function PageRenderer({
       for (const [id, asset] of Object.entries(assetMap)) {
         if (asset.public_url) {
           resolvedAssets[id] = asset.public_url;
+        } else if (asset.content) {
+          // SVG assets have content but no public_url - mark so client doesn't fetch
+          resolvedAssets[id] = '#svg-content';
         }
       }
     } catch (error) {
@@ -378,6 +394,16 @@ export default async function PageRenderer({
           translations={translations}
           resolvedAssets={resolvedAssets}
         />
+
+        {/* Inject password form for 401 error pages */}
+        {is401Page && passwordProtection && (
+          <PasswordForm
+            pageId={passwordProtection.pageId}
+            folderId={passwordProtection.folderId}
+            redirectUrl={passwordProtection.redirectUrl}
+            isPublished={passwordProtection.isPublished}
+          />
+        )}
       </div>
 
       {/* Initialize GSAP animations based on layer interactions */}

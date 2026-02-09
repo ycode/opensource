@@ -24,7 +24,9 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -42,7 +44,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
-import { IMAGE_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
+import { IMAGE_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon, encodeFieldSelection, parseFieldSelection, getEncodedFieldValue } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
 
@@ -116,11 +118,15 @@ export default function ImageSettings(props: ImageSettingsProps) {
   const linkedVariableDefaultValue = linkedImageVariable?.default_value as ImageSettingsValue | undefined;
   const effectiveImageSrc = linkedImageVariable ? linkedVariableDefaultValue?.src : imageSrc;
 
-  // Filter fields to only show image-bindable field types (image or text for URL)
-  const imageFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, IMAGE_FIELD_TYPES, { excludeMultipleAsset: true });
-    return flattenFieldGroups(filtered);
+  // Filter field groups to only show image-bindable field types (image or text for URL)
+  const imageFieldGroups = useMemo(() => {
+    return filterFieldGroupsByType(fieldGroups, IMAGE_FIELD_TYPES, { excludeMultipleAsset: true });
   }, [fieldGroups]);
+
+  // Flatten for internal lookups
+  const imageFields = useMemo(() => {
+    return flattenFieldGroups(imageFieldGroups);
+  }, [imageFieldGroups]);
 
   // Detect current field ID if using FieldVariable
   const currentFieldId = useMemo(() => {
@@ -175,7 +181,8 @@ export default function ImageSettings(props: ImageSettingsProps) {
     updateImageSrc(assetVariable);
   }, [updateImageSrc]);
 
-  const handleFieldSelect = useCallback((fieldId: string) => {
+  const handleFieldSelect = useCallback((value: string) => {
+    const { fieldId, source, layerId } = parseFieldSelection(value);
     const field = imageFields.find(f => f.id === fieldId);
     const fieldVariable: FieldVariable = {
       type: 'field',
@@ -183,6 +190,8 @@ export default function ImageSettings(props: ImageSettingsProps) {
         field_id: fieldId,
         relationships: [],
         field_type: field?.type || null,
+        source,
+        collection_layer_id: layerId,
       },
     };
     updateImageSrc(fieldVariable);
@@ -514,20 +523,25 @@ export default function ImageSettings(props: ImageSettingsProps) {
 
           <div className={isStandaloneMode ? 'w-full' : 'col-span-2 w-full'}>
             <Select
-              value={selectedField || currentFieldId || ''}
+              value={getEncodedFieldValue(selectedField || currentFieldId, imageFieldGroups)}
               onValueChange={handleFieldSelect}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select a field" />
               </SelectTrigger>
               <SelectContent>
-                {imageFields.map((field) => (
-                  <SelectItem key={field.id} value={field.id}>
-                    <span className="flex items-center gap-2">
-                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                      {field.name}
-                    </span>
-                  </SelectItem>
+                {imageFieldGroups.map((group, groupIdx) => (
+                  <SelectGroup key={groupIdx}>
+                    {group.label && <SelectLabel>{group.label}</SelectLabel>}
+                    {group.fields.map((field) => (
+                      <SelectItem key={`${groupIdx}-${field.id}`} value={encodeFieldSelection(field.id, group.source, group.layerId)}>
+                        <span className="flex items-center gap-2">
+                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                          {field.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>

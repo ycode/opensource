@@ -231,15 +231,10 @@ const LayerRow = React.memo(function LayerRow({
   const isComponentInstance = !!appliedComponent;
 
   // Get collection name if this is a collection layer
-  const collectionName = node.layer.collection?.id
-    ? collections.find(c => c.id === node.layer.collection?.id)?.name
-    : undefined;
-
-  // Also check new variables structure
   const collectionVariable = getCollectionVariable(node.layer);
   const finalCollectionName = collectionVariable?.id && collectionVariable.id !== MULTI_ASSET_COLLECTION_ID
     ? collections.find(c => c.id === collectionVariable.id)?.name
-    : collectionName;
+    : undefined;
   const sourceFieldName = collectionVariable?.source_field_id
     ? (Object.values(fieldsByCollectionId).flat().find((f) => f.id === collectionVariable.source_field_id)?.name ?? null)
     : null;
@@ -714,9 +709,7 @@ export default function LayersTree({
     const collectionVariable = getCollectionVariable(activeNode.layer);
     const collectionName = collectionVariable?.id && collectionVariable.id !== MULTI_ASSET_COLLECTION_ID
       ? collections.find(c => c.id === collectionVariable.id)?.name
-      : activeNode.layer.collection?.id
-        ? collections.find(c => c.id === activeNode.layer.collection?.id)?.name
-        : undefined;
+      : undefined;
     const sourceFieldName = collectionVariable?.source_field_id
       ? (Object.values(fieldsByCollectionId).flat().find((f) => f.id === collectionVariable.source_field_id)?.name ?? undefined)
       : undefined;
