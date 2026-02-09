@@ -33,6 +33,7 @@ import { Empty, EmptyMedia, EmptyTitle, EmptyDescription } from '@/components/ui
 import Icon from '@/components/ui/icon';
 import { parseCSVFile, suggestColumnMapping, getFieldTypeLabel } from '@/lib/csv-utils';
 import type { CollectionField } from '@/types';
+import { Label } from '@/components/ui/label';
 
 type ImportStep = 'upload' | 'mapping' | 'confirm' | 'progress' | 'complete';
 
@@ -329,7 +330,7 @@ export function CSVImportDialog({
             </DialogHeader>
 
             <div
-              className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-6 transition-colors hover:border-muted-foreground/50"
+              className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 transition-colors hover:border-muted-foreground/50"
               onDragOver={handleDragOver}
               onDrop={handleDrop}
             >
@@ -353,10 +354,8 @@ export function CSVImportDialog({
 
               <Button
                 variant="secondary"
-                className="mt-4"
                 onClick={() => document.getElementById('csv-file-input')?.click()}
               >
-                <Icon name="upload" className="size-3.5" />
                 Select file
               </Button>
             </div>
@@ -366,12 +365,6 @@ export function CSVImportDialog({
                 {parseError}
               </div>
             )}
-
-            <DialogFooter className="mt-6">
-              <Button variant="secondary" onClick={handleClose}>
-                Cancel
-              </Button>
-            </DialogFooter>
           </>
         )}
 
@@ -385,14 +378,14 @@ export function CSVImportDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="mt-4 max-h-[300px] overflow-y-auto">
-              <div className="space-y-3">
+            <div className="overflow-y-auto -my-4">
+              <div className="divide-y">
                 {headers.map(header => {
                   const mappedFieldIds = getMappedFieldIds(header);
                   return (
-                    <div key={header} className="flex items-center gap-3">
-                      <div className="w-1/3 truncate text-sm font-medium">
-                        {header}
+                    <div key={header} className="flex items-center gap-3 py-4">
+                      <div className="w-1/3 truncate">
+                        <Label>{header}</Label>
                       </div>
                       <Icon name="chevronRight" className="size-3 text-muted-foreground" />
                       <div className="flex-1">
@@ -404,7 +397,9 @@ export function CSVImportDialog({
                             <SelectValue placeholder="Skip this column" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__skip__">Skip this column</SelectItem>
+                            <SelectItem value="__skip__">
+                              <span className="opacity-50">—</span>
+                            </SelectItem>
                             {mappableFields.map(field => (
                               <SelectItem
                                 key={field.id}
@@ -453,9 +448,9 @@ export function CSVImportDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="mt-4 space-y-4">
-              <div className="rounded-lg bg-muted/50 p-4">
-                <dl className="space-y-2 text-sm">
+            <div className="space-y-4">
+              <div className="rounded-lg bg-input/50 p-4">
+                <dl className="space-y-2">
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">File</dt>
                     <dd className="font-medium">{file?.name}</dd>
