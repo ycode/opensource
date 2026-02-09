@@ -361,7 +361,7 @@ export function CSVImportDialog({
             </div>
 
             {parseError && (
-              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-destructive">
                 {parseError}
               </div>
             )}
@@ -419,7 +419,7 @@ export function CSVImportDialog({
             </div>
 
             {error && (
-              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-destructive">
                 {error}
               </div>
             )}
@@ -475,7 +475,7 @@ export function CSVImportDialog({
             </div>
 
             {error && (
-              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-destructive">
                 {error}
               </div>
             )}
@@ -506,23 +506,23 @@ export function CSVImportDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="mt-6 space-y-4">
+            <div className="space-y-4">
               {/* Progress bar */}
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Progress</span>
                   <span className="font-medium">{progressPercent}%</span>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-input">
                   <div
-                    className="h-full bg-primary transition-all duration-300"
+                    className="h-full bg-secondary transition-all duration-300"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
               </div>
 
               {importStatus && (
-                <dl className="space-y-1 text-sm">
+                <dl className="space-y-1">
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Processed</dt>
                     <dd>
