@@ -8,6 +8,7 @@ import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { resolveFieldFromSources } from '@/lib/cms-variables-utils';
+import { parseMultiReferenceValue } from '@/lib/collection-utils';
 import { getInheritedValue } from '@/lib/tailwind-class-mapper';
 import { cloneDeep } from 'lodash';
 import { layerHasLink, hasLinkInTree, hasRichTextLinks } from '@/lib/link-utils';
@@ -1293,15 +1294,10 @@ function evaluateCondition(
         try {
           const allowedIds = JSON.parse(compareValue || '[]');
           if (!Array.isArray(allowedIds)) return false;
-          // For multi-reference, value might be a JSON array
-          try {
-            const valueIds = JSON.parse(value);
-            if (Array.isArray(valueIds)) {
-              // Check if any of the value IDs are in the allowed list
-              return valueIds.some((id: string) => allowedIds.includes(id));
-            }
-          } catch {
-            // Not a JSON array, treat as single ID
+          // For multi-reference, value might be an array or JSON string
+          const valueIds = parseMultiReferenceValue(value);
+          if (valueIds.length > 0) {
+            return valueIds.some((id: string) => allowedIds.includes(id));
           }
           return allowedIds.includes(value);
         } catch {
@@ -1313,15 +1309,10 @@ function evaluateCondition(
         try {
           const excludedIds = JSON.parse(compareValue || '[]');
           if (!Array.isArray(excludedIds)) return true;
-          // For multi-reference, value might be a JSON array
-          try {
-            const valueIds = JSON.parse(value);
-            if (Array.isArray(valueIds)) {
-              // Check if none of the value IDs are in the excluded list
-              return !valueIds.some((id: string) => excludedIds.includes(id));
-            }
-          } catch {
-            // Not a JSON array, treat as single ID
+          // For multi-reference, value might be an array or JSON string
+          const valueIds = parseMultiReferenceValue(value);
+          if (valueIds.length > 0) {
+            return !valueIds.some((id: string) => excludedIds.includes(id));
           }
           return !excludedIds.includes(value);
         } catch {
@@ -1340,14 +1331,7 @@ function evaluateCondition(
         try {
           const requiredIds = JSON.parse(compareValue || '[]');
           if (!Array.isArray(requiredIds)) return false;
-          // Parse the multi-reference value
-          let valueIds: string[] = [];
-          try {
-            const parsed = JSON.parse(value);
-            valueIds = Array.isArray(parsed) ? parsed : [];
-          } catch {
-            valueIds = value ? [value] : [];
-          }
+          const valueIds = parseMultiReferenceValue(value);
           return requiredIds.every((id: string) => valueIds.includes(id));
         } catch {
           return false;
@@ -1358,14 +1342,7 @@ function evaluateCondition(
         try {
           const requiredIds = JSON.parse(compareValue || '[]');
           if (!Array.isArray(requiredIds)) return false;
-          // Parse the multi-reference value
-          let valueIds: string[] = [];
-          try {
-            const parsed = JSON.parse(value);
-            valueIds = Array.isArray(parsed) ? parsed : [];
-          } catch {
-            valueIds = value ? [value] : [];
-          }
+          const valueIds = parseMultiReferenceValue(value);
           // Check exact match (same items, regardless of order)
           return requiredIds.length === valueIds.length &&
                  requiredIds.every((id: string) => valueIds.includes(id));
@@ -1381,12 +1358,8 @@ function evaluateCondition(
         // For page_collection source, this is handled by PageCollectionOperator logic
         // For collection_field source with multi_reference, check array length
         if (condition.source === 'collection_field') {
-          try {
-            const arr = JSON.parse(value || '[]');
-            return Array.isArray(arr) && arr.length > 0;
-          } catch {
-            return isPresent;
-          }
+          const arr = parseMultiReferenceValue(value);
+          return arr.length > 0 || isPresent;
         }
         // For page_collection, handled by pageCollectionCounts
         return true;
@@ -1394,12 +1367,12 @@ function evaluateCondition(
 
       case 'has_no_items': {
         if (condition.source === 'collection_field') {
-          try {
-            const arr = JSON.parse(value || '[]');
-            return !Array.isArray(arr) || arr.length === 0;
-          } catch {
-            return !isPresent;
+          const arr = parseMultiReferenceValue(value);
+          // If parsed as array, check length; otherwise fall back to presence check
+          if (Array.isArray(value) || (typeof value === 'string' && value.startsWith('['))) {
+            return arr.length === 0;
           }
+          return !isPresent;
         }
         return true;
       }

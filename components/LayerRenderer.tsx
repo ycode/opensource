@@ -18,6 +18,7 @@ import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-util
 import { isValidLinkSettings } from '@/lib/link-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
+import { parseMultiReferenceValue } from '@/lib/collection-utils';
 import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -789,16 +790,9 @@ const LayerItem: React.FC<{
       return singleItem ? [singleItem] : [];
     }
 
-    // Handle multi-reference: value is a JSON array of item IDs
-    try {
-      const allowedIds = JSON.parse(refValue);
-      if (!Array.isArray(allowedIds)) return [];
-
-      // Filter to only items whose IDs are in the multi-reference array
-      return allCollectionItems.filter(item => allowedIds.includes(item.id));
-    } catch {
-      return [];
-    }
+    // Handle multi-reference: filter to items whose IDs are in the multi-reference array
+    const allowedIds = parseMultiReferenceValue(refValue);
+    return allCollectionItems.filter(item => allowedIds.includes(item.id));
   }, [allCollectionItems, sourceFieldId, sourceFieldType, sourceFieldSource, collectionLayerData, pageCollectionItemData, getAsset]);
 
   useEffect(() => {
@@ -1790,10 +1784,12 @@ const LayerItem: React.FC<{
       }
 
       if (collectionItems.length === 0) {
-        const emptyMessage =
-          sourceFieldType === 'multi_asset' && multiAssetSourceField
-            ? `The CMS item has no ${multiAssetSourceField.type}s`
-            : 'No collection items';
+        let emptyMessage = 'No collection items';
+        if (!collectionId) {
+          emptyMessage = 'No collection selected';
+        } else if (sourceFieldType === 'multi_asset' && multiAssetSourceField) {
+          emptyMessage = `The CMS item has no ${multiAssetSourceField.type}s`;
+        }
         return (
           <Tag {...elementProps}>
             <div className="text-muted-foreground text-sm p-4 text-center">

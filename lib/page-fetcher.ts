@@ -23,6 +23,7 @@ import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue
 import { formatDateFieldsInItemValues } from '@/lib/date-format-utils';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
+import { parseMultiReferenceValue } from '@/lib/collection-utils';
 import { getAssetsByIds } from '@/lib/repositories/assetRepository';
 import { isVirtualAssetField } from '@/lib/collection-field-utils';
 import type { FieldVariable, AssetVariable, DynamicTextVariable } from '@/types';
@@ -1038,7 +1039,7 @@ async function injectCollectionData(
   // Image src field binding (variables structure)
   const imageSrc = layer.variables?.image?.src;
   if (imageSrc && isFieldVariable(imageSrc) && imageSrc.data.field_id) {
-    const resolvedValue = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
+    const resolvedValue = resolveFieldValueWithRelationships(imageSrc, enhancedValues, layerDataMap);
     updates.variables = {
       ...updates.variables,
       ...layer.variables,
@@ -1052,7 +1053,7 @@ async function injectCollectionData(
   // Video src field binding (variables structure)
   const videoSrc = layer.variables?.video?.src;
   if (videoSrc && isFieldVariable(videoSrc) && videoSrc.data.field_id) {
-    const resolvedValue = resolveFieldValueWithRelationships(videoSrc, enhancedValues);
+    const resolvedValue = resolveFieldValueWithRelationships(videoSrc, enhancedValues, layerDataMap);
     updates.variables = {
       ...updates.variables,
       ...layer.variables,
@@ -1066,7 +1067,7 @@ async function injectCollectionData(
   // Audio src field binding (variables structure)
   const audioSrc = layer.variables?.audio?.src;
   if (audioSrc && isFieldVariable(audioSrc) && audioSrc.data.field_id) {
-    const resolvedValue = resolveFieldValueWithRelationships(audioSrc, enhancedValues);
+    const resolvedValue = resolveFieldValueWithRelationships(audioSrc, enhancedValues, layerDataMap);
     updates.variables = {
       ...updates.variables,
       ...layer.variables,
@@ -1139,24 +1140,32 @@ function resolveInlineVariablesWithRelationships(
 }
 
 /**
- * Resolve field value with support for relationship paths
+ * Resolve field value with support for relationship paths and layer-specific data
+ * @param fieldVariable - The field variable with field_id, relationships, and optional collection_layer_id
+ * @param itemValues - Current item values
+ * @param layerDataMap - Optional map of layer ID → item data for layer-specific resolution
  */
 function resolveFieldValueWithRelationships(
-  fieldVariable: { type: 'field'; data: { field_id: string | null; relationships?: string[]; format?: string } },
-  itemValues: Record<string, string>
+  fieldVariable: { type: 'field'; data: { field_id: string | null; relationships?: string[]; format?: string; collection_layer_id?: string } },
+  itemValues: Record<string, string>,
+  layerDataMap?: Record<string, Record<string, string>>
 ): string | undefined {
-  const { field_id, relationships = [] } = fieldVariable.data;
+  const { field_id, relationships = [], collection_layer_id } = fieldVariable.data;
   if (!field_id) {
     return undefined;
   }
 
   // Build the full path for relationship resolution
-  if (relationships.length > 0) {
-    const fullPath = [field_id, ...relationships].join('.');
-    return itemValues[fullPath];
+  const fullPath = relationships.length > 0
+    ? [field_id, ...relationships].join('.')
+    : field_id;
+
+  // Use layer-specific data if collection_layer_id is specified
+  if (collection_layer_id && layerDataMap?.[collection_layer_id]) {
+    return layerDataMap[collection_layer_id][fullPath];
   }
 
-  return itemValues[field_id];
+  return itemValues[fullPath];
 }
 
 /**
@@ -1425,17 +1434,10 @@ export async function resolveCollectionLayers(
             if (refValue) {
               if (sourceFieldType === 'reference') {
                 // Single reference: only one item ID
-                allowedItemIds = [refValue];
+                allowedItemIds = Array.isArray(refValue) ? refValue : [refValue];
               } else {
-                // Multi-reference: parse JSON array of item IDs
-                try {
-                  const parsedIds = JSON.parse(refValue);
-                  if (Array.isArray(parsedIds)) {
-                    allowedItemIds = parsedIds;
-                  }
-                } catch {
-                  allowedItemIds = []; // No valid items
-                }
+                // Multi-reference: parse array (handles both array and JSON string formats)
+                allowedItemIds = parseMultiReferenceValue(refValue);
               }
             } else {
               // No value in parent item for this field - show no items
