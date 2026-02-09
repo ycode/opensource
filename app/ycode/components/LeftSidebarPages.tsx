@@ -413,6 +413,7 @@ export default function LeftSidebarPages({
       name: data.name,
       slug: data.slug,
       page_folder_id: data.page_folder_id,
+      settings: data.settings,
     });
 
     if (result.error) {

@@ -1,8 +1,11 @@
 import { unstable_cache, unstable_noStore } from 'next/cache';
 import Link from 'next/link';
-import { fetchHomepage, PaginationContext } from '@/lib/page-fetcher';
+import { fetchHomepage, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
+import PasswordForm from '@/components/PasswordForm';
 import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
+import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Metadata } from 'next';
 
 // Static by default for performance, dynamic only when pagination is requested
@@ -85,6 +88,50 @@ export default async function Home({ searchParams }: HomeProps) {
     );
   }
 
+  // Check password protection for homepage
+  const folders = await fetchFoldersForAuth(true);
+  const authCookie = await parseAuthCookie();
+  const protection = getPasswordProtection(data.page, folders, authCookie);
+
+  // If homepage is protected and not unlocked, show 401 error page
+  if (protection.isProtected && !protection.isUnlocked) {
+    const errorPageData = await fetchErrorPage(401, true);
+    const publishedCSS = await getSettingByKey('published_css');
+
+    if (errorPageData) {
+      const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+
+      return (
+        <PageRenderer
+          page={errorPage}
+          layers={errorPageLayers.layers || []}
+          components={errorComponents}
+          generatedCss={publishedCSS}
+          passwordProtection={{
+            pageId: protection.protectedBy === 'page' ? protection.protectedById : undefined,
+            folderId: protection.protectedBy === 'folder' ? protection.protectedById : undefined,
+            redirectUrl: '/',
+            isPublished: true,
+          }}
+        />
+      );
+    }
+
+    // Inline fallback if no custom 401 page exists
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'white', fontFamily: 'system-ui, sans-serif' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '8px', color: '#111' }}>Password Protected</h1>
+        <p style={{ color: '#666', marginBottom: '24px' }}>Enter the password to continue.</p>
+        <PasswordForm
+          pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
+          folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
+          redirectUrl="/"
+          isPublished={true}
+        />
+      </div>
+    );
+  }
+
   // Load all global settings in a single query
   const globalSettings = await fetchGlobalPageSettings();
 
@@ -118,6 +165,19 @@ export async function generateMetadata(): Promise<Metadata> {
     return {
       title: 'YCode',
       description: 'Built with YCode',
+    };
+  }
+
+  // Check password protection - don't leak metadata for protected pages
+  const folders = await fetchFoldersForAuth(true);
+  const authCookie = await parseAuthCookie();
+  const protection = getPasswordProtection(data.page, folders, authCookie);
+
+  if (protection.isProtected && !protection.isUnlocked) {
+    return {
+      title: 'Password Protected',
+      description: 'This page is password protected.',
+      robots: { index: false, follow: false },
     };
   }
 
