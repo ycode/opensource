@@ -183,7 +183,7 @@ export default function LinkSettings({
   // Filter fieldGroups for CMS field link: link, email, phone, image (mailto:/tel: added at render for email/phone)
   // Keep groups separate for organized dropdown display
   const linkFieldGroups = useMemo(
-    () => filterFieldGroupsByType(fieldGroups, LINK_FIELD_TYPES),
+    () => filterFieldGroupsByType(fieldGroups, LINK_FIELD_TYPES, { excludeMultipleAsset: true }),
     [fieldGroups]
   );
 

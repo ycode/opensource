@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { collectionsApi } from '@/lib/api';
+import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 import type { CollectionItemWithValues, CollectionPaginationMeta } from '@/types';
 
 /**
@@ -57,19 +58,19 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
   // Fetch items for a referenced collection (used for reference field resolution)
   fetchReferencedCollectionItems: async (collectionId: string) => {
     const { referencedItems, referencedLoading } = get();
-    
+
     // Skip if already loaded or loading
     if (referencedItems[collectionId] || referencedLoading[collectionId]) {
       return;
     }
-    
+
     set((state) => ({
       referencedLoading: { ...state.referencedLoading, [collectionId]: true },
     }));
-    
+
     try {
       const response = await collectionsApi.getItems(collectionId, { limit: 100 });
-      
+
       if (!response.error && response.data?.items) {
         set((state) => ({
           referencedItems: { ...state.referencedItems, [collectionId]: response.data!.items },
@@ -94,6 +95,11 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
     offset?: number
   ) => {
     const { layerData, loading, layerConfig } = get();
+
+    // Skip for virtual collections (multi-asset)
+    if (collectionId === MULTI_ASSET_COLLECTION_ID) {
+      return;
+    }
 
     // Skip if already loading
     if (loading[layerId]) {
@@ -139,9 +145,9 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
       set((state) => ({
         layerData: { ...state.layerData, [layerId]: items },
         loading: { ...state.loading, [layerId]: false },
-        layerConfig: { 
-          ...state.layerConfig, 
-          [layerId]: { collectionId, sortBy, sortOrder, limit, offset } 
+        layerConfig: {
+          ...state.layerConfig,
+          [layerId]: { collectionId, sortBy, sortOrder, limit, offset }
         },
       }));
     } catch (error) {
@@ -184,7 +190,7 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
   updateItemInLayerData: (itemId, values) => {
     set((state) => {
       const newLayerData = { ...state.layerData };
-      
+
       // Update the item in all layers that have it
       Object.keys(newLayerData).forEach(layerId => {
         newLayerData[layerId] = newLayerData[layerId].map(item => {
@@ -194,7 +200,7 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
           return item;
         });
       });
-      
+
       return { layerData: newLayerData };
     });
   },
@@ -202,12 +208,12 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
   // Refetch all layers that use a specific collection
   refetchLayersForCollection: async (collectionId) => {
     const { layerConfig } = get();
-    
+
     // Find all layers that use this collection
     const layersToRefetch = Object.entries(layerConfig)
       .filter(([_, config]) => config.collectionId === collectionId)
       .map(([layerId]) => layerId);
-    
+
     // Refetch each layer without showing loading state
     for (const layerId of layersToRefetch) {
       const config = layerConfig[layerId];
@@ -245,34 +251,34 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
     const { paginationMeta, layerConfig } = get();
     const meta = paginationMeta[layerId];
     const config = layerConfig[layerId];
-    
+
     if (!meta || !config) {
       console.warn(`[CollectionLayerStore] Cannot fetch page for layer ${layerId}: missing meta or config`);
       return null;
     }
-    
+
     // Set loading state
     set((state) => ({
       paginationLoading: { ...state.paginationLoading, [layerId]: true },
     }));
-    
+
     try {
       const offset = (page - 1) * meta.itemsPerPage;
-      
+
       const response = await collectionsApi.getItems(config.collectionId, {
         sortBy: config.sortBy,
         sortOrder: config.sortOrder,
         limit: meta.itemsPerPage,
         offset,
       });
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       const items = response.data?.items || [];
       const total = response.data?.total || 0;
-      
+
       // Build new pagination meta
       const newMeta: CollectionPaginationMeta = {
         ...meta,
@@ -280,14 +286,14 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
         totalItems: total,
         totalPages: Math.ceil(total / meta.itemsPerPage),
       };
-      
+
       // Update store
       set((state) => ({
         layerData: { ...state.layerData, [layerId]: items },
         paginationMeta: { ...state.paginationMeta, [layerId]: newMeta },
         paginationLoading: { ...state.paginationLoading, [layerId]: false },
       }));
-      
+
       return { items, meta: newMeta };
     } catch (error) {
       console.error(`[CollectionLayerStore] Error fetching page for layer ${layerId}:`, error);

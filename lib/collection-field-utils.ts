@@ -300,6 +300,8 @@ export interface BuildFieldGroupsConfig {
   fieldsByCollectionId: Record<string, CollectionField[]>;
   /** All collections for looking up names */
   collections: { id: string; name: string }[];
+  /** Multi-asset collection context (when inside a multi-asset nested collection) */
+  multiAssetContext?: { sourceFieldId: string; source: FieldSourceType } | null;
 }
 
 /**
@@ -307,8 +309,17 @@ export interface BuildFieldGroupsConfig {
  * Returns groups for collection layer fields and/or page collection fields.
  */
 export function buildFieldGroups(config: BuildFieldGroupsConfig): FieldGroup[] | undefined {
-  const { collectionLayer, page, fieldsByCollectionId, collections } = config;
+  const { collectionLayer, page, fieldsByCollectionId, collections, multiAssetContext } = config;
   const groups: FieldGroup[] = [];
+
+  // Add multi-asset virtual fields if inside a multi-asset collection context
+  if (multiAssetContext) {
+    groups.push({
+      fields: buildMultiAssetVirtualFields(),
+      label: 'Asset',
+      source: multiAssetContext.source,
+    });
+  }
 
   // Add collection layer fields if inside a collection layer
   if (collectionLayer?.collectionId) {
@@ -375,20 +386,75 @@ export function isMediaFieldType(fieldType: CollectionFieldType | undefined | nu
   return fieldType != null && MEDIA_FIELD_TYPES.includes(fieldType);
 }
 
+/** Check if a field allows multiple assets */
+export function isMultipleAssetField(field: CollectionField): boolean {
+  return isAssetFieldType(field.type) && field.data?.multiple === true;
+}
+
+// =============================================================================
+// Multi-Asset Virtual Fields
+// =============================================================================
+
+/** Virtual collection ID marker for multi-asset collections */
+export const MULTI_ASSET_COLLECTION_ID = '__multi_asset__';
+
+/** Virtual field IDs for multi-asset collections (prefixed to avoid collision) */
+export const MULTI_ASSET_VIRTUAL_FIELDS = {
+  FILENAME: '__asset_filename',
+  URL: '__asset_url',
+  FILE_SIZE: '__asset_file_size',
+  MIME_TYPE: '__asset_mime_type',
+  WIDTH: '__asset_width',
+  HEIGHT: '__asset_height',
+} as const;
+
+/** Build virtual CollectionField[] for multi-asset context */
+export function buildMultiAssetVirtualFields(): CollectionField[] {
+  const baseField = {
+    collection_id: '__virtual__',
+    order: 0,
+    hidden: false,
+    is_published: true,
+    created_at: '',
+    updated_at: '',
+    deleted_at: null,
+  };
+
+  return [
+    { ...baseField, id: MULTI_ASSET_VIRTUAL_FIELDS.URL, name: 'File URL', type: 'image' as CollectionFieldType, key: null, default: null, reference_collection_id: null, data: {}, fillable: false },
+    { ...baseField, id: MULTI_ASSET_VIRTUAL_FIELDS.FILENAME, name: 'File name', type: 'text' as CollectionFieldType, key: null, default: null, reference_collection_id: null, data: {}, fillable: false },
+    { ...baseField, id: MULTI_ASSET_VIRTUAL_FIELDS.FILE_SIZE, name: 'File size', type: 'text' as CollectionFieldType, key: null, default: null, reference_collection_id: null, data: {}, fillable: false },
+    { ...baseField, id: MULTI_ASSET_VIRTUAL_FIELDS.MIME_TYPE, name: 'MIME type', type: 'text' as CollectionFieldType, key: null, default: null, reference_collection_id: null, data: {}, fillable: false },
+    { ...baseField, id: MULTI_ASSET_VIRTUAL_FIELDS.WIDTH, name: 'Width', type: 'text' as CollectionFieldType, key: null, default: null, reference_collection_id: null, data: {}, fillable: false },
+    { ...baseField, id: MULTI_ASSET_VIRTUAL_FIELDS.HEIGHT, name: 'Height', type: 'text' as CollectionFieldType, key: null, default: null, reference_collection_id: null, data: {}, fillable: false },
+  ];
+}
+
+/** Check if a field ID is a virtual asset field */
+export function isVirtualAssetField(fieldId: string): boolean {
+  return fieldId.startsWith('__asset_');
+}
+
 /**
  * Filter field groups to only include fields of specified types.
  * Returns empty array if no matching fields exist.
+ * When options.excludeMultipleAsset is true, also excludes fields with multiple assets.
  */
 export function filterFieldGroupsByType(
   fieldGroups: FieldGroup[] | undefined,
-  allowedTypes: CollectionFieldType[]
+  allowedTypes: CollectionFieldType[],
+  options?: { excludeMultipleAsset?: boolean }
 ): FieldGroup[] {
   if (!fieldGroups || fieldGroups.length === 0) return [];
 
   return fieldGroups
     .map(group => ({
       ...group,
-      fields: group.fields.filter(field => allowedTypes.includes(field.type)),
+      fields: group.fields.filter(field => {
+        if (!allowedTypes.includes(field.type)) return false;
+        if (options?.excludeMultipleAsset && isMultipleAssetField(field)) return false;
+        return true;
+      }),
     }))
     .filter(group => group.fields.length > 0);
 }

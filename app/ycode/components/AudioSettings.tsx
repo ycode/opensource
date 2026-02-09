@@ -57,7 +57,7 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
 
   // Filter fields to only show audio-bindable field types (audio or text for URL)
   const audioFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, AUDIO_FIELD_TYPES);
+    const filtered = filterFieldGroupsByType(fieldGroups, AUDIO_FIELD_TYPES, { excludeMultipleAsset: true });
     return flattenFieldGroups(filtered);
   }, [fieldGroups]);
 

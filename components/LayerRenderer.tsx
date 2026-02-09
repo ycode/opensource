@@ -17,6 +17,8 @@ import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
 import { isValidLinkSettings } from '@/lib/link-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
+import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
@@ -26,6 +28,7 @@ import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
@@ -694,12 +697,53 @@ const LayerItem: React.FC<{
   const layerData = useCollectionLayerStore((state) => state.layerData[layer.id]);
   const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
+  const fieldsByCollectionId = useCollectionsStore((state) => state.fields);
   const allCollectionItems = React.useMemo(() => layerData || [], [layerData]);
+
+  // Get the source for multi-asset field resolution
+  const sourceFieldSource = collectionVariable?.source_field_source;
+
+  // Resolve multi-asset source field by id from store (for empty state message)
+  const multiAssetSourceField = React.useMemo(() => {
+    if (sourceFieldType !== 'multi_asset' || !sourceFieldId) return null;
+    const allFields = Object.values(fieldsByCollectionId).flat();
+    return allFields.find((f) => f.id === sourceFieldId) ?? null;
+  }, [sourceFieldType, sourceFieldId, fieldsByCollectionId]);
 
   // Filter items by reference field if source_field_id is set
   // Single reference: get the one referenced item (no loop, just context)
   // Multi-reference: filter to items in the array (loops through all)
+  // Multi-asset: build virtual items from asset IDs
   const collectionItems = React.useMemo(() => {
+    // Handle multi-asset: build virtual items from assets
+    if (sourceFieldType === 'multi_asset' && sourceFieldId) {
+      // Get the field value from the correct source (page or collection)
+      const fieldValue = sourceFieldSource === 'page'
+        ? pageCollectionItemData?.[sourceFieldId]
+        : collectionLayerData?.[sourceFieldId];
+
+      const assetIds = parseMultiAssetFieldValue(fieldValue);
+      if (assetIds.length === 0) return [];
+
+      // Build virtual collection items from assets
+      return assetIds.map(assetId => {
+        const asset = getAsset(assetId);
+        // Check if it's a full Asset object or just a URL placeholder
+        const isFullAsset = asset && 'filename' in asset;
+        const virtualValues = isFullAsset ? buildAssetVirtualValues(asset) : {};
+        return {
+          id: assetId,
+          collection_id: MULTI_ASSET_COLLECTION_ID,
+          manual_order: 0,
+          created_at: '',
+          updated_at: '',
+          deleted_at: null,
+          is_published: true,
+          values: virtualValues,
+        };
+      });
+    }
+
     if (!sourceFieldId) {
       return allCollectionItems;
     }
@@ -725,11 +769,14 @@ const LayerItem: React.FC<{
     } catch {
       return [];
     }
-  }, [allCollectionItems, sourceFieldId, sourceFieldType, collectionLayerData, pageCollectionItemData]);
+  }, [allCollectionItems, sourceFieldId, sourceFieldType, sourceFieldSource, collectionLayerData, pageCollectionItemData, getAsset]);
 
   useEffect(() => {
     if (!isEditMode) return;
     if (!collectionVariable?.id) return;
+    // Skip fetching for multi-asset collections (they don't have real collection data)
+    if (collectionVariable.source_field_type === 'multi_asset') return;
+    if (collectionVariable.id === MULTI_ASSET_COLLECTION_ID) return;
     if (allCollectionItems.length > 0 || isLoadingLayerData) return;
 
     fetchLayerData(
@@ -743,6 +790,7 @@ const LayerItem: React.FC<{
   }, [
     isEditMode,
     collectionVariable?.id,
+    collectionVariable?.source_field_type,
     collectionVariable?.sort_by,
     collectionVariable?.sort_order,
     collectionVariable?.limit,
@@ -806,7 +854,7 @@ const LayerItem: React.FC<{
         // Validate asset type - allow both images and icons (SVGs)
         const isImage = asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES);
         const isSvg = asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS);
-        
+
         if (!isImage && !isSvg) {
           toast.error('Invalid asset type', {
             description: 'Please select an image or SVG file.',
@@ -1709,11 +1757,14 @@ const LayerItem: React.FC<{
       }
 
       if (collectionItems.length === 0) {
-        // Show empty state with the layer design
+        const emptyMessage =
+          sourceFieldType === 'multi_asset' && multiAssetSourceField
+            ? `The CMS item has no ${multiAssetSourceField.type}s`
+            : 'No collection items';
         return (
           <Tag {...elementProps}>
             <div className="text-muted-foreground text-sm p-4 text-center">
-              No collection items
+              {emptyMessage}
             </div>
           </Tag>
         );

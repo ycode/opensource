@@ -9,7 +9,7 @@ import type {
   CollectionFieldType,
 } from '@/types';
 import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
-import { isAssetFieldType } from '@/lib/collection-field-utils';
+import { isAssetFieldType, isVirtualAssetField } from '@/lib/collection-field-utils';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 
 // ============================================================================
@@ -250,6 +250,70 @@ export function parseCollectionLinkValue(value: string | CollectionLinkValue | u
 }
 
 /**
+ * Options for resolving a raw field value to a link href
+ */
+export interface ResolveFieldLinkOptions {
+  fieldId: string;
+  rawValue: string;
+  fieldType?: string | null;
+  context: LinkResolutionContext;
+  /** Asset map for SSR (asset_id -> { public_url }) */
+  assetMap?: Record<string, { public_url: string | null }>;
+}
+
+/**
+ * Resolve a raw field value to a link href.
+ * Handles CollectionLinkValue JSON, email, phone, virtual asset fields, and regular asset fields.
+ */
+export function resolveFieldLinkValue(options: ResolveFieldLinkOptions): string {
+  const { fieldId, rawValue, fieldType, context, assetMap } = options;
+  const { getAsset, resolvedAssets } = context;
+
+  // Check if value is a CollectionLinkValue JSON (for 'link' field type)
+  const linkValue = parseCollectionLinkValue(rawValue);
+  if (linkValue) {
+    return resolveCollectionLinkValue(linkValue, context) || '';
+  }
+
+  // Email field
+  if (fieldType === 'email' || looksLikeEmail(rawValue)) {
+    return `mailto:${rawValue}`;
+  }
+
+  // Phone field
+  if (fieldType === 'phone' || looksLikePhone(rawValue)) {
+    return `tel:${rawValue}`;
+  }
+
+  // Virtual asset fields (e.g., __asset_url) contain URLs directly
+  if (isVirtualAssetField(fieldId)) {
+    return rawValue;
+  }
+
+  // Asset field types - resolve ID to URL
+  if (isAssetFieldType(fieldType as any)) {
+    // SSR: use assetMap
+    if (assetMap) {
+      const asset = assetMap[rawValue];
+      return asset?.public_url || rawValue;
+    }
+    // SSR: use pre-resolved assets
+    if (resolvedAssets?.[rawValue]) {
+      return resolvedAssets[rawValue];
+    }
+    // Client: use getAsset callback
+    if (getAsset) {
+      const asset = getAsset(rawValue);
+      return asset?.public_url || '';
+    }
+    return rawValue;
+  }
+
+  // Default: use raw value as-is
+  return rawValue;
+}
+
+/**
  * Resolve a CollectionLinkValue to an href string
  */
 export function resolveCollectionLinkValue(
@@ -405,29 +469,13 @@ export function generateLinkHref(
         }
 
         if (rawValue) {
-          // Use field_type stored in link settings (set when field is selected)
           const fieldType = linkSettings.field?.data?.field_type;
-          // Check if value is a CollectionLinkValue JSON (for 'link' field type)
-          const linkValue = parseCollectionLinkValue(rawValue);
-          if (linkValue) {
-            href = resolveCollectionLinkValue(linkValue, context) || '';
-          } else if (fieldType === 'email' || looksLikeEmail(rawValue)) {
-            href = `mailto:${rawValue}`;
-          } else if (fieldType === 'phone' || looksLikePhone(rawValue)) {
-            href = `tel:${rawValue}`;
-          } else if (isAssetFieldType(fieldType)) {
-            // Asset field types (image, video, audio, document) store asset IDs - resolve to URL
-            // Check pre-resolved assets first (SSR), then fall back to getAsset (client-side store)
-            const resolvedUrl = context.resolvedAssets?.[rawValue];
-            if (resolvedUrl) {
-              href = resolvedUrl;
-            } else if (getAsset) {
-              const asset = getAsset(rawValue);
-              href = asset?.public_url || '';
-            }
-          } else {
-            href = rawValue;
-          }
+          href = resolveFieldLinkValue({
+            fieldId,
+            rawValue,
+            fieldType,
+            context,
+          });
         }
       }
       break;

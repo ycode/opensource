@@ -71,7 +71,7 @@ import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTe
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 import { DEFAULT_TEXT_STYLES, getTextStyle } from '@/lib/text-format-utils';
-import { buildFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
+import { buildFieldGroups, getFieldIcon, isMultipleAssetField, MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField } from '@/types';
@@ -873,21 +873,38 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
-  // Handle reference field selection (for reference or multi-reference as collection source)
+  // Handle reference field selection (for reference, multi-reference, or multi-asset as collection source)
   const handleReferenceFieldChange = (fieldId: string) => {
     if (selectedLayerId && selectedLayer) {
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       // Find the selected field to get its reference_collection_id and type
       const selectedField = parentCollectionFields.find(f => f.id === fieldId);
-      if (selectedField?.reference_collection_id) {
+
+      if (selectedField && isMultipleAssetField(selectedField)) {
+        // Multi-asset field - iterate over assets, no target collection ID
         handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
               ...currentCollectionVariable,
-              id: selectedField.reference_collection_id, // Set collection ID from reference field's target
-              source_field_id: fieldId, // Store the field ID for runtime filtering
-              source_field_type: selectedField.type as 'reference' | 'multi_reference', // Store field type for behavior
+              id: MULTI_ASSET_COLLECTION_ID, // Marker for multi-asset collection
+              source_field_id: fieldId,
+              source_field_type: 'multi_asset',
+              source_field_source: 'collection', // From parent collection layer
+            }
+          }
+        });
+      } else if (selectedField?.reference_collection_id) {
+        // Reference field - filter by referenced collection
+        handleLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              id: selectedField.reference_collection_id,
+              source_field_id: fieldId,
+              source_field_type: selectedField.type as 'reference' | 'multi_reference',
+              source_field_source: undefined, // Not needed for reference fields
             }
           }
         });
@@ -917,7 +934,25 @@ const RightSidebar = React.memo(function RightSidebar({
       return;
     }
 
-    if (value.startsWith('field:')) {
+    if (value.startsWith('multi_asset:')) {
+      // Multi-asset field from CMS page data
+      const fieldId = value.replace('multi_asset:', '');
+      const selectedField = dynamicPageMultiAssetFields.find(f => f.id === fieldId);
+      if (selectedField) {
+        handleLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              id: MULTI_ASSET_COLLECTION_ID,
+              source_field_id: fieldId,
+              source_field_type: 'multi_asset',
+              source_field_source: 'page',
+            }
+          }
+        });
+      }
+    } else if (value.startsWith('field:')) {
       // Reference field from CMS page data
       const fieldId = value.replace('field:', '');
       const selectedField = dynamicPageReferenceFields.find(f => f.id === fieldId);
@@ -930,6 +965,7 @@ const RightSidebar = React.memo(function RightSidebar({
               id: selectedField.reference_collection_id,
               source_field_id: fieldId,
               source_field_type: selectedField.type as 'reference' | 'multi_reference',
+              source_field_source: undefined,
             }
           }
         });
@@ -958,8 +994,11 @@ const RightSidebar = React.memo(function RightSidebar({
     const collectionVariable = getCollectionVariable(selectedLayer);
     if (!collectionVariable?.id) return 'none';
 
-    // If source_field_id is set, it's a field reference
+    // If source_field_id is set, check the type
     if (collectionVariable.source_field_id) {
+      if (collectionVariable.source_field_type === 'multi_asset') {
+        return `multi_asset:${collectionVariable.source_field_id}`;
+      }
       return `field:${collectionVariable.source_field_id}`;
     }
 
@@ -1327,6 +1366,11 @@ const RightSidebar = React.memo(function RightSidebar({
     const collectionVariable = parentCollectionLayer ? getCollectionVariable(parentCollectionLayer) : null;
     let collectionId = collectionVariable?.id;
 
+    // Skip virtual collections (multi-asset)
+    if (collectionId === MULTI_ASSET_COLLECTION_ID) {
+      collectionId = undefined;
+    }
+
     if (!collectionId && currentPage?.is_dynamic) {
       collectionId = currentPage.settings?.cms?.collection_id || undefined;
     }
@@ -1339,11 +1383,22 @@ const RightSidebar = React.memo(function RightSidebar({
   // This allows showing both collection layer fields AND page collection fields when applicable
   const fieldGroups = useMemo(() => {
     const collectionVariable = parentCollectionLayer ? getCollectionVariable(parentCollectionLayer) : null;
+
+    // Check if parent is a multi-asset collection
+    const isMultiAssetParent = collectionVariable?.source_field_type === 'multi_asset';
+    const multiAssetContext = isMultiAssetParent && collectionVariable.source_field_id
+      ? {
+        sourceFieldId: collectionVariable.source_field_id,
+        source: (collectionVariable.source_field_source || 'collection') as 'page' | 'collection',
+      }
+      : null;
+
     return buildFieldGroups({
       collectionLayer: collectionVariable ? { collectionId: collectionVariable.id } : null,
       page: currentPage,
       fieldsByCollectionId: fields,
       collections,
+      multiAssetContext,
     });
   }, [parentCollectionLayer, currentPage, fields, collections]);
 
@@ -1354,7 +1409,8 @@ const RightSidebar = React.memo(function RightSidebar({
     if (!collectionVariable) return [];
 
     const collectionId = collectionVariable?.id;
-    if (!collectionId) return [];
+    // Skip virtual collections (multi-asset)
+    if (!collectionId || collectionId === MULTI_ASSET_COLLECTION_ID) return [];
     return fields[collectionId] || [];
   }, [selectedLayer, fields]);
 
@@ -1415,6 +1471,20 @@ const RightSidebar = React.memo(function RightSidebar({
     return collectionFields.filter(
       f => (f.type === 'reference' || f.type === 'multi_reference') && f.reference_collection_id
     );
+  }, [currentPage, fields]);
+
+  // Get multi-asset fields from parent context (for multi-asset nested collections)
+  const parentMultiAssetFields = useMemo(() => {
+    return parentCollectionFields.filter(f => isMultipleAssetField(f));
+  }, [parentCollectionFields]);
+
+  // Get multi-asset fields from dynamic page's source collection
+  const dynamicPageMultiAssetFields = useMemo(() => {
+    if (!currentPage?.is_dynamic) return [];
+    const collectionId = currentPage.settings?.cms?.collection_id;
+    if (!collectionId) return [];
+    const collectionFields = fields[collectionId] || [];
+    return collectionFields.filter(f => isMultipleAssetField(f));
   }, [currentPage, fields]);
 
   // Handle adding custom attribute
@@ -2219,7 +2289,7 @@ const RightSidebar = React.memo(function RightSidebar({
                   <div className="grid grid-cols-3">
                     <Label variant="muted">Source</Label>
                     <div className="col-span-2 *:w-full">
-                      {/* When inside a parent collection, show reference fields as source options */}
+                      {/* When inside a parent collection, show reference fields and multi-asset fields as source options */}
                       {parentCollectionLayer ? (
                         <Select
                           value={getCollectionVariable(selectedLayer)?.source_field_id || ''}
@@ -2229,22 +2299,42 @@ const RightSidebar = React.memo(function RightSidebar({
                             <SelectValue placeholder="Select source" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectGroup>
-                              {parentReferenceFields.length > 0 ? (
-                                parentReferenceFields.map((field) => (
-                                  <SelectItem key={field.id} value={field.id}>
-                                    <span className="flex items-center gap-2">
-                                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                                      {field.name}
-                                    </span>
-                                  </SelectItem>
-                                ))
-                              ) : (
+                            {parentReferenceFields.length > 0 || parentMultiAssetFields.length > 0 ? (
+                              <>
+                                {parentReferenceFields.length > 0 && (
+                                  <SelectGroup>
+                                    <SelectLabel>Reference fields</SelectLabel>
+                                    {parentReferenceFields.map((field) => (
+                                      <SelectItem key={field.id} value={field.id}>
+                                        <span className="flex items-center gap-2">
+                                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                          {field.name}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectGroup>
+                                )}
+                                {parentMultiAssetFields.length > 0 && (
+                                  <SelectGroup>
+                                    <SelectLabel>Multi-asset fields</SelectLabel>
+                                    {parentMultiAssetFields.map((field) => (
+                                      <SelectItem key={field.id} value={field.id}>
+                                        <span className="flex items-center gap-2">
+                                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                          {field.name}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectGroup>
+                                )}
+                              </>
+                            ) : (
+                              <SelectGroup>
                                 <SelectItem value="__none__" disabled>
                                   None
                                 </SelectItem>
-                              )}
-                            </SelectGroup>
+                              </SelectGroup>
+                            )}
                           </SelectContent>
                         </Select>
                       ) : currentPage?.is_dynamic ? (
@@ -2262,9 +2352,22 @@ const RightSidebar = React.memo(function RightSidebar({
                             </SelectGroup>
                             {dynamicPageReferenceFields.length > 0 && (
                               <SelectGroup>
-                                <SelectLabel>CMS page data</SelectLabel>
+                                <SelectLabel>Reference fields</SelectLabel>
                                 {dynamicPageReferenceFields.map((field) => (
                                   <SelectItem key={field.id} value={`field:${field.id}`}>
+                                    <span className="flex items-center gap-2">
+                                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                      {field.name}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {dynamicPageMultiAssetFields.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Multi-asset fields</SelectLabel>
+                                {dynamicPageMultiAssetFields.map((field) => (
+                                  <SelectItem key={field.id} value={`multi_asset:${field.id}`}>
                                     <span className="flex items-center gap-2">
                                       <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
                                       {field.name}

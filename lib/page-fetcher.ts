@@ -17,11 +17,30 @@ export interface PaginationContext {
   // Default page number for all collection layers (from URL ?page=N)
   defaultPage?: number;
 }
-import { parseCollectionLinkValue, resolveCollectionLinkValue, looksLikeEmail, looksLikePhone } from '@/lib/link-utils';
+import { resolveFieldLinkValue } from '@/lib/link-utils';
 import { resolveInlineVariables, resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
 import { formatDateFieldsInItemValues } from '@/lib/date-format-utils';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
+import { getAssetsByIds } from '@/lib/repositories/assetRepository';
+import { isVirtualAssetField } from '@/lib/collection-field-utils';
+import type { FieldVariable, AssetVariable, DynamicTextVariable } from '@/types';
+
+/**
+ * Create the appropriate variable for an asset field value.
+ * Virtual fields (e.g., __asset_url) contain URLs directly, regular fields contain asset IDs.
+ */
+function createResolvedAssetVariable(
+  fieldId: string,
+  resolvedValue: string | null | undefined,
+  fallback: FieldVariable
+): FieldVariable | AssetVariable | DynamicTextVariable {
+  if (!resolvedValue) return fallback;
+  return isVirtualAssetField(fieldId)
+    ? createDynamicTextVariable(resolvedValue)
+    : createAssetVariable(resolvedValue);
+}
 
 export interface PageData {
   page: Page;
@@ -1005,13 +1024,12 @@ async function injectCollectionData(
   // Image src field binding (variables structure)
   const imageSrc = layer.variables?.image?.src;
   if (imageSrc && isFieldVariable(imageSrc) && imageSrc.data.field_id) {
-    const resolvedAssetId = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
-    // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+    const resolvedValue = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
     updates.variables = {
       ...updates.variables,
       ...layer.variables,
       image: {
-        src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : imageSrc,
+        src: createResolvedAssetVariable(imageSrc.data.field_id, resolvedValue, imageSrc),
         alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
       },
     };
@@ -1020,14 +1038,13 @@ async function injectCollectionData(
   // Video src field binding (variables structure)
   const videoSrc = layer.variables?.video?.src;
   if (videoSrc && isFieldVariable(videoSrc) && videoSrc.data.field_id) {
-    const resolvedAssetId = resolveFieldValueWithRelationships(videoSrc, enhancedValues);
-    // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+    const resolvedValue = resolveFieldValueWithRelationships(videoSrc, enhancedValues);
     updates.variables = {
       ...updates.variables,
       ...layer.variables,
       video: {
         ...layer.variables?.video,
-        src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : videoSrc,
+        src: createResolvedAssetVariable(videoSrc.data.field_id, resolvedValue, videoSrc),
       },
     };
   }
@@ -1035,14 +1052,13 @@ async function injectCollectionData(
   // Audio src field binding (variables structure)
   const audioSrc = layer.variables?.audio?.src;
   if (audioSrc && isFieldVariable(audioSrc) && audioSrc.data.field_id) {
-    const resolvedAssetId = resolveFieldValueWithRelationships(audioSrc, enhancedValues);
-    // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+    const resolvedValue = resolveFieldValueWithRelationships(audioSrc, enhancedValues);
     updates.variables = {
       ...updates.variables,
       ...layer.variables,
       audio: {
         ...layer.variables?.audio,
-        src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : audioSrc,
+        src: createResolvedAssetVariable(audioSrc.data.field_id, resolvedValue, audioSrc),
       },
     };
   }
@@ -1249,6 +1265,75 @@ export async function resolveCollectionLayers(
           const sortOrder = collectionVariable.sort_order;
           const sourceFieldId = collectionVariable.source_field_id;
           const sourceFieldType = collectionVariable.source_field_type;
+          const sourceFieldSource = collectionVariable.source_field_source;
+
+          // Handle multi-asset collections - build virtual items from asset IDs
+          if (sourceFieldType === 'multi_asset' && sourceFieldId && itemValues) {
+            const fieldValue = itemValues[sourceFieldId];
+            const assetIds = parseMultiAssetFieldValue(fieldValue);
+
+            if (assetIds.length === 0) {
+              // No assets - return layer without children
+              return { ...layer, children: [] };
+            }
+
+            // Fetch all assets at once (returns Record<string, Asset>)
+            const assetsById = await getAssetsByIds(assetIds, isPublished);
+
+            // Clone the layer for each asset (like regular collections)
+            const clonedLayers: Layer[] = await Promise.all(
+              assetIds.map(async (assetId) => {
+                const asset = assetsById[assetId];
+                if (!asset) return null;
+
+                const virtualValues = buildAssetVirtualValues(asset);
+
+                // Resolve children for THIS specific asset's virtual values
+                const resolvedChildren = layer.children?.length
+                  ? await Promise.all(layer.children.map(child => resolveLayer(child, virtualValues)))
+                  : [];
+
+                // Inject virtual field data into the resolved children
+                const injectedChildren = await Promise.all(
+                  resolvedChildren.map(child =>
+                    injectCollectionData(child, virtualValues, undefined, isPublished)
+                  )
+                );
+
+                return {
+                  ...layer,
+                  id: `${layer.id}-item-${assetId}`,
+                  attributes: {
+                    ...layer.attributes,
+                    'data-collection-item-id': assetId,
+                  } as Record<string, any>,
+                  variables: {
+                    ...layer.variables,
+                    collection: undefined,
+                  },
+                  children: injectedChildren,
+                  _collectionItemValues: virtualValues,
+                  _collectionItemId: assetId,
+                } as Layer;
+              })
+            ).then(results => results.filter((item): item is Layer => item !== null));
+
+            // Return a fragment layer containing all cloned items
+            // _fragment is a special marker that LayerRenderer and layerToHtml handle
+            return {
+              ...layer,
+              id: `${layer.id}-fragment`,
+              name: '_fragment',
+              classes: [],
+              design: undefined,
+              attributes: {} as Record<string, any>,
+              children: clonedLayers,
+              variables: {
+                ...layer.variables,
+                collection: undefined,
+              },
+            };
+          }
 
           // Check if pagination is enabled (either 'pages' or 'load_more' mode)
           const paginationConfig = collectionVariable.pagination;
@@ -1934,20 +2019,25 @@ async function injectCollectionDataForHtml(
     }
   }
 
+  // Helper to resolve field value with relationship path
+  const resolveFieldPath = (fieldVar: FieldVariable): string => {
+    const fieldId = fieldVar.data.field_id!;
+    const relationships = fieldVar.data.relationships || [];
+    const fullPath = relationships.length > 0
+      ? [fieldId, ...relationships].join('.')
+      : fieldId;
+    return enhancedValues[fullPath] || '';
+  };
+
   // Image src field binding (variables structure)
   const imageSrc = layer.variables?.image?.src;
   if (imageSrc && isFieldVariable(imageSrc) && imageSrc.data.field_id) {
-    const relationships = imageSrc.data.relationships || [];
-    const fullPath = relationships.length > 0
-      ? [imageSrc.data.field_id, ...relationships].join('.')
-      : imageSrc.data.field_id;
-    const resolvedAssetId = enhancedValues[fullPath] || '';
-    // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+    const resolvedValue = resolveFieldPath(imageSrc);
     updates.variables = {
       ...updates.variables,
       ...layer.variables,
       image: {
-        src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : imageSrc,
+        src: createResolvedAssetVariable(imageSrc.data.field_id, resolvedValue, imageSrc),
         alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
       },
     };
@@ -1955,46 +2045,30 @@ async function injectCollectionDataForHtml(
 
   // Video src field binding (variables structure)
   const videoSrc = layer.variables?.video?.src;
-  if (videoSrc && isFieldVariable(videoSrc)) {
-    const fieldId = videoSrc.data.field_id;
-    if (fieldId) {
-      const relationships = videoSrc.data.relationships || [];
-      const fullPath = relationships.length > 0
-        ? [fieldId, ...relationships].join('.')
-        : fieldId;
-      const resolvedAssetId = enhancedValues[fullPath] || '';
-      // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
-      updates.variables = {
-        ...updates.variables,
-        ...layer.variables,
-        video: {
-          ...layer.variables?.video,
-          src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : videoSrc,
-        },
-      };
-    }
+  if (videoSrc && isFieldVariable(videoSrc) && videoSrc.data.field_id) {
+    const resolvedValue = resolveFieldPath(videoSrc);
+    updates.variables = {
+      ...updates.variables,
+      ...layer.variables,
+      video: {
+        ...layer.variables?.video,
+        src: createResolvedAssetVariable(videoSrc.data.field_id, resolvedValue, videoSrc),
+      },
+    };
   }
 
   // Audio src field binding (variables structure)
   const audioSrc = layer.variables?.audio?.src;
-  if (audioSrc && isFieldVariable(audioSrc)) {
-    const fieldId = audioSrc.data.field_id;
-    if (fieldId) {
-      const relationships = audioSrc.data.relationships || [];
-      const fullPath = relationships.length > 0
-        ? [fieldId, ...relationships].join('.')
-        : fieldId;
-      const resolvedAssetId = enhancedValues[fullPath] || '';
-      // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
-      updates.variables = {
-        ...updates.variables,
-        ...layer.variables,
-        audio: {
-          ...layer.variables?.audio,
-          src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : audioSrc,
-        },
-      };
-    }
+  if (audioSrc && isFieldVariable(audioSrc) && audioSrc.data.field_id) {
+    const resolvedValue = resolveFieldPath(audioSrc);
+    updates.variables = {
+      ...updates.variables,
+      ...layer.variables,
+      audio: {
+        ...layer.variables?.audio,
+        src: createResolvedAssetVariable(audioSrc.data.field_id, resolvedValue, audioSrc),
+      },
+    };
   }
 
   // Recursively process children
@@ -2375,6 +2449,11 @@ function layerToHtml(
       .join('');
   }
 
+  // Use stored item values from cloned collection layers if available (multi-asset/nested collections)
+  // This ensures layers inside collection items have access to the correct item values
+  const effectiveCollectionItemData = layer._collectionItemValues || collectionItemData;
+  const effectiveCollectionItemId = layer._collectionItemId || collectionItemId;
+
   // Get the HTML tag
   const tag = layer.settings?.tag || layer.name || 'div';
 
@@ -2444,7 +2523,7 @@ function layerToHtml(
     if (videoSrc && videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
       const rawVideoId = videoSrc.data.video_id || '';
       // Resolve inline variables in video ID (supports CMS binding)
-      const videoId = resolveInlineVariablesFromData(rawVideoId, collectionItemData, pageCollectionItemData);
+      const videoId = resolveInlineVariablesFromData(rawVideoId, effectiveCollectionItemData, pageCollectionItemData);
       const privacyMode = layer.attributes?.youtubePrivacyMode === true;
       const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
 
@@ -2467,7 +2546,7 @@ function layerToHtml(
       const childrenHtml = layer.children
         ? layer.children
           .map((child) =>
-            layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, pageCollectionItemData, assetMap)
+            layerToHtml(child, effectiveCollectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, effectiveCollectionItemData, pageCollectionItemData, assetMap)
           )
           .join('')
         : '';
@@ -2611,8 +2690,8 @@ function layerToHtml(
                 // Handle special "current" keywords - use the current collection item ID
                 if (linkSettings.page.collection_item_id === 'current-page' ||
                     linkSettings.page.collection_item_id === 'current-collection') {
-                  // Use the current collection item's slug (from collectionItemId parameter)
-                  itemSlug = collectionItemId ? collectionItemSlugs[collectionItemId] : undefined;
+                  // Use the current collection item's slug (from effectiveCollectionItemId)
+                  itemSlug = effectiveCollectionItemId ? collectionItemSlugs[effectiveCollectionItemId] : undefined;
                 } else {
                   // Use the specific item slug
                   itemSlug = collectionItemSlugs[linkSettings.page.collection_item_id];
@@ -2628,36 +2707,24 @@ function layerToHtml(
           }
           break;
         case 'field': {
-          const fieldData = collectionItemData;
           const fieldId = linkSettings.field?.data?.field_id;
-          if (fieldId && fieldData) {
-            const rawValue = fieldData[fieldId];
-            // Use field_type stored in link settings (set when field is selected)
+          const rawValue = fieldId ? effectiveCollectionItemData?.[fieldId] : undefined;
+          if (fieldId && rawValue) {
             const fieldType = linkSettings.field?.data?.field_type;
-            if (rawValue) {
-              const linkValue = parseCollectionLinkValue(rawValue);
-              if (linkValue) {
-                hrefValue =
-                  resolveCollectionLinkValue(linkValue, {
-                    pages: pages || [],
-                    folders: folders || [],
-                    collectionItemSlugs,
-                    locale,
-                    translations,
-                    isPreview: false,
-                  }) || '';
-              } else if (fieldType === 'email' || looksLikeEmail(rawValue)) {
-                hrefValue = `mailto:${rawValue}`;
-              } else if (fieldType === 'phone' || looksLikePhone(rawValue)) {
-                hrefValue = `tel:${rawValue}`;
-              } else if (fieldType && ['image', 'video', 'audio', 'document'].includes(fieldType)) {
-                // Media field stores asset ID - resolve to URL using asset map
-                const asset = assetMap?.[rawValue];
-                hrefValue = asset?.public_url || rawValue;
-              } else {
-                hrefValue = rawValue;
-              }
-            }
+            hrefValue = resolveFieldLinkValue({
+              fieldId,
+              rawValue,
+              fieldType,
+              context: {
+                pages: pages || [],
+                folders: folders || [],
+                collectionItemSlugs,
+                locale,
+                translations,
+                isPreview: false,
+              },
+              assetMap,
+            });
           }
           break;
         }
@@ -2706,7 +2773,7 @@ function layerToHtml(
   const childrenHtml = layer.children
     ? layer.children
       .map((child) =>
-        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, pageCollectionItemData, assetMap)
+        layerToHtml(child, effectiveCollectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, effectiveCollectionItemData, pageCollectionItemData, assetMap)
       )
       .join('')
     : '';
@@ -2771,7 +2838,28 @@ function layerToHtml(
           }
         }
         break;
-      // asset and field types would need additional resolution
+      case 'field': {
+        const wrapFieldId = linkSettings.field?.data?.field_id;
+        const rawValue = wrapFieldId ? effectiveCollectionItemData?.[wrapFieldId] : undefined;
+        if (wrapFieldId && rawValue) {
+          const fieldType = linkSettings.field?.data?.field_type;
+          linkHref = resolveFieldLinkValue({
+            fieldId: wrapFieldId,
+            rawValue,
+            fieldType,
+            context: {
+              pages: pages || [],
+              folders: folders || [],
+              collectionItemSlugs,
+              locale,
+              translations,
+              isPreview: false,
+            },
+            assetMap,
+          });
+        }
+        break;
+      }
     }
 
     // Append anchor if present - resolve layer ID to actual anchor value
