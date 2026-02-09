@@ -7,7 +7,7 @@ import { getCollectionVariable, resolveFieldValue, evaluateVisibility } from '@/
 import { isFieldVariable, isAssetVariable, createDynamicTextVariable, createDynamicRichTextVariable, createAssetVariable, getDynamicTextContent, getVariableStringValue, getAssetId } from '@/lib/variable-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveComponents } from '@/lib/resolve-components';
-import { extractInlineNodesFromRichText, isTiptapDoc } from '@/lib/tiptap-utils';
+import { extractInlineNodesFromRichText, isTiptapDoc, hasBlockElementsWithResolver } from '@/lib/tiptap-utils';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 // Pagination context passed through to resolveCollectionLayers
@@ -985,6 +985,18 @@ async function injectCollectionData(
   if (textVariable && textVariable.type === 'dynamic_rich_text') {
     const content = textVariable.data.content;
     if (content && typeof content === 'object') {
+      // Check if content contains block elements (lists) from inline variables
+      // If so, change restrictive tags (p, h1-h6, etc.) to div
+      const restrictiveBlockTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'a', 'button'];
+      const currentTag = layer.settings?.tag || layer.name || 'div';
+      if (restrictiveBlockTags.includes(currentTag) &&
+          hasBlockElementsInInlineVariables(content, enhancedValues)) {
+        updates.settings = {
+          ...layer.settings,
+          tag: 'div',
+        };
+      }
+
       const resolvedContent = resolveRichTextVariables(content, enhancedValues);
       updates.variables = {
         ...layer.variables,
@@ -1143,6 +1155,24 @@ function resolveFieldValueWithRelationships(
   }
 
   return itemValues[field_id];
+}
+
+/**
+ * Check if rich text content contains block elements from inline variables
+ * Wrapper around shared utility that provides a resolver for page-fetcher's data format
+ */
+function hasBlockElementsInInlineVariables(
+  content: any,
+  itemValues: Record<string, string>
+): boolean {
+  const resolveValue = (fieldId: string, relationships?: string[]) => {
+    const lookupKey = relationships && relationships.length > 0
+      ? [fieldId, ...relationships].join('.')
+      : fieldId;
+    return itemValues[lookupKey];
+  };
+
+  return hasBlockElementsWithResolver(content, resolveValue);
 }
 
 /**
@@ -2350,14 +2380,12 @@ function renderTiptapToHtml(content: any, textStyles?: Record<string, any>): str
   if (content.type === 'paragraph') {
     const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
     const paragraphClass = mergedStyles?.paragraph?.classes || '';
-    const innerHtml = content.content
+    // Empty paragraphs use non-breaking space to preserve the empty line
+    const innerHtml = content.content && content.content.length > 0
       ? content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('')
-      : '';
+      : '\u00A0';
     // Wrap in span with paragraph styles for proper block display
-    if (paragraphClass) {
-      return `<span class="${escapeHtml(paragraphClass)}">${innerHtml}</span>`;
-    }
-    return innerHtml;
+    return `<span class="${escapeHtml(paragraphClass)}">${innerHtml}</span>`;
   }
 
   // Handle heading
@@ -2366,14 +2394,12 @@ function renderTiptapToHtml(content: any, textStyles?: Record<string, any>): str
     const styleKey = `h${level}`;
     const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
     const headingClass = mergedStyles?.[styleKey]?.classes || '';
-    const innerHtml = content.content
+    // Empty headings use non-breaking space to preserve the empty line
+    const innerHtml = content.content && content.content.length > 0
       ? content.content.map((node: any) => renderTiptapToHtml(node, textStyles)).join('')
-      : '';
+      : '\u00A0';
     // Use span to avoid nesting issues (h1 inside p is invalid)
-    if (headingClass) {
-      return `<span class="${escapeHtml(headingClass)}">${innerHtml}</span>`;
-    }
-    return innerHtml;
+    return `<span class="${escapeHtml(headingClass)}">${innerHtml}</span>`;
   }
 
   // Handle doc (root)

@@ -178,11 +178,11 @@
 }
 
 .rich-text-editor.ProseMirror ul {
-  @apply my-0 pl-[0.5rem] list-inside list-disc;
+  @apply my-0 ml-[8px] pl-[16px] list-disc;
 }
 
 .rich-text-editor.ProseMirror ol {
-  @apply my-0 pl-[0.5rem] list-inside list-decimal;
+  @apply my-0 ml-[8px] pl-[20px] list-decimal;
 }
 
 .rich-text-editor.ProseMirror li {
@@ -207,6 +207,39 @@
 
 .rich-text-editor.ProseMirror s {
   @apply line-through;
+}
+
+/* Full variant styles - matching DEFAULT_TEXT_STYLES */
+.rich-text-editor-full.ProseMirror h1 {
+  @apply text-[30px] font-semibold my-0;
+}
+
+.rich-text-editor-full.ProseMirror h2 {
+  @apply text-[24px] font-semibold my-0;
+}
+
+.rich-text-editor-full.ProseMirror h3 {
+  @apply text-[20px] font-semibold my-0;
+}
+
+.rich-text-editor-full.ProseMirror h4 {
+  @apply text-[18px] font-semibold my-0;
+}
+
+.rich-text-editor-full.ProseMirror h5 {
+  @apply text-[16px] font-semibold my-0;
+}
+
+.rich-text-editor-full.ProseMirror h6 {
+  @apply text-[14px] font-semibold my-0;
+}
+
+.rich-text-editor-full.ProseMirror blockquote {
+  @apply border-l-2 border-border pl-4 py-0.5 my-0 italic text-muted-foreground;
+}
+
+.rich-text-editor-full.ProseMirror code {
+  @apply bg-input px-1.5 py-0.5 rounded-md font-mono;
 }
 
 /* Override Sonner toast content gap */

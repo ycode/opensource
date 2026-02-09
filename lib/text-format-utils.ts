@@ -3,7 +3,7 @@ import type { TextStyle, DynamicRichTextVariable, LinkSettings } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatFieldValue, resolveFieldFromSources } from '@/lib/cms-variables-utils';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
-import { extractInlineNodesFromRichText, isTiptapDoc } from '@/lib/tiptap-utils';
+import { extractInlineNodesFromRichText, isTiptapDoc, contentHasBlockElements, hasBlockElementsWithResolver } from '@/lib/tiptap-utils';
 
 /**
  * Context for resolving rich text links - re-exports LinkResolutionContext for backwards compatibility
@@ -44,66 +44,58 @@ export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
   // Heading styles (h1-h6) - matching RichTextEditor prose styles
   h1: {
     label: 'Heading 1',
-    classes: 'block text-[30px] font-semibold mt-[24px] first:mt-0 mb-[16px]',
+    classes: 'block text-[30px] font-semibold',
     design: {
       layout: { display: 'block' },
       typography: { fontSize: '30px', fontWeight: 'semibold' },
-      spacing: { marginTop: '24px', marginBottom: '16px' },
     },
   },
   h2: {
     label: 'Heading 2',
-    classes: 'block text-[24px] font-semibold mt-[20px] first:mt-0 mb-[12px]',
+    classes: 'block text-[24px] font-semibold',
     design: {
       layout: { display: 'block' },
       typography: { fontSize: '24px', fontWeight: 'semibold' },
-      spacing: { marginTop: '20px', marginBottom: '12px' },
     },
   },
   h3: {
     label: 'Heading 3',
-    classes: 'block text-[20px] font-semibold mt-[16px] first:mt-0 mb-[8px]',
+    classes: 'block text-[20px] font-semibold',
     design: {
       layout: { display: 'block' },
       typography: { fontSize: '20px', fontWeight: 'semibold' },
-      spacing: { marginTop: '16px', marginBottom: '8px' },
     },
   },
   h4: {
     label: 'Heading 4',
-    classes: 'block text-[18px] font-semibold mt-[12px] first:mt-0 mb-[8px]',
+    classes: 'block text-[18px] font-semibold',
     design: {
       layout: { display: 'block' },
       typography: { fontSize: '18px', fontWeight: 'semibold' },
-      spacing: { marginTop: '12px', marginBottom: '8px' },
     },
   },
   h5: {
     label: 'Heading 5',
-    classes: 'block text-[16px] font-semibold mt-[12px] first:mt-0 mb-[4px]',
+    classes: 'block text-[16px] font-semibold',
     design: {
       layout: { display: 'block' },
       typography: { fontSize: '16px', fontWeight: 'semibold' },
-      spacing: { marginTop: '12px', marginBottom: '4px' },
     },
   },
   h6: {
     label: 'Heading 6',
-    classes: 'block text-[14px] font-semibold mt-[12px] first:mt-0 mb-[4px]',
+    classes: 'block text-[14px] font-semibold',
     design: {
       layout: { display: 'block' },
       typography: { fontSize: '14px', fontWeight: 'semibold' },
-      spacing: { marginTop: '12px', marginBottom: '4px' },
     },
   },
   // Paragraph style - block display with spacing and line height
   paragraph: {
     label: 'Paragraph',
-    classes: 'block mb-[16px] last:mb-0 leading-relaxed',
+    classes: 'block',
     design: {
       layout: { display: 'block' },
-      typography: { lineHeight: 'relaxed' },
-      spacing: { marginBottom: '16px' },
     },
   },
   // Inline formatting marks
@@ -460,26 +452,30 @@ function renderNestedRichTextContent(
           const styleKey = `h${level}`;
           const headingClass = textStyles?.[styleKey]?.classes ??
             DEFAULT_TEXT_STYLES[styleKey]?.classes ?? '';
-          const content = block.content
-            ? renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone)
-            : [];
           const props: Record<string, any> = { key: blockKey, className: headingClass };
           if (isEditMode) {
             props['data-style'] = styleKey;
           }
+          // Empty headings use non-breaking space to preserve the empty line
+          if (!block.content || block.content.length === 0) {
+            return React.createElement('span', props, '\u00A0');
+          }
+          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
           return React.createElement('span', props, ...content);
         }
 
         if (block.type === 'paragraph') {
           const paragraphClass = textStyles?.paragraph?.classes ??
             DEFAULT_TEXT_STYLES.paragraph?.classes ?? '';
-          const content = block.content
-            ? renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone)
-            : [];
           const props: Record<string, any> = { key: blockKey, className: paragraphClass };
           if (isEditMode) {
             props['data-style'] = 'paragraph';
           }
+          // Empty paragraphs use non-breaking space to preserve the empty line
+          if (!block.content || block.content.length === 0) {
+            return React.createElement('span', props, '\u00A0');
+          }
+          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
           return React.createElement('span', props, ...content);
         }
 
@@ -608,6 +604,33 @@ function renderInlineContent(
       return [renderTextNode(textNode, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData)];
     }
 
+    // Handle list nodes that were preserved during flattening
+    if (node.type === 'bulletList' || node.type === 'orderedList') {
+      const listClass = textStyles?.[node.type]?.classes ??
+        DEFAULT_TEXT_STYLES[node.type]?.classes ?? '';
+      const tag = node.type === 'bulletList' ? 'ul' : 'ol';
+      const listProps: Record<string, any> = { key, className: listClass };
+      if (isEditMode) {
+        listProps['data-style'] = node.type;
+      }
+      const items = node.content?.map((item: any, itemIdx: number) => {
+        const itemClass = textStyles?.listItem?.classes ??
+          DEFAULT_TEXT_STYLES.listItem?.classes ?? '';
+        const itemContent = item.content?.flatMap((itemBlock: any) => {
+          if (itemBlock.type === 'paragraph' && itemBlock.content) {
+            return renderInlineContent(itemBlock.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+          }
+          return [];
+        }) || [];
+        const itemProps: Record<string, any> = { key: `${key}-item-${itemIdx}`, className: itemClass };
+        if (isEditMode) {
+          itemProps['data-style'] = 'listItem';
+        }
+        return React.createElement('li', itemProps, ...itemContent);
+      }) || [];
+      return [React.createElement(tag, listProps, ...items)];
+    }
+
     return [];
   }).filter(Boolean);
 }
@@ -630,18 +653,13 @@ function renderBlock(
 
   if (block.type === 'paragraph') {
     const paragraphClass = getTextStyleClasses(textStyles, 'paragraph');
+    const tag = useSpanForParagraphs ? 'span' : 'p';
 
+    // Empty paragraphs use non-breaking space to preserve the empty line
     if (!block.content || block.content.length === 0) {
-      // Use span for empty paragraphs when in restrictive tags
-      const tag = useSpanForParagraphs ? 'span' : 'p';
-      const attrs = useSpanForParagraphs ? { key, className: 'block' } : { key, className: paragraphClass };
-      return React.createElement(tag, attrs, React.createElement('br'));
+      return React.createElement(tag, { key, className: paragraphClass }, '\u00A0');
     }
-    // Use span with block class when inside restrictive tags
-    if (useSpanForParagraphs) {
-      return React.createElement('span', { key, className: paragraphClass || 'block' }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
-    }
-    return React.createElement('p', { key, className: paragraphClass }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
+    return React.createElement(tag, { key, className: paragraphClass }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
   }
 
   if (block.type === 'heading') {
@@ -651,8 +669,9 @@ function renderBlock(
     // Use span when inside restrictive tags (p, h1-h6, etc.) to avoid invalid HTML nesting
     const tag = useSpanForParagraphs ? 'span' : styleKey;
 
+    // Empty headings use non-breaking space to preserve the empty line
     if (!block.content || block.content.length === 0) {
-      return React.createElement(tag, { key, className: headingClass }, React.createElement('br'));
+      return React.createElement(tag, { key, className: headingClass }, '\u00A0');
     }
 
     const headingProps: Record<string, any> = { key, className: headingClass };
@@ -737,22 +756,36 @@ function renderListItem(
  * These cannot be nested inside restrictive tags and require tag replacement
  */
 export function hasBlockElements(variable: DynamicRichTextVariable): boolean {
+  return contentHasBlockElements(variable.data.content);
+}
+
+/**
+ * Check if rich text content contains block-level elements, including inline variables
+ * that resolve to rich_text CMS fields with lists
+ * @param variable - The DynamicRichTextVariable to check
+ * @param collectionItemData - Collection item values (for resolving inline variables)
+ * @param pageCollectionItemData - Page collection item values (for dynamic pages)
+ */
+export function hasBlockElementsWithInlineVariables(
+  variable: DynamicRichTextVariable,
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>
+): boolean {
   const content = variable.data.content;
 
-  if (!content || typeof content !== 'object' || !('type' in content)) {
-    return false;
-  }
+  // Create a resolver function for the shared utility
+  const resolveValue = (fieldId: string, relationships?: string[], source?: string) => {
+    const lookupKey = relationships && relationships.length > 0
+      ? [fieldId, ...relationships].join('.')
+      : fieldId;
 
-  const doc = content as any;
+    if (source === 'page') {
+      return pageCollectionItemData?.[lookupKey];
+    }
+    return collectionItemData?.[lookupKey] ?? pageCollectionItemData?.[lookupKey];
+  };
 
-  if (doc.type !== 'doc' || !doc.content || !Array.isArray(doc.content)) {
-    return false;
-  }
-
-  // Check if content has lists (these require tag replacement to div)
-  return doc.content.some((block: any) =>
-    block.type === 'bulletList' || block.type === 'orderedList'
-  );
+  return hasBlockElementsWithResolver(content, resolveValue);
 }
 
 /**

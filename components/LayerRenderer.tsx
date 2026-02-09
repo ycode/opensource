@@ -23,7 +23,7 @@ import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
-import { renderRichText, hasBlockElements, getTextStyleClasses, type RichTextLinkContext } from '@/lib/text-format-utils';
+import { renderRichText, hasBlockElements, hasBlockElementsWithInlineVariables, getTextStyleClasses, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -454,7 +454,12 @@ const LayerItem: React.FC<{
   if (textVariable?.type === 'dynamic_rich_text') {
     const restrictiveBlockTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'a', 'button'];
     const isRestrictiveTag = restrictiveBlockTags.includes(htmlTag);
-    const hasLists = hasBlockElements(textVariable as any);
+    // Check for lists in direct content AND in inline variables (CMS rich_text fields)
+    const hasLists = hasBlockElementsWithInlineVariables(
+      textVariable as any,
+      collectionLayerData,
+      pageCollectionItemData || undefined
+    );
 
     if (isRestrictiveTag && hasLists) {
       // Replace tag with div to allow list elements
