@@ -15,10 +15,71 @@ import {
   AUTO_FIELD_KEYS,
   truncateValue,
   getErrorMessage,
+  isAssetFieldType,
+  isValidUrl,
 } from '@/lib/csv-utils';
+import { uploadFile } from '@/lib/file-upload';
 import { noCache } from '@/lib/api-response';
 import { randomUUID } from 'crypto';
 import type { CollectionField } from '@/types';
+
+/**
+ * Download a file from a URL and upload it to the asset manager
+ * Returns the asset ID if successful, null otherwise
+ */
+async function downloadAndUploadAsset(
+  url: string,
+  fieldType: string
+): Promise<string | null> {
+  try {
+    // Fetch the file from the URL
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'YCode-CSV-Import/1.0',
+      },
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to fetch asset from URL: ${url}, status: ${response.status}`);
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const blob = await response.blob();
+
+    // Extract filename from URL or generate one
+    let filename = 'imported-file';
+    try {
+      const urlPath = new URL(url).pathname;
+      const urlFilename = urlPath.split('/').pop();
+      if (urlFilename && urlFilename.includes('.')) {
+        filename = urlFilename;
+      } else {
+        // Generate filename based on content type
+        const ext = contentType.split('/')[1]?.split(';')[0] || 'bin';
+        filename = `imported-${Date.now()}.${ext}`;
+      }
+    } catch {
+      // Keep default filename
+    }
+
+    // Create a File object from the blob
+    const file = new File([blob], filename, { type: contentType });
+
+    // Upload to asset manager
+    const asset = await uploadFile(file, 'csv-import');
+
+    if (!asset) {
+      console.error(`Failed to upload asset from URL: ${url}`);
+      return null;
+    }
+
+    return asset.id;
+  } catch (error) {
+    console.error(`Error downloading/uploading asset from URL: ${url}`, error);
+    return null;
+  }
+}
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -26,16 +87,31 @@ export const revalidate = 0;
 
 const BATCH_SIZE = 50;
 
+interface PreparedValue {
+  item_id: string;
+  field_id: string;
+  value: string | null;
+  is_published: boolean;
+}
+
+interface PendingAssetValue {
+  index: number; // Index in the values array
+  url: string;
+  fieldType: string;
+}
+
 interface PreparedRow {
   rowNumber: number;
   itemId: string;
   item: { id: string; collection_id: string; manual_order: number; is_published: boolean };
-  values: Array<{ item_id: string; field_id: string; value: string | null; is_published: boolean }>;
+  values: PreparedValue[];
+  pendingAssets: PendingAssetValue[]; // Asset URLs that need to be downloaded
 }
 
 /**
  * Prepare a single CSV row into item + values, collecting conversion warnings.
  * Pure data transformation — no DB calls.
+ * Asset fields are marked as pending for async download/upload.
  */
 function prepareRow(
   row: Record<string, string>,
@@ -51,7 +127,8 @@ function prepareRow(
   const itemId = randomUUID();
   let maxId = currentMaxId;
 
-  const values: PreparedRow['values'] = [];
+  const values: PreparedValue[] = [];
+  const pendingAssets: PendingAssetValue[] = [];
 
   // Auto-generated fields
   if (autoFields.idField) {
@@ -73,11 +150,27 @@ function prepareRow(
     if (!field) continue;
 
     const rawValue = row[csvColumn] || '';
+    const trimmedValue = rawValue.trim();
+
+    // Handle asset fields (image, video, audio, document)
+    if (isAssetFieldType(field.type) && trimmedValue && isValidUrl(trimmedValue)) {
+      // Mark as pending asset to be downloaded
+      const valueIndex = values.length;
+      values.push({ item_id: itemId, field_id: fieldId, value: null, is_published: false });
+      pendingAssets.push({
+        index: valueIndex,
+        url: trimmedValue,
+        fieldType: field.type,
+      });
+      continue;
+    }
+
+    // Regular field conversion
     const convertedValue = convertValueForFieldType(rawValue, field.type);
 
     if (convertedValue !== null) {
       values.push({ item_id: itemId, field_id: fieldId, value: convertedValue, is_published: false });
-    } else if (rawValue.trim() !== '') {
+    } else if (trimmedValue !== '') {
       // Non-empty value could not be converted — warn the user
       warnings.push(
         `Row ${rowNumber}, column "${csvColumn}": value "${truncateValue(rawValue)}" is not a valid ${field.type} for field "${field.name}", skipped`
@@ -91,6 +184,7 @@ function prepareRow(
       itemId,
       item: { id: itemId, collection_id: collectionId, manual_order: rowNumber - 1, is_published: false },
       values,
+      pendingAssets,
     },
     newMaxId: maxId,
   };
@@ -219,6 +313,55 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         failedCount++;
         errors.push(`Row ${rowNumber}: failed to prepare — ${getErrorMessage(error)}`);
+      }
+    }
+
+    // --- Phase 1.5: Process pending assets in parallel (download URLs and upload to asset manager) ---
+    // Collect all pending assets with their row context
+    const allPendingAssets: Array<{
+      row: PreparedRow;
+      asset: PendingAssetValue;
+    }> = [];
+
+    for (const row of preparedRows) {
+      for (const asset of row.pendingAssets) {
+        allPendingAssets.push({ row, asset });
+      }
+    }
+
+    if (allPendingAssets.length > 0) {
+      // Process assets in parallel with concurrency limit
+      const ASSET_CONCURRENCY = 5;
+      for (let i = 0; i < allPendingAssets.length; i += ASSET_CONCURRENCY) {
+        const batch = allPendingAssets.slice(i, i + ASSET_CONCURRENCY);
+
+        const results = await Promise.allSettled(
+          batch.map(async ({ row, asset }) => {
+            const assetId = await downloadAndUploadAsset(asset.url, asset.fieldType);
+            return { row, asset, assetId };
+          })
+        );
+
+        // Process results
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            const { row, asset, assetId } = result.value;
+            if (assetId) {
+              row.values[asset.index].value = assetId;
+            } else {
+              errors.push(
+                `Row ${row.rowNumber}: failed to import ${asset.fieldType} from URL "${truncateValue(asset.url)}", skipped`
+              );
+            }
+          } else {
+            // Promise rejected - find the corresponding asset info from the batch
+            const batchIndex = results.indexOf(result);
+            const { row, asset } = batch[batchIndex];
+            errors.push(
+              `Row ${row.rowNumber}: error importing ${asset.fieldType} from URL "${truncateValue(asset.url)}" — ${getErrorMessage(result.reason)}`
+            );
+          }
+        }
       }
     }
 

@@ -16,6 +16,28 @@ export const SKIP_COLUMN = '__skip__';
 /** Auto-generated field keys that are set automatically during import */
 export const AUTO_FIELD_KEYS = ['id', 'created_at', 'updated_at'] as const;
 
+/** Field types that contain asset URLs and need to be downloaded */
+export const ASSET_FIELD_TYPES: CollectionFieldType[] = ['image', 'video', 'audio', 'document'];
+
+/**
+ * Check if a field type is an asset type that needs URL downloading
+ */
+export function isAssetFieldType(type: CollectionFieldType): boolean {
+  return ASSET_FIELD_TYPES.includes(type);
+}
+
+/**
+ * Check if a value looks like a URL
+ */
+export function isValidUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 // ============================================================================
 // Helper utilities
 // ============================================================================
