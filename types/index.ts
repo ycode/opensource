@@ -876,6 +876,23 @@ export interface CollectionItemWithValues extends CollectionItem {
   publish_status?: 'new' | 'updated' | 'deleted'; // Status badge for publish modal
 }
 
+// Collection Import Types
+export type CollectionImportStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface CollectionImport {
+  id: string; // UUID
+  collection_id: string; // UUID
+  status: CollectionImportStatus;
+  total_rows: number;
+  processed_rows: number;
+  failed_rows: number;
+  column_mapping: Record<string, string>; // csvColumn -> fieldId
+  csv_data: Record<string, string>[]; // Array of row objects
+  errors: string[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Settings Types
 export interface Setting {
   id: string;

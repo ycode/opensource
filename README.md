@@ -113,13 +113,13 @@ You'll see:
 
 Make sure **all Environments** is selected when adding new keys.
 
-**Variable 1: Anon Key**
-1. In **"Key"**, type: `SUPABASE_ANON_KEY`
-2. In **"Value"**, go to your Supabase tab and copy the **anon public** key
+**Variable 1: Publishable Key**
+1. In **"Key"**, type: `SUPABASE_PUBLISHABLE_KEY`
+2. In **"Value"**, go to your Supabase tab and copy the **anon public** (publishable) key
 
-**Variable 2: Service Role Key**
+**Variable 2: Secret Key**
 1. Click **"Add Another"**
-2. In **"Key"**, type: `SUPABASE_SERVICE_ROLE_KEY`
+2. In **"Key"**, type: `SUPABASE_SECRET_KEY`
 3. In **"Value"**, click **"Reveal"** next to service_role in Supabase, then copy it
 
 **Variable 3: Connection URL**
@@ -279,7 +279,7 @@ Your pages and settings will stay safe - only YCode itself gets updated!
 ### "My website shows an error"
 
 1. **Check Vercel** - Go to your Vercel project → Deployments → Click latest → Look for errors
-2. **Check environment variables** - Make sure all 5 variables are set correctly (Step 4)
+2. **Check environment variables** - Make sure all 4 variables are set correctly (Step 4)
 3. **Redeploy** - Sometimes a fresh deploy fixes issues
 
 ### "I can't log in"

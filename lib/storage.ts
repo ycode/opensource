@@ -20,14 +20,26 @@ interface StorageData {
 
 /**
  * Get Supabase config from environment variables
+ * Supports both new (SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY) and legacy
+ * (SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY) variable names.
  */
 function getSupabaseConfigFromEnv(): SupabaseConfig | null {
-  const { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD } = process.env;
+  const {
+    SUPABASE_PUBLISHABLE_KEY,
+    SUPABASE_ANON_KEY,
+    SUPABASE_SECRET_KEY,
+    SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_CONNECTION_URL,
+    SUPABASE_DB_PASSWORD,
+  } = process.env;
 
-  if (SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY && SUPABASE_CONNECTION_URL && SUPABASE_DB_PASSWORD) {
+  const publishableKey = SUPABASE_PUBLISHABLE_KEY || SUPABASE_ANON_KEY;
+  const secretKey = SUPABASE_SECRET_KEY || SUPABASE_SERVICE_ROLE_KEY;
+
+  if (publishableKey && secretKey && SUPABASE_CONNECTION_URL && SUPABASE_DB_PASSWORD) {
     return {
-      anonKey: SUPABASE_ANON_KEY,
-      serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+      anonKey: publishableKey,
+      serviceRoleKey: secretKey,
       connectionUrl: SUPABASE_CONNECTION_URL,
       dbPassword: SUPABASE_DB_PASSWORD,
     };
@@ -69,7 +81,7 @@ export async function set(key: string, value: unknown): Promise<void> {
     throw new Error(
       'Cannot write to file system on Vercel. Please set environment variables instead:\n' +
       '1. Go to Vercel Dashboard → Project Settings → Environment Variables\n' +
-      '2. Add: SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD\n' +
+      '2. Add: SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY), SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY), SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD\n' +
       '3. Redeploy your application'
     );
   }
