@@ -6,11 +6,13 @@ import {
   updateImportProgress,
   completeImport,
 } from '@/lib/repositories/collectionImportRepository';
-import { createItem, getMaxIdValue } from '@/lib/repositories/collectionItemRepository';
-import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
+import { createItemsBulk, getMaxIdValue } from '@/lib/repositories/collectionItemRepository';
+import { insertValuesBulk } from '@/lib/repositories/collectionItemValueRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { convertValueForFieldType } from '@/lib/csv-utils';
 import { noCache } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+import type { CollectionField } from '@/types';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -18,9 +20,117 @@ export const revalidate = 0;
 
 const BATCH_SIZE = 50;
 
+/** Truncate a value for display in error messages */
+function truncateValue(value: string, maxLength: number = 50): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength)}...`;
+}
+
+interface PreparedRow {
+  rowNumber: number;
+  itemId: string;
+  item: { id: string; collection_id: string; manual_order: number; is_published: boolean };
+  values: Array<{ item_id: string; field_id: string; value: string | null; is_published: boolean }>;
+}
+
+/**
+ * Prepare a single CSV row into item + values, collecting conversion warnings.
+ * Pure data transformation — no DB calls.
+ */
+function prepareRow(
+  row: Record<string, string>,
+  rowNumber: number,
+  collectionId: string,
+  columnMapping: Record<string, string>,
+  fieldMap: Map<string, CollectionField>,
+  autoFields: { idField?: CollectionField; createdAtField?: CollectionField; updatedAtField?: CollectionField },
+  currentMaxId: number,
+  now: string,
+  warnings: string[]
+): { prepared: PreparedRow; newMaxId: number } {
+  const itemId = randomUUID();
+  let maxId = currentMaxId;
+
+  const values: PreparedRow['values'] = [];
+
+  // Auto-generated fields
+  if (autoFields.idField) {
+    maxId++;
+    values.push({ item_id: itemId, field_id: autoFields.idField.id, value: String(maxId), is_published: false });
+  }
+  if (autoFields.createdAtField) {
+    values.push({ item_id: itemId, field_id: autoFields.createdAtField.id, value: now, is_published: false });
+  }
+  if (autoFields.updatedAtField) {
+    values.push({ item_id: itemId, field_id: autoFields.updatedAtField.id, value: now, is_published: false });
+  }
+
+  // Map CSV columns to field values
+  for (const [csvColumn, fieldId] of Object.entries(columnMapping)) {
+    if (!fieldId || fieldId === '' || fieldId === '__skip__') continue;
+
+    const field = fieldMap.get(fieldId);
+    if (!field) continue;
+
+    const rawValue = row[csvColumn] || '';
+    const convertedValue = convertValueForFieldType(rawValue, field.type);
+
+    if (convertedValue !== null) {
+      values.push({ item_id: itemId, field_id: fieldId, value: convertedValue, is_published: false });
+    } else if (rawValue.trim() !== '') {
+      // Non-empty value could not be converted — warn the user
+      warnings.push(
+        `Row ${rowNumber}, column "${csvColumn}": value "${truncateValue(rawValue)}" is not a valid ${field.type} for field "${field.name}", skipped`
+      );
+    }
+  }
+
+  return {
+    prepared: {
+      rowNumber,
+      itemId,
+      item: { id: itemId, collection_id: collectionId, manual_order: rowNumber - 1, is_published: false },
+      values,
+    },
+    newMaxId: maxId,
+  };
+}
+
+/**
+ * Fallback: insert rows one by one to pinpoint which row(s) caused the DB error.
+ * Only called when the bulk insert fails.
+ */
+async function insertRowByRow(
+  preparedRows: PreparedRow[],
+  errors: string[]
+): Promise<{ succeeded: number; failed: number }> {
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const row of preparedRows) {
+    try {
+      await createItemsBulk([row.item]);
+
+      if (row.values.length > 0) {
+        await insertValuesBulk(row.values);
+      }
+
+      succeeded++;
+    } catch (error) {
+      failed++;
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      errors.push(`Row ${row.rowNumber}: DB insert failed — ${msg}`);
+    }
+  }
+
+  return { succeeded, failed };
+}
+
 /**
  * POST /ycode/api/collections/import/process
- * Process pending import jobs in batches
+ * Process pending import jobs in batches.
+ * Uses bulk INSERT operations to minimize DB round-trips,
+ * with row-by-row fallback for precise error identification.
  *
  * Body (optional):
  *  - importId: string - Process specific import (otherwise processes next pending)
@@ -68,16 +178,18 @@ export async function POST(request: NextRequest) {
       await updateImportStatus(importJob.id, 'processing');
     }
 
-    // Get collection fields
+    // Get collection fields (1 query, reused for all rows)
     const fields = await getFieldsByCollectionId(importJob.collection_id, false);
     const fieldMap = new Map(fields.map(f => [f.id, f]));
 
     // Find auto-generated fields
-    const idField = fields.find(f => f.key === 'id');
-    const createdAtField = fields.find(f => f.key === 'created_at');
-    const updatedAtField = fields.find(f => f.key === 'updated_at');
+    const autoFields = {
+      idField: fields.find(f => f.key === 'id'),
+      createdAtField: fields.find(f => f.key === 'created_at'),
+      updatedAtField: fields.find(f => f.key === 'updated_at'),
+    };
 
-    // Get max ID for auto-increment
+    // Get max ID for auto-increment (1 query)
     let currentMaxId = await getMaxIdValue(importJob.collection_id, false);
 
     // Calculate which rows to process
@@ -89,72 +201,57 @@ export async function POST(request: NextRequest) {
     let processedCount = importJob.processed_rows;
     let failedCount = importJob.failed_rows;
 
-    // Process each row
+    // --- Phase 1: Prepare all rows in memory (no DB calls) ---
+    const now = new Date().toISOString();
+    const preparedRows: PreparedRow[] = [];
+
     for (let i = 0; i < rowsToProcess.length; i++) {
       const row = rowsToProcess[i];
-      const rowNumber = startIndex + i + 1; // 1-indexed for user display
+      const rowNumber = startIndex + i + 1;
 
       try {
-        // Create new item
-        const item = await createItem({
-          collection_id: importJob.collection_id,
-          manual_order: rowNumber - 1,
-          is_published: false,
-        });
-
-        // Build values object
-        const values: Record<string, string | null> = {};
-        const now = new Date().toISOString();
-
-        // Set auto-generated fields
-        if (idField) {
-          currentMaxId++;
-          values[idField.id] = String(currentMaxId);
-        }
-        if (createdAtField) {
-          values[createdAtField.id] = now;
-        }
-        if (updatedAtField) {
-          values[updatedAtField.id] = now;
-        }
-
-        // Map CSV columns to field values
-        for (const [csvColumn, fieldId] of Object.entries(importJob.column_mapping)) {
-          if (!fieldId || fieldId === '' || fieldId === '__skip__') continue; // Skip unmapped columns
-
-          const field = fieldMap.get(fieldId);
-          if (!field) continue;
-
-          const rawValue = row[csvColumn];
-          const convertedValue = convertValueForFieldType(rawValue || '', field.type);
-
-          if (convertedValue !== null) {
-            values[fieldId] = convertedValue;
-          }
-        }
-
-        // Save values
-        await setValuesByFieldName(
-          item.id,
-          importJob.collection_id,
-          values,
-          {},
-          false // Draft
+        const { prepared, newMaxId } = prepareRow(
+          row, rowNumber, importJob.collection_id,
+          importJob.column_mapping, fieldMap, autoFields,
+          currentMaxId, now, errors
         );
-
-        processedCount++;
+        currentMaxId = newMaxId;
+        preparedRows.push(prepared);
       } catch (error) {
         failedCount++;
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        errors.push(`Row ${rowNumber}: ${errorMessage}`);
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        errors.push(`Row ${rowNumber}: failed to prepare — ${msg}`);
+      }
+    }
 
-        // Limit stored errors to prevent huge payloads
-        if (errors.length > 100) {
-          errors.splice(50, errors.length - 100);
-          if (!errors.includes('...some errors omitted...')) {
-            errors.splice(50, 0, '...some errors omitted...');
-          }
+    // --- Phase 2: Bulk insert, with row-by-row fallback on failure ---
+    if (preparedRows.length > 0) {
+      try {
+        // Bulk insert items (1 query)
+        await createItemsBulk(preparedRows.map(r => r.item));
+
+        // Bulk insert values (1 query)
+        const allValues = preparedRows.flatMap(r => r.values);
+        if (allValues.length > 0) {
+          await insertValuesBulk(allValues);
         }
+
+        processedCount += preparedRows.length;
+      } catch (bulkError) {
+        // Bulk failed — fall back to row-by-row to identify the culprit(s)
+        console.error('Bulk insert failed, falling back to row-by-row:', bulkError);
+
+        const { succeeded, failed } = await insertRowByRow(preparedRows, errors);
+        processedCount += succeeded;
+        failedCount += failed;
+      }
+    }
+
+    // Cap stored errors to prevent huge payloads
+    if (errors.length > 100) {
+      errors.splice(50, errors.length - 100);
+      if (!errors.includes('...some errors omitted...')) {
+        errors.splice(50, 0, '...some errors omitted...');
       }
     }
 

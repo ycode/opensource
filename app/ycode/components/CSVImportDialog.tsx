@@ -584,14 +584,14 @@ export function CSVImportDialog({
               </Empty>
 
               {importStatus?.errors && importStatus.errors.length > 0 && (
-                <div className="mt-6 max-h-32 overflow-y-auto rounded-lg bg-destructive/10 p-3 text-left text-xs text-destructive">
-                  <p className="mb-2 font-medium">Errors:</p>
+                <div className="mt-6 max-h-48 overflow-y-auto rounded-lg bg-destructive/10 p-3 text-left text-xs text-destructive">
+                  <p className="mb-2 font-medium">Issues ({importStatus.errors.length}):</p>
                   <ul className="space-y-1">
-                    {importStatus.errors.slice(0, 10).map((err, i) => (
+                    {importStatus.errors.slice(0, 20).map((err, i) => (
                       <li key={i}>{err}</li>
                     ))}
-                    {importStatus.errors.length > 10 && (
-                      <li>...and {importStatus.errors.length - 10} more</li>
+                    {importStatus.errors.length > 20 && (
+                      <li className="opacity-70">...and {importStatus.errors.length - 20} more</li>
                     )}
                   </ul>
                 </div>
