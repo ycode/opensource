@@ -271,6 +271,20 @@ export async function POST(request: NextRequest) {
       await updateImportStatus(importJob.id, 'processing');
     }
 
+    // Re-fetch to get the latest processed_rows value (prevents race conditions)
+    const freshImportJob = await getImportById(importJob.id);
+    if (!freshImportJob || freshImportJob.status === 'completed' || freshImportJob.status === 'failed') {
+      return noCache({
+        data: {
+          importId: importJob.id,
+          status: freshImportJob?.status || 'unknown',
+          message: 'Import state changed'
+        }
+      });
+    }
+    // Use the fresh data
+    importJob = freshImportJob;
+
     // Get collection fields (1 query, reused for all rows)
     const fields = await getFieldsByCollectionId(importJob.collection_id, false);
     const fieldMap = new Map(fields.map(f => [f.id, f]));

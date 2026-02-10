@@ -81,6 +81,8 @@ export function CSVImportDialog({
 
   // Polling ref
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  // Lock to prevent overlapping process requests
+  const processingLockRef = useRef<boolean>(false);
 
   // Filter out auto-generated fields that shouldn't be mapped
   const mappableFields = fields.filter(
@@ -104,6 +106,7 @@ export function CSVImportDialog({
       clearInterval(pollingRef.current);
       pollingRef.current = null;
     }
+    processingLockRef.current = false;
   }, []);
 
   // Handle close
@@ -227,8 +230,15 @@ export function CSVImportDialog({
     }
   };
 
-  // Trigger batch processing for an import job
+  // Trigger batch processing for an import job (with lock to prevent overlapping)
   const triggerProcessBatch = async (id: string) => {
+    // Skip if already processing
+    if (processingLockRef.current) {
+      return null;
+    }
+
+    processingLockRef.current = true;
+
     try {
       const response = await fetch('/ycode/api/collections/import/process', {
         method: 'POST',
@@ -246,6 +256,8 @@ export function CSVImportDialog({
     } catch (err) {
       console.error('Process error:', err);
       return null;
+    } finally {
+      processingLockRef.current = false;
     }
   };
 
