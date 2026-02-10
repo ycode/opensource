@@ -49,7 +49,7 @@ import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 
 // 4b. Internal components
 import Canvas from './Canvas';
-import { MultiSourceFieldTreeSelect } from './FieldTreeSelect';
+import { CollectionFieldSelector } from './CollectionFieldSelector';
 import SelectionOverlay from '@/components/SelectionOverlay';
 import RichTextLinkPopover from './RichTextLinkPopover';
 
@@ -2206,11 +2206,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
                 {fieldGroups && (
                   <DropdownMenuContent
-                    className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                    className="w-56 py-1 px-1 max-h-none!"
                     align="start"
                     sideOffset={4}
                   >
-                    <MultiSourceFieldTreeSelect
+                    <CollectionFieldSelector
                       fieldGroups={fieldGroups}
                       allFields={collectionFieldsFromStore}
                       collections={collectionsFromStore}

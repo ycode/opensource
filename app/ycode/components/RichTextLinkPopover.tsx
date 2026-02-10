@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import RichTextLinkSettings from './RichTextLinkSettings';
 import { getLinkSettingsFromMark } from '@/lib/tiptap-extensions/rich-text-link';
 import type { Layer, CollectionField, Collection, LinkSettings, LinkType } from '@/types';
-import type { FieldGroup } from './FieldTreeSelect';
+import type { FieldGroup } from './CollectionFieldSelector';
 
 export interface RichTextLinkPopoverProps {
   /** TipTap editor instance */

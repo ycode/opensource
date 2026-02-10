@@ -1512,26 +1512,30 @@ export async function resolveCollectionLayers(
               // Format date fields in user's timezone
               translatedValues = formatDateFieldsInItemValues(translatedValues, collectionFields, timezone);
 
-              // Extract slug for URL building
-              const itemSlug = slugField ? (translatedValues[slugField.id] || item.values[slugField.id]) : undefined;
+              // Resolve reference fields BEFORE building layerDataMap
+              // This ensures relationship paths (e.g., "refFieldId.targetFieldId") are available
+              const enhancedValues = await resolveReferenceFields(translatedValues, collectionFields, isPublished);
 
-              // Build layer data map: add this layer's data to existing map
+              // Extract slug for URL building
+              const itemSlug = slugField ? (enhancedValues[slugField.id] || item.values[slugField.id]) : undefined;
+
+              // Build layer data map: add this layer's data (with resolved references) to existing map
               // Must be built before resolving/injecting so children can access parent collection data
               const updatedLayerDataMap = {
                 ...layerDataMap,
-                [layer.id]: translatedValues,
+                [layer.id]: enhancedValues,
               };
 
               // Resolve children for THIS specific item's values
               // This ensures nested collection layers filter based on this item's reference fields
               const resolvedChildren = layer.children?.length
-                ? await Promise.all(layer.children.map(child => resolveLayer(child, translatedValues, updatedLayerDataMap)))
+                ? await Promise.all(layer.children.map(child => resolveLayer(child, enhancedValues, updatedLayerDataMap)))
                 : [];
 
               // Then inject field data into the resolved children
               const injectedChildren = await Promise.all(
                 resolvedChildren.map(child =>
-                  injectCollectionData(child, translatedValues, collectionFields, isPublished, updatedLayerDataMap)
+                  injectCollectionData(child, enhancedValues, collectionFields, isPublished, updatedLayerDataMap)
                 )
               );
 
@@ -1547,8 +1551,8 @@ export async function resolveCollectionLayers(
                   collection: undefined,  // Remove collection binding from clone
                 },
                 children: injectedChildren,
-                // Store translated item values for visibility filtering (SSR only, not serialized to client)
-                _collectionItemValues: translatedValues,
+                // Store enhanced item values (with resolved references) for visibility filtering (SSR only, not serialized to client)
+                _collectionItemValues: enhancedValues,
                 // Store item ID and slug for URL building in link resolution (SSR only)
                 _collectionItemId: item.id,
                 _collectionItemSlug: itemSlug,

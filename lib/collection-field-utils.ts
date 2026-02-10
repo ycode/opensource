@@ -283,10 +283,12 @@ export function getItemDisplayName(
 /** Source of field data: 'page' for dynamic page data, 'collection' for collection layer data */
 export type FieldSourceType = 'page' | 'collection';
 
-/** A group of fields with a source, label, and optional layer ID */
+/** A group of fields with a source, label, optional detail (e.g. collection name), and optional layer ID */
 export interface FieldGroup {
   fields: CollectionField[];
   label?: string;
+  /** Optional right-aligned detail (e.g. collection name) shown as shortcut style */
+  detail?: string;
   source?: FieldSourceType;
   /** ID of the collection layer these fields belong to */
   layerId?: string;
@@ -344,9 +346,8 @@ export function buildFieldGroups(config: BuildFieldGroupsConfig): FieldGroup[] |
       const isClosest = i === 0;
       groups.push({
         fields: collectionFields,
-        label: isClosest
-          ? `Collection fields${collection?.name ? ` (${collection.name})` : ''}`
-          : `Parent fields${collection?.name ? ` (${collection.name})` : ''}`,
+        label: collection?.name ?? 'Collection',
+        detail: isClosest ? 'Collection fields' : 'Parent fields',
         source: 'collection',
         layerId,
       });
@@ -363,7 +364,8 @@ export function buildFieldGroups(config: BuildFieldGroupsConfig): FieldGroup[] |
     if (pageCollectionFields.length > 0) {
       groups.push({
         fields: pageCollectionFields,
-        label: `Page fields (${pageCollection?.name || 'Collection'})`,
+        label: pageCollection?.name ?? 'Collection',
+        detail: 'Page fields',
         source: 'page',
       });
     }

@@ -15,13 +15,12 @@ import { Switch } from '@/components/ui/switch';
 import Icon, { type IconProps } from '@/components/ui/icon';
 import SettingsPanel from './SettingsPanel';
 import RichTextEditor from './RichTextEditor';
-import { filterFieldGroupsByType, getFieldIcon, LINK_FIELD_TYPES, type FieldGroup, encodeFieldSelection, parseFieldSelection, getEncodedFieldValue } from '@/lib/collection-field-utils';
+import { filterFieldGroupsByType, flattenFieldGroups, LINK_FIELD_TYPES } from '@/lib/collection-field-utils';
+import { FieldSelectDropdown, type FieldGroup, type FieldSourceType } from './CollectionFieldSelector';
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
@@ -184,10 +183,10 @@ export default function LinkSettings({
     [fieldGroups]
   );
 
-  // Get encoded field selection value that includes source and layerId
-  const fieldSelectValue = useMemo(
-    () => getEncodedFieldValue(fieldId, linkFieldGroups),
-    [fieldId, linkFieldGroups]
+  // Flatten field groups for field lookup
+  const linkFields = useMemo(
+    () => flattenFieldGroups(linkFieldGroups),
+    [linkFieldGroups]
   );
 
   // Check if we have collection fields available (from collection layer context)
@@ -419,28 +418,25 @@ export default function LinkSettings({
 
   // Handle field selection (field type is stored for link resolution)
   const handleFieldChange = useCallback(
-    (value: string) => {
+    (
+      selectedFieldId: string,
+      relationshipPath: string[],
+      source?: FieldSourceType,
+      layerId?: string
+    ) => {
       if (!layer || !linkSettings) return;
 
-      const { fieldId, source, layerId } = parseFieldSelection(value);
-
-      // Find the field type from linkFieldGroups
-      let fieldType: CollectionField['type'] | undefined;
-      for (const group of linkFieldGroups) {
-        const field = group.fields.find(f => f.id === fieldId);
-        if (field) {
-          fieldType = field.type;
-          break;
-        }
-      }
+      // Find the field type
+      const field = linkFields.find(f => f.id === selectedFieldId);
+      const fieldType = field?.type;
 
       updateLinkSettings({
         ...linkSettings,
         field: {
           type: 'field',
           data: {
-            field_id: fieldId,
-            relationships: [],
+            field_id: selectedFieldId,
+            relationships: relationshipPath,
             field_type: fieldType || null,
             source,
             collection_layer_id: layerId,
@@ -448,7 +444,7 @@ export default function LinkSettings({
         },
       });
     },
-    [layer, linkSettings, updateLinkSettings, linkFieldGroups]
+    [layer, linkSettings, updateLinkSettings, linkFields]
   );
 
   // Handle anchor layer ID change
@@ -771,32 +767,16 @@ export default function LinkSettings({
           <div className="grid grid-cols-3 items-center gap-2">
             <Label className="text-xs text-muted-foreground">Field</Label>
             <div className="col-span-2">
-              <Select
-                value={fieldSelectValue || ''}
-                onValueChange={handleFieldChange}
-                disabled={isLockedByOther || linkFieldGroups.length === 0}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={linkFieldGroups.length === 0 ? 'No link fields' : 'Select a field'}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {linkFieldGroups.map((group, groupIdx) => (
-                    <SelectGroup key={groupIdx}>
-                      {group.label && <SelectLabel>{group.label}</SelectLabel>}
-                      {group.fields.map((field) => (
-                        <SelectItem key={`${groupIdx}-${field.id}`} value={encodeFieldSelection(field.id, group.source, group.layerId)}>
-                          <span className="flex items-center gap-2">
-                            <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                            {field.name}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FieldSelectDropdown
+                fieldGroups={linkFieldGroups}
+                allFields={allFields || {}}
+                collections={collections || []}
+                value={fieldId}
+                onSelect={handleFieldChange}
+                placeholder="Select a field"
+                disabled={isLockedByOther}
+                allowedFieldTypes={LINK_FIELD_TYPES}
+              />
             </div>
           </div>
         )}

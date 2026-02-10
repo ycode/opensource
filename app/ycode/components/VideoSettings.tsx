@@ -12,7 +12,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import RichTextEditor from './RichTextEditor';
-import type { FieldGroup } from './FieldTreeSelect';
+import { FieldSelectDropdown, type FieldGroup, type FieldSourceType } from './CollectionFieldSelector';
 import type { Layer, CollectionField, Collection, VideoVariable, FieldVariable } from '@/types';
 import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
 import { Button } from '@/components/ui/button';
@@ -21,9 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
@@ -31,7 +29,7 @@ import {
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType, DEFAULT_ASSETS } from '@/lib/asset-utils';
-import { VIDEO_FIELD_TYPES, TEXT_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon, encodeFieldSelection, parseFieldSelection, getEncodedFieldValue } from '@/lib/collection-field-utils';
+import { VIDEO_FIELD_TYPES, TEXT_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -162,16 +160,20 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
     return filterFieldGroupsByType(fieldGroups, TEXT_FIELD_TYPES);
   }, [fieldGroups]);
 
-  const handleFieldSelect = useCallback((value: string) => {
+  const handleFieldSelect = useCallback((
+    fieldId: string,
+    relationshipPath: string[],
+    source?: FieldSourceType,
+    layerId?: string
+  ) => {
     if (!layer) return;
 
-    const { fieldId, source, layerId } = parseFieldSelection(value);
     const field = videoFields.find(f => f.id === fieldId);
     const fieldVariable: FieldVariable = {
       type: 'field',
       data: {
         field_id: fieldId,
-        relationships: [],
+        relationships: relationshipPath,
         field_type: field?.type || null,
         source,
         collection_layer_id: layerId,
@@ -574,29 +576,15 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
               <Label variant="muted">Field</Label>
 
               <div className="col-span-2 w-full">
-                <Select
-                  value={getEncodedFieldValue(selectedField || currentFieldId, videoFieldGroups)}
-                  onValueChange={handleFieldSelect}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a field" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {videoFieldGroups.map((group, groupIdx) => (
-                      <SelectGroup key={groupIdx}>
-                        {group.label && <SelectLabel>{group.label}</SelectLabel>}
-                        {group.fields.map((field) => (
-                          <SelectItem key={`${groupIdx}-${field.id}`} value={encodeFieldSelection(field.id, group.source, group.layerId)}>
-                            <span className="flex items-center gap-2">
-                              <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                              {field.name}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FieldSelectDropdown
+                  fieldGroups={videoFieldGroups}
+                  allFields={allFields || {}}
+                  collections={collections || []}
+                  value={selectedField || currentFieldId}
+                  onSelect={handleFieldSelect}
+                  placeholder="Select a field"
+                  allowedFieldTypes={VIDEO_FIELD_TYPES}
+                />
               </div>
             </div>
           )}
