@@ -24,14 +24,20 @@ async function fetchPublishedHomepage(paginationContext?: PaginationContext) {
       .map(([id, page]) => `${id}:${page}`)
       .join(',')
     : '';
-  return unstable_cache(
-    async () => fetchHomepage(true, paginationContext),
-    ['data-for-route-/', `pagination-${paginationKey}`],
-    {
-      tags: ['route-/'], // Tag for on-demand revalidation via revalidateTag()
-      revalidate: 3600,
-    }
-  )();
+
+  try {
+    return await unstable_cache(
+      async () => fetchHomepage(true, paginationContext),
+      ['data-for-route-/', `pagination-${paginationKey}`],
+      {
+        tags: ['route-/'], // Tag for on-demand revalidation via revalidateTag()
+        revalidate: 3600,
+      }
+    )();
+  } catch {
+    // Fallback to uncached fetch when data exceeds cache size limit (2MB)
+    return fetchHomepage(true, paginationContext);
+  }
 }
 
 interface HomeProps {

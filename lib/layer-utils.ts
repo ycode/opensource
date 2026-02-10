@@ -1217,8 +1217,8 @@ function evaluateCondition(
 
     // Use source-aware resolution (collection layer data first, then page data)
     const rawValue = resolveFieldFromSources(fieldId, undefined, collectionLayerData, pageCollectionData);
-    const value = rawValue ?? '';
-    const compareValue = condition.value ?? '';
+    const value = String(rawValue ?? '');
+    const compareValue = String(condition.value ?? '');
     const fieldType = condition.fieldType || 'text';
 
     // Check if value is present (non-empty)

@@ -156,14 +156,20 @@ async function fetchPublishedPageWithLayers(slugPath: string, paginationContext?
       .map(([id, page]) => `${id}:${page}`)
       .join(',')
     : '';
-  return unstable_cache(
-    async () => fetchPageByPath(slugPath, true, paginationContext),
-    [`data-for-route-/${slugPath}`, `pagination-${paginationKey}`],
-    {
-      tags: [`route-/${slugPath}`], // Tag for revalidation on publish
-      revalidate: 3600,
-    }
-  )();
+
+  try {
+    return await unstable_cache(
+      async () => fetchPageByPath(slugPath, true, paginationContext),
+      [`data-for-route-/${slugPath}`, `pagination-${paginationKey}`],
+      {
+        tags: [`route-/${slugPath}`], // Tag for revalidation on publish
+        revalidate: 3600,
+      }
+    )();
+  } catch {
+    // Fallback to uncached fetch when data exceeds cache size limit (2MB)
+    return fetchPageByPath(slugPath, true, paginationContext);
+  }
 }
 
 interface PageProps {
