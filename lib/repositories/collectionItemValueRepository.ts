@@ -23,6 +23,41 @@ export interface CreateCollectionItemValueData {
   is_published?: boolean;
 }
 
+/**
+ * Bulk insert values in a single query (for new items only, skips existence check)
+ * @param values - Array of value records to insert
+ */
+export async function insertValuesBulk(
+  values: Array<{ item_id: string; field_id: string; value: string | null; is_published?: boolean }>
+): Promise<void> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  if (values.length === 0) return;
+
+  const now = new Date().toISOString();
+  const valuesToInsert = values.map(v => ({
+    id: randomUUID(),
+    item_id: v.item_id,
+    field_id: v.field_id,
+    value: v.value,
+    is_published: v.is_published ?? false,
+    created_at: now,
+    updated_at: now,
+  }));
+
+  const { error } = await client
+    .from('collection_item_values')
+    .insert(valuesToInsert);
+
+  if (error) {
+    throw new Error(`Failed to bulk insert values: ${error.message}`);
+  }
+}
+
 export interface UpdateCollectionItemValueData {
   value?: string | null;
 }
