@@ -668,17 +668,30 @@ export async function getDeletedDraftAssets(): Promise<Asset[]> {
     throw new Error('Supabase not configured');
   }
 
-  const { data, error } = await client
-    .from('assets')
-    .select('*')
-    .eq('is_published', false)
-    .not('deleted_at', 'is', null);
+  const allAssets: Asset[] = [];
+  let offset = 0;
 
-  if (error) {
-    throw new Error(`Failed to fetch deleted draft assets: ${error.message}`);
+  while (true) {
+    const { data, error } = await client
+      .from('assets')
+      .select('*')
+      .eq('is_published', false)
+      .not('deleted_at', 'is', null)
+      .range(offset, offset + SUPABASE_QUERY_LIMIT - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch deleted draft assets: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) break;
+
+    allAssets.push(...data);
+
+    if (data.length < SUPABASE_QUERY_LIMIT) break;
+    offset += SUPABASE_QUERY_LIMIT;
   }
 
-  return data || [];
+  return allAssets;
 }
 
 /**
@@ -737,10 +750,8 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
   const now = new Date().toISOString();
 
   for (const draft of draftAssets) {
-    const publishedHash = publishedHashById.get(draft.id);
-
-    // Skip if published version exists with identical hash (both must be non-null)
-    if (draft.content_hash && publishedHash && draft.content_hash === publishedHash) {
+    // Skip if published version exists with identical hash (including both null)
+    if (publishedHashById.has(draft.id) && draft.content_hash === publishedHashById.get(draft.id)) {
       continue;
     }
 

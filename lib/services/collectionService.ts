@@ -129,13 +129,13 @@ export async function publishCollectionWithItems(
 
     // Execute publishing within transaction context
     await withTransaction(async () => {
-      // Step 1: Publish collection metadata
+      // Step 1: Publish collection metadata (skips if unchanged)
       const collectionStart = performance.now();
-      await publishCollectionMetadata(collectionId);
-      result.published.collection = true;
+      const collectionChanged = await publishCollectionMetadata(collectionId);
+      result.published.collection = collectionChanged;
       result.timing!.collections = {
         durationMs: Math.round(performance.now() - collectionStart),
-        count: 1,
+        count: collectionChanged ? 1 : 0,
       };
 
       // Step 2: Publish all fields
@@ -253,10 +253,10 @@ async function validatePublishRequest(
 }
 
 /**
- * Publish collection metadata
- * Creates or updates the published version using direct upsert
+ * Publish collection metadata, skipping if unchanged
+ * @returns true if collection was actually upserted
  */
-async function publishCollectionMetadata(collectionId: string): Promise<void> {
+async function publishCollectionMetadata(collectionId: string): Promise<boolean> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -267,6 +267,17 @@ async function publishCollectionMetadata(collectionId: string): Promise<void> {
   const draft = await getCollectionById(collectionId, false);
   if (!draft) {
     throw new Error('Draft collection not found');
+  }
+
+  // Get existing published version for comparison
+  const published = await getCollectionById(collectionId, true);
+
+  // Skip if published version exists and all fields match
+  if (published &&
+    published.name === draft.name &&
+    published.sorting === draft.sorting &&
+    published.order === draft.order) {
+    return false;
   }
 
   // Upsert published version (composite key handles insert/update automatically)
@@ -281,12 +292,14 @@ async function publishCollectionMetadata(collectionId: string): Promise<void> {
       created_at: draft.created_at,
       updated_at: new Date().toISOString(),
     }, {
-      onConflict: 'id,is_published', // Composite primary key
+      onConflict: 'id,is_published',
     });
 
   if (error) {
     throw new Error(`Failed to publish collection: ${error.message}`);
   }
+
+  return true;
 }
 
 /**
@@ -467,11 +480,11 @@ async function publishSelectedItems(
 }
 
 /**
- * Publish values for multiple items in batch
- * Uses batch upsert for efficiency
+ * Publish values for multiple items in batch, skipping unchanged values
+ * Compares draft vs published by (id, field_id, value) before upserting
  *
  * @param itemIds - Array of item UUIDs
- * @returns Total number of values published
+ * @returns Number of values actually published (changed)
  */
 async function publishItemValuesBatch(itemIds: string[]): Promise<number> {
   const client = await getSupabaseAdmin();
@@ -484,42 +497,69 @@ async function publishItemValuesBatch(itemIds: string[]): Promise<number> {
     return 0;
   }
 
-  // Fetch all draft values for all items in parallel
+  // Batch fetch all draft values
   const allDraftValues = await Promise.all(
     itemIds.map(itemId => getValuesByItemId(itemId, false))
   );
-
-  // Flatten the array
   const draftValues = allDraftValues.flat();
 
   if (draftValues.length === 0) {
     return 0;
   }
 
-  // Prepare values for batch upsert
-  const now = new Date().toISOString();
-  const valuesToUpsert = draftValues.map(value => ({
-    id: value.id,
-    item_id: value.item_id,
-    field_id: value.field_id,
-    value: value.value,
-    is_published: true,
-    created_at: value.created_at,
-    updated_at: now,
-  }));
+  // Batch fetch all published values for comparison
+  const allPublishedValues = await Promise.all(
+    itemIds.map(itemId => getValuesByItemId(itemId, true))
+  );
+  const publishedById = new Map(
+    allPublishedValues.flat().map(v => [v.id, v.value])
+  );
 
-  // Batch upsert all values
+  // Only upsert values that are new or changed
+  const now = new Date().toISOString();
+  const valuesToUpsert: Array<{
+    id: string;
+    item_id: string;
+    field_id: string;
+    value: string | null;
+    is_published: boolean;
+    created_at: string;
+    updated_at: string;
+  }> = [];
+
+  for (const value of draftValues) {
+    // Skip if published version exists with identical value
+    if (publishedById.has(value.id) && publishedById.get(value.id) === value.value) {
+      continue;
+    }
+
+    valuesToUpsert.push({
+      id: value.id,
+      item_id: value.item_id,
+      field_id: value.field_id,
+      value: value.value,
+      is_published: true,
+      created_at: value.created_at,
+      updated_at: now,
+    });
+  }
+
+  if (valuesToUpsert.length === 0) {
+    return 0;
+  }
+
+  // Batch upsert changed values only
   const { error } = await client
     .from('collection_item_values')
     .upsert(valuesToUpsert, {
-      onConflict: 'id,is_published', // Composite primary key
+      onConflict: 'id,is_published',
     });
 
   if (error) {
     throw new Error(`Failed to publish item values: ${error.message}`);
   }
 
-  return draftValues.length;
+  return valuesToUpsert.length;
 }
 
 /**

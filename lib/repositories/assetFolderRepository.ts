@@ -5,7 +5,7 @@
  */
 
 import { getSupabaseAdmin } from '../supabase-server';
-import { SUPABASE_WRITE_BATCH_SIZE } from '../supabase/constants';
+import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '../supabase/constants';
 import type { AssetFolder, CreateAssetFolderData, UpdateAssetFolderData } from '../../types';
 
 /**
@@ -317,17 +317,30 @@ export async function getDeletedDraftAssetFolders(): Promise<AssetFolder[]> {
     throw new Error('Supabase not configured');
   }
 
-  const { data, error } = await client
-    .from('asset_folders')
-    .select('*')
-    .eq('is_published', false)
-    .not('deleted_at', 'is', null);
+  const allFolders: AssetFolder[] = [];
+  let offset = 0;
 
-  if (error) {
-    throw new Error(`Failed to fetch deleted draft asset folders: ${error.message}`);
+  while (true) {
+    const { data, error } = await client
+      .from('asset_folders')
+      .select('*')
+      .eq('is_published', false)
+      .not('deleted_at', 'is', null)
+      .range(offset, offset + SUPABASE_QUERY_LIMIT - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch deleted draft asset folders: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) break;
+
+    allFolders.push(...data);
+
+    if (data.length < SUPABASE_QUERY_LIMIT) break;
+    offset += SUPABASE_QUERY_LIMIT;
   }
 
-  return data || [];
+  return allFolders;
 }
 
 /** Check if a draft asset folder differs from its published version */
@@ -459,6 +472,38 @@ export async function hardDeleteSoftDeletedAssetFolders(): Promise<{ count: numb
   }
 
   const ids = deletedDrafts.map(f => f.id);
+
+  // Clear FK references before deleting to avoid composite FK ON DELETE SET NULL
+  // nullifying both asset_folder_id AND is_published (violating NOT NULL constraint)
+  for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
+
+    // Clear asset_folder_id on assets referencing these folders
+    await client
+      .from('assets')
+      .update({ asset_folder_id: null })
+      .in('asset_folder_id', batchIds)
+      .eq('is_published', true);
+
+    await client
+      .from('assets')
+      .update({ asset_folder_id: null })
+      .in('asset_folder_id', batchIds)
+      .eq('is_published', false);
+
+    // Clear parent references on child asset_folders
+    await client
+      .from('asset_folders')
+      .update({ asset_folder_id: null })
+      .in('asset_folder_id', batchIds)
+      .eq('is_published', true);
+
+    await client
+      .from('asset_folders')
+      .update({ asset_folder_id: null })
+      .in('asset_folder_id', batchIds)
+      .eq('is_published', false);
+  }
 
   // Delete published and draft versions in batches
   for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {

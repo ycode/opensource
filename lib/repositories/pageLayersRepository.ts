@@ -466,7 +466,7 @@ export async function batchPublishPageLayers(pageIds: string[]): Promise<number>
     }
   }
 
-  return draftLayers.length;
+  return layersToUpsert.length;
 }
 
 /**

@@ -349,13 +349,7 @@ export default function HeaderBar({
         updateSetting('published_at', result.data.published_at_setting.value);
       }
 
-      // Success callback
-      onPublishSuccess();
-
-      // Refresh count
-      await loadChangesCount();
-
-      // Show success toast with action to open the site
+      // Show success immediately
       toast.success('Website published successfully', {
         action: {
           label: 'Open',
@@ -363,9 +357,12 @@ export default function HeaderBar({
         },
       });
 
-      // Show success state on button for a few seconds
       setPublishSuccess(true);
       setTimeout(() => setPublishSuccess(false), 3000);
+
+      // Refresh counts in background (non-blocking)
+      onPublishSuccess();
+      loadChangesCount();
     } catch (error) {
       console.error('Failed to publish all:', error);
     } finally {

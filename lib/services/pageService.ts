@@ -482,7 +482,7 @@ export async function publishPages(pageIds: string[]): Promise<PublishPagesResul
   const layersDurationMs = Math.round(performance.now() - layersStart);
 
   return {
-    count: pageIdsForLayerPublish.length,
+    count: pagesToUpsert.length,
     timing: {
       pagesDurationMs,
       layersDurationMs,
