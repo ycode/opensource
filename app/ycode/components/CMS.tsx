@@ -235,7 +235,7 @@ function SortableCollectionItem({
               onRenameCancel();
             }
           }}
-          onBlur={onRenameCancel}
+          onBlur={onRenameSubmit}
           autoFocus
           className="h-6 px-1 py-0 text-xs rounded-md -ml-1"
         />
