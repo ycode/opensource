@@ -87,7 +87,7 @@ export async function dispatchWebhookEvent(event: WebhookEvent): Promise<void> {
     }
 
     // Dispatch to all matching webhooks in parallel
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       matchingWebhooks.map((webhook) => deliverToWebhook(webhook, event))
     );
   } catch (error) {
@@ -335,51 +335,4 @@ export async function dispatchAssetUploadedEvent(data: {
     timestamp: new Date().toISOString(),
     data,
   });
-}
-
-// =============================================================================
-// Legacy Support (for form-level webhooks)
-// =============================================================================
-
-/**
- * Send a webhook POST request to a specific URL (legacy form-level webhook)
- * @deprecated Use dispatchFormSubmittedEvent instead for new integrations
- */
-export async function sendFormSubmissionWebhook(
-  url: string,
-  formId: string,
-  submissionId: string,
-  payload: Record<string, unknown>,
-  metadata: {
-    page_url?: string;
-    user_agent?: string;
-    referrer?: string;
-  },
-  submittedAt: string
-): Promise<boolean> {
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Ycode-Webhook/1.0',
-        'X-Ycode-Event': 'form.submitted',
-      },
-      body: JSON.stringify({
-        event: 'form.submitted',
-        form_id: formId,
-        submission_id: submissionId,
-        payload,
-        metadata: {
-          ...metadata,
-          submitted_at: submittedAt,
-        },
-      }),
-    });
-
-    return response.ok;
-  } catch (error) {
-    console.error('Failed to send form submission webhook:', error);
-    return false;
-  }
 }

@@ -674,7 +674,19 @@ export default function WebhooksPage() {
               </Field>
             )}
 
-            {!editingWebhook && (
+            {editingWebhook ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">Signing secret</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {editingWebhook.secret ? 'A signing secret is configured for this webhook.' : 'No signing secret configured.'}
+                  </p>
+                </div>
+                <Badge variant={editingWebhook.secret ? 'default' : 'secondary'}>
+                  {editingWebhook.secret ? 'Enabled' : 'Disabled'}
+                </Badge>
+              </div>
+            ) : (
               <div className="flex items-center justify-between">
                 <div>
                   <Label htmlFor="generate-secret" className="text-sm">
@@ -802,8 +814,8 @@ export default function WebhooksPage() {
       <Sheet open={showDeliveriesSheet} onOpenChange={setShowDeliveriesSheet}>
         <SheetContent className="sm:max-w-lg overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Delivery Logs</SheetTitle>
-            <SheetDescription>
+            <SheetTitle className="mr-auto">Delivery Logs</SheetTitle>
+            <SheetDescription className="sr-only">
               Recent webhook deliveries for {selectedWebhook?.name}
             </SheetDescription>
           </SheetHeader>

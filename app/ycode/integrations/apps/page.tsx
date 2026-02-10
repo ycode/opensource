@@ -21,20 +21,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import Icon from '@/components/ui/icon';
 import Image from 'next/image';
@@ -88,10 +85,11 @@ function AppCard({ app, onOpenSettings }: AppCardProps) {
   };
 
   return (
-    <button
+    <div
       onClick={handleClick}
-      disabled={!app.implemented}
-      className="flex items-start gap-3 p-4 bg-secondary/20 rounded-lg hover:bg-secondary/40 transition-colors text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-secondary/20"
+      role={app.implemented ? 'button' : undefined}
+      tabIndex={app.implemented ? 0 : undefined}
+      className={`flex items-start gap-3 p-4 bg-secondary/20 rounded-lg transition-colors text-left ${app.implemented ? 'hover:bg-secondary/40 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
     >
       <div className="flex items-center justify-center size-10 rounded-lg bg-secondary shrink-0 overflow-hidden">
         <Image
@@ -121,7 +119,7 @@ function AppCard({ app, onOpenSettings }: AppCardProps) {
           {app.description}
         </p>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -150,8 +148,8 @@ export default function AppsPage() {
   const [connections, setConnections] = useState<MailerLiteConnection[]>([]);
   const [isSavingConnections, setIsSavingConnections] = useState(false);
 
-  // Connection dialog state
-  const [showConnectionDialog, setShowConnectionDialog] = useState(false);
+  // Inline connection editing state
+  const [expandedConnectionId, setExpandedConnectionId] = useState<string | null>(null);
   const [editingConnectionId, setEditingConnectionId] = useState<string | null>(null);
   const [connectionFormId, setConnectionFormId] = useState('');
   const [connectionGroupId, setConnectionGroupId] = useState('');
@@ -203,6 +201,7 @@ export default function AppsPage() {
 
     if (appId === 'mailerlite') {
       loadMailerLiteSettings();
+      loadGroupsAndForms();
     }
   };
 
@@ -213,6 +212,8 @@ export default function AppsPage() {
     setSavedApiKey('');
     setIsConnected(false);
     setConnections([]);
+    setExpandedConnectionId(null);
+    resetConnectionForm();
   };
 
   // =========================================================================
@@ -351,26 +352,37 @@ export default function AppsPage() {
     }
   }, []);
 
-  const openConnectionDialog = (connection?: MailerLiteConnection) => {
-    if (connection) {
-      setEditingConnectionId(connection.id);
-      setConnectionFormId(connection.formId);
-      setConnectionGroupId(connection.groupId);
-      setConnectionGroupName(connection.groupName);
-      setConnectionFieldMappings(
-        connection.fieldMappings.length > 0
-          ? connection.fieldMappings
-          : [{ formField: '', mailerliteField: 'email' }]
-      );
-    } else {
-      setEditingConnectionId(null);
-      setConnectionFormId('');
-      setConnectionGroupId('');
-      setConnectionGroupName('');
-      setConnectionFieldMappings([{ formField: '', mailerliteField: 'email' }]);
+  const resetConnectionForm = () => {
+    setEditingConnectionId(null);
+    setConnectionFormId('');
+    setConnectionGroupId('');
+    setConnectionGroupName('');
+    setConnectionFieldMappings([{ formField: '', mailerliteField: 'email' }]);
+  };
+
+  const expandConnection = (connection: MailerLiteConnection) => {
+    if (expandedConnectionId === connection.id) {
+      setExpandedConnectionId(null);
+      resetConnectionForm();
+      return;
     }
-    setShowConnectionDialog(true);
-    loadGroupsAndForms();
+    setEditingConnectionId(connection.id);
+    setConnectionFormId(connection.formId);
+    setConnectionGroupId(connection.groupId);
+    setConnectionGroupName(connection.groupName);
+    setConnectionFieldMappings(
+      connection.fieldMappings.length > 0
+        ? connection.fieldMappings
+        : [{ formField: '', mailerliteField: 'email' }]
+    );
+    setExpandedConnectionId(connection.id);
+  };
+
+  const addNewConnection = () => {
+    const newId = `new-${Date.now()}`;
+    resetConnectionForm();
+    setEditingConnectionId(null);
+    setExpandedConnectionId(newId);
   };
 
   const handleSaveConnection = async () => {
@@ -420,7 +432,8 @@ export default function AppsPage() {
 
       if (result.data) {
         setConnections(updatedConnections);
-        setShowConnectionDialog(false);
+        setExpandedConnectionId(null);
+        resetConnectionForm();
         toast.success(editingConnectionId ? 'Connection updated' : 'Connection added');
       } else {
         toast.error(result.error || 'Failed to save connection');
@@ -501,6 +514,171 @@ export default function AppsPage() {
     updated[index] = { ...updated[index], [field]: value };
     setConnectionFieldMappings(updated);
   };
+
+  // =========================================================================
+  // Connection form (reusable for both new and editing)
+  // =========================================================================
+
+  const renderConnectionForm = () => (
+    <>
+      {/* Form Selection */}
+      <Field>
+        <FieldLabel>Ycode Form</FieldLabel>
+        {isLoadingForms ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+            <Spinner /> Loading forms...
+          </div>
+        ) : forms.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1">
+            No forms found. Submit a form first.
+          </p>
+        ) : (
+          <Select
+            value={connectionFormId}
+            onValueChange={setConnectionFormId}
+          >
+            <SelectTrigger className="text-xs">
+              <SelectValue placeholder="Select a form" />
+            </SelectTrigger>
+            <SelectContent>
+              {forms.map((form) => (
+                <SelectItem
+                  key={form.form_id}
+                  value={form.form_id}
+                >
+                  {form.form_id} ({form.submission_count} submissions)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+
+      {/* Group Selection */}
+      <Field>
+        <FieldLabel>MailerLite Group</FieldLabel>
+        {isLoadingGroups ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+            <Spinner /> Loading groups...
+          </div>
+        ) : groups.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1">
+            No groups found. Create a group in MailerLite first.
+          </p>
+        ) : (
+          <Select
+            value={connectionGroupId}
+            onValueChange={(value) => {
+              setConnectionGroupId(value);
+              const group = groups.find((g) => g.id === value);
+              setConnectionGroupName(group?.name || '');
+            }}
+          >
+            <SelectTrigger className="text-xs">
+              <SelectValue placeholder="Select a group" />
+            </SelectTrigger>
+            <SelectContent>
+              {groups.map((group) => (
+                <SelectItem
+                  key={group.id}
+                  value={group.id}
+                >
+                  {group.name} ({group.active_count} subscribers)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+
+      {/* Field Mappings */}
+      <Field>
+        <div className="flex items-center justify-between">
+          <FieldLabel>Field Mappings</FieldLabel>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={addFieldMapping}
+            disabled={connectionFieldMappings.length >= MAILERLITE_SUBSCRIBER_FIELDS.length}
+          >
+            <Icon name="plus" className="size-3 mr-1" />
+            Add field
+          </Button>
+        </div>
+        <FieldDescription>
+          Map form fields to MailerLite fields. Email is required.
+        </FieldDescription>
+
+        <div className="space-y-2 mt-2">
+          <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center text-[11px] text-muted-foreground px-1">
+            <span>Form field</span>
+            <span />
+            <span>MailerLite field</span>
+            <span className="w-7" />
+          </div>
+
+          {connectionFieldMappings.map((mapping, index) => {
+            const isEmailField = mapping.mailerliteField === 'email';
+
+            return (
+              <div
+                key={index}
+                className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center"
+              >
+                <Input
+                  placeholder="e.g., email"
+                  value={mapping.formField}
+                  onChange={(e) =>
+                    updateFieldMapping(index, 'formField', e.target.value)
+                  }
+                  className="text-xs"
+                />
+
+                <Icon
+                  name="arrowLeft"
+                  className="size-3 text-muted-foreground rotate-180"
+                />
+
+                <Select
+                  value={mapping.mailerliteField}
+                  onValueChange={(value) =>
+                    updateFieldMapping(index, 'mailerliteField', value)
+                  }
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Select field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MAILERLITE_SUBSCRIBER_FIELDS.map((field) => (
+                      <SelectItem
+                        key={field.key}
+                        value={field.key}
+                      >
+                        {field.label}
+                        {field.required && ' *'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="w-7 flex justify-center">
+                  {!isEmailField && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => removeFieldMapping(index)}
+                    >
+                      <Icon name="x" className="size-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Field>
+    </>
+  );
 
   // =========================================================================
   // Render
@@ -606,13 +784,8 @@ export default function AppsPage() {
           {selectedAppId === 'mailerlite' && (
             <>
               <SheetHeader>
-                <SheetTitle className="flex items-center gap-2 mr-auto">
+                <SheetTitle className="mr-auto">
                   MailerLite
-                  {isConnected && (
-                    <Badge variant="default" className="text-[10px]">
-                      Connected
-                    </Badge>
-                  )}
                 </SheetTitle>
                 <SheetDescription className="sr-only">
                   MailerLite integration settings
@@ -683,7 +856,7 @@ export default function AppsPage() {
                         <Button
                           variant="secondary"
                           size="xs"
-                          onClick={() => openConnectionDialog()}
+                          onClick={addNewConnection}
                         >
                           <Icon name="plus" className="size-3 mr-1" />
                           Add
@@ -694,56 +867,133 @@ export default function AppsPage() {
                       </FieldDescription>
 
                       {connections.length > 0 ? (
-                        <div className="divide-y">
+                        <div className="space-y-2">
                           {connections.map((connection) => (
-                            <div
+                            <Collapsible
                               key={connection.id}
-                              className="py-3 flex items-center gap-3"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 mb-0.5">
-                                  <Label className="font-medium text-xs">
-                                    {connection.formId}
-                                  </Label>
-                                  <span className="text-muted-foreground text-xs">&rarr;</span>
-                                  <span className="text-xs text-muted-foreground truncate">
-                                    {connection.groupName}
-                                  </span>
-                                </div>
-                                <div className="text-[11px] text-muted-foreground">
-                                  {connection.fieldMappings.length} field{connection.fieldMappings.length !== 1 ? 's' : ''} mapped
-                                </div>
-                              </div>
-
-                              <Switch
-                                checked={connection.enabled}
-                                onCheckedChange={(enabled) =>
-                                  handleToggleConnection(connection.id, enabled)
+                              open={expandedConnectionId === connection.id}
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  expandConnection(connection);
+                                } else {
+                                  setExpandedConnectionId(null);
+                                  resetConnectionForm();
                                 }
-                              />
+                              }}
+                            >
+                              <div className="border rounded-lg overflow-hidden">
+                                <CollapsibleTrigger asChild>
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
+                                    className="w-full flex items-center gap-3 p-3 text-left hover:bg-secondary/30 transition-colors cursor-pointer"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                        <Label className="font-medium text-xs pointer-events-none">
+                                          {connection.formId}
+                                        </Label>
+                                        <span className="text-muted-foreground text-xs">&rarr;</span>
+                                        <span className="text-xs text-muted-foreground truncate">
+                                          {connection.groupName}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-muted-foreground">
+                                        {connection.fieldMappings.length} field{connection.fieldMappings.length !== 1 ? 's' : ''} mapped
+                                      </div>
+                                    </div>
 
-                              <div className="flex gap-0.5">
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  onClick={() => openConnectionDialog(connection)}
-                                >
-                                  <Icon name="pencil" className="size-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  onClick={() => setConnectionToDelete(connection)}
-                                >
-                                  <Icon name="trash" className="size-3" />
-                                </Button>
+                                    <Switch
+                                      checked={connection.enabled}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onCheckedChange={(enabled) =>
+                                        handleToggleConnection(connection.id, enabled)
+                                      }
+                                    />
+
+                                    <Icon
+                                      name="chevronRight"
+                                      className={`size-3 text-muted-foreground transition-transform ${expandedConnectionId === connection.id ? 'rotate-90' : ''}`}
+                                    />
+                                  </div>
+                                </CollapsibleTrigger>
+
+                                <CollapsibleContent>
+                                  <div className="border-t px-3 pb-3 pt-3 space-y-4">
+                                    {renderConnectionForm()}
+
+                                    <div className="flex items-center justify-between pt-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-destructive hover:text-destructive"
+                                        onClick={() => setConnectionToDelete(connection)}
+                                      >
+                                        Delete connection
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={handleSaveConnection}
+                                        disabled={
+                                          !connectionFormId ||
+                                          !connectionGroupId ||
+                                          !connectionFieldMappings.some(
+                                            (m) => m.mailerliteField === 'email' && m.formField
+                                          ) ||
+                                          isSavingConnections
+                                        }
+                                      >
+                                        {isSavingConnections ? 'Saving...' : 'Save changes'}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CollapsibleContent>
                               </div>
-                            </div>
+                            </Collapsible>
                           ))}
                         </div>
-                      ) : (
+                      ) : expandedConnectionId ? null : (
                         <div className="py-6 text-center text-muted-foreground text-xs border border-dashed rounded-lg">
                           No connections yet. Add one to start sending form data to MailerLite.
+                        </div>
+                      )}
+
+                      {/* New connection form (not yet saved) */}
+                      {expandedConnectionId?.startsWith('new-') && (
+                        <div className="border rounded-lg overflow-hidden">
+                          <div className="p-3 bg-secondary/20">
+                            <Label className="font-medium text-xs">New connection</Label>
+                          </div>
+                          <div className="border-t px-3 pb-3 pt-3 space-y-4">
+                            {renderConnectionForm()}
+
+                            <div className="flex items-center justify-between pt-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setExpandedConnectionId(null);
+                                  resetConnectionForm();
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={handleSaveConnection}
+                                disabled={
+                                  !connectionFormId ||
+                                  !connectionGroupId ||
+                                  !connectionFieldMappings.some(
+                                    (m) => m.mailerliteField === 'email' && m.formField
+                                  ) ||
+                                  isSavingConnections
+                                }
+                              >
+                                {isSavingConnections ? 'Saving...' : 'Add connection'}
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -754,214 +1004,6 @@ export default function AppsPage() {
           )}
         </SheetContent>
       </Sheet>
-
-      {/* Connection Dialog */}
-      <Dialog
-        open={showConnectionDialog}
-        onOpenChange={setShowConnectionDialog}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {editingConnectionId ? 'Edit connection' : 'Add connection'}
-            </DialogTitle>
-            <DialogDescription>
-              Map a Ycode form to a MailerLite subscriber group and configure field mappings.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-6">
-            {/* Form Selection */}
-            <Field>
-              <FieldLabel>Ycode Form</FieldLabel>
-              <FieldDescription>
-                Select which form submissions should be sent to MailerLite.
-              </FieldDescription>
-              {isLoadingForms ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                  <Spinner /> Loading forms...
-                </div>
-              ) : forms.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  No forms found. Submit a form first to see it here.
-                </p>
-              ) : (
-                <Select
-                  value={connectionFormId}
-                  onValueChange={setConnectionFormId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a form" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {forms.map((form) => (
-                      <SelectItem
-                        key={form.form_id}
-                        value={form.form_id}
-                      >
-                        {form.form_id} ({form.submission_count} submissions)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </Field>
-
-            {/* Group Selection */}
-            <Field>
-              <FieldLabel>MailerLite Group</FieldLabel>
-              <FieldDescription>
-                New subscribers will be added to this group.
-              </FieldDescription>
-              {isLoadingGroups ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                  <Spinner /> Loading groups...
-                </div>
-              ) : groups.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  No groups found. Create a group in MailerLite first.
-                </p>
-              ) : (
-                <Select
-                  value={connectionGroupId}
-                  onValueChange={(value) => {
-                    setConnectionGroupId(value);
-                    const group = groups.find((g) => g.id === value);
-                    setConnectionGroupName(group?.name || '');
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map((group) => (
-                      <SelectItem
-                        key={group.id}
-                        value={group.id}
-                      >
-                        {group.name} ({group.active_count} subscribers)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </Field>
-
-            {/* Field Mappings */}
-            <Field>
-              <div className="flex items-center justify-between">
-                <FieldLabel>Field Mappings</FieldLabel>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={addFieldMapping}
-                  disabled={connectionFieldMappings.length >= MAILERLITE_SUBSCRIBER_FIELDS.length}
-                >
-                  <Icon name="plus" className="size-3 mr-1" />
-                  Add field
-                </Button>
-              </div>
-              <FieldDescription>
-                Map your form fields to MailerLite subscriber fields. Email is required.
-              </FieldDescription>
-
-              <div className="space-y-2 mt-2">
-                <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center text-xs text-muted-foreground px-1">
-                  <span>Form field name</span>
-                  <span />
-                  <span>MailerLite field</span>
-                  <span className="w-7" />
-                </div>
-
-                {connectionFieldMappings.map((mapping, index) => {
-                  const isEmailField = mapping.mailerliteField === 'email';
-
-                  return (
-                    <div
-                      key={index}
-                      className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center"
-                    >
-                      <Input
-                        placeholder="e.g., email, name"
-                        value={mapping.formField}
-                        onChange={(e) =>
-                          updateFieldMapping(index, 'formField', e.target.value)
-                        }
-                        className="text-xs"
-                      />
-
-                      <Icon
-                        name="arrowLeft"
-                        className="size-3 text-muted-foreground rotate-180"
-                      />
-
-                      <Select
-                        value={mapping.mailerliteField}
-                        onValueChange={(value) =>
-                          updateFieldMapping(index, 'mailerliteField', value)
-                        }
-                      >
-                        <SelectTrigger className="text-xs">
-                          <SelectValue placeholder="Select field" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MAILERLITE_SUBSCRIBER_FIELDS.map((field) => (
-                            <SelectItem
-                              key={field.key}
-                              value={field.key}
-                            >
-                              {field.label}
-                              {field.required && ' *'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <div className="w-7 flex justify-center">
-                        {!isEmailField && (
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => removeFieldMapping(index)}
-                          >
-                            <Icon name="x" className="size-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Field>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => setShowConnectionDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveConnection}
-              disabled={
-                !connectionFormId ||
-                !connectionGroupId ||
-                !connectionFieldMappings.some(
-                  (m) => m.mailerliteField === 'email' && m.formField
-                ) ||
-                isSavingConnections
-              }
-            >
-              {isSavingConnections
-                ? 'Saving...'
-                : editingConnectionId
-                  ? 'Save changes'
-                  : 'Add connection'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Disconnect Confirmation Dialog */}
       <ConfirmDialog

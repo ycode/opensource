@@ -152,14 +152,16 @@ export async function getWebhooksForEvent(eventType: WebhookEventType): Promise<
   const { data, error } = await client
     .from('webhooks')
     .select('*')
-    .eq('enabled', true)
-    .contains('events', [eventType]);
+    .eq('enabled', true);
 
   if (error) {
     throw new Error(`Failed to fetch webhooks for event: ${error.message}`);
   }
 
-  return (data || []).map(mapWebhookFromDb);
+  // Filter by event type in JS to avoid PostgREST JSONB contains serialization issues
+  return (data || [])
+    .map(mapWebhookFromDb)
+    .filter((w) => w.events.includes(eventType));
 }
 
 /**
