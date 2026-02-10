@@ -6,6 +6,31 @@
 
 import type { CollectionField, CollectionFieldType } from '@/types';
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Value used in column mapping to indicate a column should be skipped */
+export const SKIP_COLUMN = '__skip__';
+
+/** Auto-generated field keys that are set automatically during import */
+export const AUTO_FIELD_KEYS = ['id', 'created_at', 'updated_at'] as const;
+
+// ============================================================================
+// Helper utilities
+// ============================================================================
+
+/** Truncate a value for display in error messages */
+export function truncateValue(value: string, maxLength: number = 50): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength)}...`;
+}
+
+/** Extract error message from unknown error */
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error';
+}
+
 // TipTap JSON types
 interface TipTapMark {
   type: string;
@@ -365,8 +390,8 @@ export function validateCSVMapping(
 
   // Check for duplicate field mappings
   Object.entries(columnMapping).forEach(([, fieldId]) => {
-    // Skip empty or __skip__ values
-    if (!fieldId || fieldId === '__skip__') return;
+    // Skip empty or skipped values
+    if (!fieldId || fieldId === SKIP_COLUMN) return;
 
     if (mappedFieldIds.has(fieldId)) {
       const field = fieldMap.get(fieldId);
@@ -401,7 +426,7 @@ export function suggestColumnMapping(
     if (matchedField) {
       mapping[header] = matchedField.id;
     } else {
-      mapping[header] = '__skip__'; // No match, skip this column
+      mapping[header] = SKIP_COLUMN; // No match, skip this column
     }
   });
 

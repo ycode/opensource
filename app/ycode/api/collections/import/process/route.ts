@@ -9,7 +9,13 @@ import {
 import { createItemsBulk, getMaxIdValue } from '@/lib/repositories/collectionItemRepository';
 import { insertValuesBulk } from '@/lib/repositories/collectionItemValueRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
-import { convertValueForFieldType } from '@/lib/csv-utils';
+import {
+  convertValueForFieldType,
+  SKIP_COLUMN,
+  AUTO_FIELD_KEYS,
+  truncateValue,
+  getErrorMessage,
+} from '@/lib/csv-utils';
 import { noCache } from '@/lib/api-response';
 import { randomUUID } from 'crypto';
 import type { CollectionField } from '@/types';
@@ -19,12 +25,6 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const BATCH_SIZE = 50;
-
-/** Truncate a value for display in error messages */
-function truncateValue(value: string, maxLength: number = 50): string {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength)}...`;
-}
 
 interface PreparedRow {
   rowNumber: number;
@@ -67,7 +67,7 @@ function prepareRow(
 
   // Map CSV columns to field values
   for (const [csvColumn, fieldId] of Object.entries(columnMapping)) {
-    if (!fieldId || fieldId === '' || fieldId === '__skip__') continue;
+    if (!fieldId || fieldId === '' || fieldId === SKIP_COLUMN) continue;
 
     const field = fieldMap.get(fieldId);
     if (!field) continue;
@@ -118,8 +118,7 @@ async function insertRowByRow(
       succeeded++;
     } catch (error) {
       failed++;
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      errors.push(`Row ${row.rowNumber}: DB insert failed — ${msg}`);
+      errors.push(`Row ${row.rowNumber}: DB insert failed — ${getErrorMessage(error)}`);
     }
   }
 
@@ -184,9 +183,9 @@ export async function POST(request: NextRequest) {
 
     // Find auto-generated fields
     const autoFields = {
-      idField: fields.find(f => f.key === 'id'),
-      createdAtField: fields.find(f => f.key === 'created_at'),
-      updatedAtField: fields.find(f => f.key === 'updated_at'),
+      idField: fields.find(f => f.key === AUTO_FIELD_KEYS[0]),
+      createdAtField: fields.find(f => f.key === AUTO_FIELD_KEYS[1]),
+      updatedAtField: fields.find(f => f.key === AUTO_FIELD_KEYS[2]),
     };
 
     // Get max ID for auto-increment (1 query)
@@ -219,8 +218,7 @@ export async function POST(request: NextRequest) {
         preparedRows.push(prepared);
       } catch (error) {
         failedCount++;
-        const msg = error instanceof Error ? error.message : 'Unknown error';
-        errors.push(`Row ${rowNumber}: failed to prepare — ${msg}`);
+        errors.push(`Row ${rowNumber}: failed to prepare — ${getErrorMessage(error)}`);
       }
     }
 
@@ -279,7 +277,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error processing import:', error);
     return noCache(
-      { error: error instanceof Error ? error.message : 'Failed to process import' },
+      { error: getErrorMessage(error) },
       500
     );
   }

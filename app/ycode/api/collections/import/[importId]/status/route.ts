@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getImportById } from '@/lib/repositories/collectionImportRepository';
 import { noCache } from '@/lib/api-response';
+import { getErrorMessage } from '@/lib/csv-utils';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,7 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching import status:', error);
     return noCache(
-      { error: error instanceof Error ? error.message : 'Failed to fetch import status' },
+      { error: getErrorMessage(error) },
       500
     );
   }

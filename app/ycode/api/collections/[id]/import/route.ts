@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { createImport } from '@/lib/repositories/collectionImportRepository';
 import { getCollectionById } from '@/lib/repositories/collectionRepository';
 import { noCache } from '@/lib/api-response';
+import { getErrorMessage } from '@/lib/csv-utils';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -64,7 +65,7 @@ export async function POST(
   } catch (error) {
     console.error('Error creating import job:', error);
     return noCache(
-      { error: error instanceof Error ? error.message : 'Failed to create import job' },
+      { error: getErrorMessage(error) },
       500
     );
   }

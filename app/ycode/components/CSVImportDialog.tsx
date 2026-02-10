@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/select';
 import { Empty, EmptyMedia, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import Icon from '@/components/ui/icon';
-import { parseCSVFile, suggestColumnMapping, getFieldTypeLabel } from '@/lib/csv-utils';
+import { parseCSVFile, suggestColumnMapping, getFieldTypeLabel, SKIP_COLUMN, AUTO_FIELD_KEYS } from '@/lib/csv-utils';
 import type { CollectionField } from '@/types';
 import { Label } from '@/components/ui/label';
 
@@ -84,7 +84,7 @@ export function CSVImportDialog({
 
   // Filter out auto-generated fields that shouldn't be mapped
   const mappableFields = fields.filter(
-    f => !['id', 'created_at', 'updated_at'].includes(f.key || '')
+    f => !AUTO_FIELD_KEYS.includes(f.key as typeof AUTO_FIELD_KEYS[number])
   );
 
   // Reset state when dialog closes
@@ -184,7 +184,7 @@ export function CSVImportDialog({
   const getMappedFieldIds = (excludeColumn?: string): Set<string> => {
     const mapped = new Set<string>();
     Object.entries(columnMapping).forEach(([col, fieldId]) => {
-      if (col !== excludeColumn && fieldId && fieldId !== '__skip__') {
+      if (col !== excludeColumn && fieldId && fieldId !== SKIP_COLUMN) {
         mapped.add(fieldId);
       }
     });
@@ -192,7 +192,7 @@ export function CSVImportDialog({
   };
 
   // Check if at least one column is mapped (not skipped)
-  const hasMappedColumns = Object.values(columnMapping).some(v => v !== '' && v !== '__skip__');
+  const hasMappedColumns = Object.values(columnMapping).some(v => v !== '' && v !== SKIP_COLUMN);
 
   // Start import
   const startImport = async () => {
@@ -227,33 +227,31 @@ export function CSVImportDialog({
     }
   };
 
-  // Process import (trigger batch processing)
-  const processImport = async (id: string) => {
-    const process = async () => {
-      try {
-        const response = await fetch('/ycode/api/collections/import/process', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ importId: id }),
-        });
+  // Trigger batch processing for an import job
+  const triggerProcessBatch = async (id: string) => {
+    try {
+      const response = await fetch('/ycode/api/collections/import/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importId: id }),
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to process import');
-        }
-
-        return data.data;
-      } catch (err) {
-        console.error('Process error:', err);
-        return null;
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to process import');
       }
-    };
 
-    // Process first batch
-    await process();
+      return data.data;
+    } catch (err) {
+      console.error('Process error:', err);
+      return null;
+    }
+  };
 
-    // Start polling
+  // Process import (trigger first batch and start polling)
+  const processImport = async (id: string) => {
+    await triggerProcessBatch(id);
     pollStatus(id);
   };
 
@@ -282,11 +280,7 @@ export function CSVImportDialog({
         }
 
         // Continue processing if not complete
-        await fetch('/ycode/api/collections/import/process', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ importId: id }),
-        });
+        await triggerProcessBatch(id);
       } catch (err) {
         console.error('Poll error:', err);
       }
@@ -330,7 +324,7 @@ export function CSVImportDialog({
             </DialogHeader>
 
             <div
-              className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 transition-colors hover:border-muted-foreground/50"
+              className="mt-4 flex min-h-50 flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 transition-colors hover:border-muted-foreground/50"
               onDragOver={handleDragOver}
               onDrop={handleDrop}
             >
@@ -390,14 +384,14 @@ export function CSVImportDialog({
                       <Icon name="chevronRight" className="size-3 text-muted-foreground" />
                       <div className="flex-1">
                         <Select
-                          value={columnMapping[header] || '__skip__'}
+                          value={columnMapping[header] || SKIP_COLUMN}
                           onValueChange={(value) => updateMapping(header, value)}
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Skip this column" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__skip__">
+                            <SelectItem value={SKIP_COLUMN}>
                               <span className="opacity-50">—</span>
                             </SelectItem>
                             {mappableFields.map(field => (
@@ -462,7 +456,7 @@ export function CSVImportDialog({
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Columns mapped</dt>
                     <dd className="font-medium">
-                      {Object.values(columnMapping).filter(v => v !== '' && v !== '__skip__').length} of {headers.length}
+                      {Object.values(columnMapping).filter(v => v !== '' && v !== SKIP_COLUMN).length} of {headers.length}
                     </dd>
                   </div>
                 </dl>

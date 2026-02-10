@@ -645,6 +645,21 @@ const CMS = React.memo(function CMS() {
     prevPageSizeRef.current = pageSize;
   }, [pageSize]);
 
+  // Auto-navigate to a valid page when current page becomes empty but items exist elsewhere
+  useEffect(() => {
+    // Only check after initial load completes and we're not loading
+    if (!initialLoadCompleteRef.current || showSkeleton) return;
+    if (!selectedCollectionId) return;
+
+    // If current page is empty but there are items in the collection, go to last valid page
+    if (collectionItems.length === 0 && totalItems > 0 && currentPage > 1) {
+      const lastValidPage = Math.max(1, Math.ceil(totalItems / pageSize));
+      if (currentPage > lastValidPage) {
+        setCurrentPage(lastValidPage);
+      }
+    }
+  }, [collectionItems.length, totalItems, currentPage, pageSize, selectedCollectionId, showSkeleton]);
+
   // Track fetched reference collections to prevent duplicate calls
   const fetchedReferenceCollections = React.useRef<Set<string>>(new Set());
 
@@ -2031,7 +2046,7 @@ const CMS = React.memo(function CMS() {
             </div>
 
             {/* Pagination Controls */}
-            {selectedCollectionId && (showSkeleton || sortedItems.length > 0) && (
+            {selectedCollectionId && (showSkeleton || sortedItems.length > 0 || totalItems > 0 || currentPage > 1) && (
               <div className="flex items-center justify-between px-4 py-4 border-t mt-auto">
 
                 <div className="flex items-center gap-2">
@@ -2060,6 +2075,10 @@ const CMS = React.memo(function CMS() {
                 <div className="flex items-center gap-4">
                   {showSkeleton ? (
                     <div className="h-4 w-48 bg-secondary/50 rounded-[6px] animate-pulse" />
+                  ) : totalItems === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No results
+                    </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
                       Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
