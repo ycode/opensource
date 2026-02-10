@@ -13,7 +13,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import RichTextEditor from './RichTextEditor';
-import type { FieldGroup } from './FieldTreeSelect';
+import { FieldSelectDropdown, type FieldGroup, type FieldSourceType } from './CollectionFieldSelector';
 import type { Layer, CollectionField, Collection, AssetVariable, DynamicTextVariable, FieldVariable, ImageSettingsValue } from '@/types';
 import { createDynamicTextVariable, getDynamicTextContent, createAssetVariable, getImageUrlFromVariable, isAssetVariable, getAssetId, isDynamicTextVariable, isFieldVariable } from '@/lib/variable-utils';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -42,7 +42,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
-import { IMAGE_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
+import { IMAGE_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
 
@@ -116,11 +116,15 @@ export default function ImageSettings(props: ImageSettingsProps) {
   const linkedVariableDefaultValue = linkedImageVariable?.default_value as ImageSettingsValue | undefined;
   const effectiveImageSrc = linkedImageVariable ? linkedVariableDefaultValue?.src : imageSrc;
 
-  // Filter fields to only show image-bindable field types (image or text for URL)
-  const imageFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, IMAGE_FIELD_TYPES, { excludeMultipleAsset: true });
-    return flattenFieldGroups(filtered);
+  // Filter field groups to only show image-bindable field types (image or text for URL)
+  const imageFieldGroups = useMemo(() => {
+    return filterFieldGroupsByType(fieldGroups, IMAGE_FIELD_TYPES, { excludeMultipleAsset: true });
   }, [fieldGroups]);
+
+  // Flatten for internal lookups
+  const imageFields = useMemo(() => {
+    return flattenFieldGroups(imageFieldGroups);
+  }, [imageFieldGroups]);
 
   // Detect current field ID if using FieldVariable
   const currentFieldId = useMemo(() => {
@@ -175,14 +179,21 @@ export default function ImageSettings(props: ImageSettingsProps) {
     updateImageSrc(assetVariable);
   }, [updateImageSrc]);
 
-  const handleFieldSelect = useCallback((fieldId: string) => {
+  const handleFieldSelect = useCallback((
+    fieldId: string,
+    relationshipPath: string[],
+    source?: FieldSourceType,
+    layerId?: string
+  ) => {
     const field = imageFields.find(f => f.id === fieldId);
     const fieldVariable: FieldVariable = {
       type: 'field',
       data: {
         field_id: fieldId,
-        relationships: [],
+        relationships: relationshipPath,
         field_type: field?.type || null,
+        source,
+        collection_layer_id: layerId,
       },
     };
     updateImageSrc(fieldVariable);
@@ -513,24 +524,15 @@ export default function ImageSettings(props: ImageSettingsProps) {
           {!isStandaloneMode && <Label variant="muted">Field</Label>}
 
           <div className={isStandaloneMode ? 'w-full' : 'col-span-2 w-full'}>
-            <Select
-              value={selectedField || currentFieldId || ''}
-              onValueChange={handleFieldSelect}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a field" />
-              </SelectTrigger>
-              <SelectContent>
-                {imageFields.map((field) => (
-                  <SelectItem key={field.id} value={field.id}>
-                    <span className="flex items-center gap-2">
-                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                      {field.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FieldSelectDropdown
+              fieldGroups={imageFieldGroups}
+              allFields={allFields || {}}
+              collections={collections || []}
+              value={selectedField || currentFieldId}
+              onSelect={handleFieldSelect}
+              placeholder="Select a field"
+              allowedFieldTypes={IMAGE_FIELD_TYPES}
+            />
           </div>
         </div>
       )}

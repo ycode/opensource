@@ -29,6 +29,26 @@ export function isTruthyBooleanValue(value: any): boolean {
 }
 
 /**
+ * Parse a multi-reference field value into an array of IDs
+ * Handles both array (from castValue) and JSON string formats
+ * @param value - The value which could be an array, JSON string, or undefined
+ * @returns Array of string IDs
+ */
+export function parseMultiReferenceValue(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
  * Sort collections by order field
  * If two collections have the same order, sort by name alphabetically
  * If two collections have the same order and name, sort by created_at time
@@ -75,11 +95,9 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
       // Return as ISO string for consistency
       return value;
 
-    case 'reference': {
-      // Return as number (ID of referenced item)
-      const refId = parseInt(value, 10);
-      return isNaN(refId) ? null : refId;
-    }
+    case 'reference':
+      // Return as string (UUID of referenced item)
+      return value;
 
     case 'rich_text':
       // Parse TipTap JSON from stored string
@@ -196,4 +214,73 @@ export function isValidFieldName(fieldName: string): boolean {
  */
 export function isValidCollectionName(collectionName: string): boolean {
   return /^[a-z][a-z0-9-]*$/.test(collectionName);
+}
+
+/**
+ * Resolve reference fields synchronously using pre-loaded store data
+ * Adds resolved relationship paths (e.g., "refFieldId.targetFieldId") to item values
+ * @param itemValues - The item's field values
+ * @param fields - The collection's field definitions
+ * @param allItems - Map of collection_id → items (from collections store)
+ * @param allFields - Map of collection_id → fields (from collections store)
+ * @returns Enhanced values with resolved reference paths
+ */
+export function resolveReferenceFieldsSync(
+  itemValues: Record<string, string>,
+  fields: import('@/types').CollectionField[],
+  allItems: Record<string, import('@/types').CollectionItemWithValues[]>,
+  allFields: Record<string, import('@/types').CollectionField[]>,
+  visited: Set<string> = new Set()
+): Record<string, string> {
+  const enhancedValues = { ...itemValues };
+
+  // Find reference fields (single reference only)
+  const referenceFields = fields.filter(
+    f => f.type === 'reference' && f.reference_collection_id
+  );
+
+  for (const field of referenceFields) {
+    const refItemId = itemValues[field.id];
+    if (!refItemId || !field.reference_collection_id) continue;
+
+    // Prevent infinite loops
+    const visitKey = `${field.id}:${refItemId}`;
+    if (visited.has(visitKey)) continue;
+    visited.add(visitKey);
+
+    // Find the referenced item in the store
+    const refCollectionItems = allItems[field.reference_collection_id] || [];
+    const refItem = refCollectionItems.find(item => item.id === refItemId);
+    if (!refItem) continue;
+
+    // Get fields for the referenced collection
+    const refFields = allFields[field.reference_collection_id] || [];
+
+    // Add referenced item's values with field.id as prefix
+    for (const refField of refFields) {
+      const refValue = refItem.values[refField.id];
+      if (refValue !== undefined) {
+        enhancedValues[`${field.id}.${refField.id}`] = refValue;
+      }
+    }
+
+    // Recursively resolve nested reference fields
+    const nestedValues = resolveReferenceFieldsSync(
+      refItem.values,
+      refFields,
+      allItems,
+      allFields,
+      visited
+    );
+
+    // Merge nested values with proper path prefix
+    for (const [key, value] of Object.entries(nestedValues)) {
+      // Only add paths that were newly resolved (contain dots from nested refs)
+      if (key.includes('.')) {
+        enhancedValues[`${field.id}.${key}`] = value;
+      }
+    }
+  }
+
+  return enhancedValues;
 }

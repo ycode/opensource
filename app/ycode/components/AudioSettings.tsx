@@ -11,7 +11,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import RichTextEditor from './RichTextEditor';
-import type { FieldGroup } from './FieldTreeSelect';
+import { FieldSelectDropdown, type FieldGroup, type FieldSourceType } from './CollectionFieldSelector';
 import type { Layer, CollectionField, Collection, FieldVariable } from '@/types';
 import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ import {
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
-import { AUDIO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
+import { AUDIO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Slider } from '@/components/ui/slider';
@@ -55,11 +55,15 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
   const openFileManager = useEditorStore((state) => state.openFileManager);
   const getAsset = useAssetsStore((state) => state.getAsset);
 
-  // Filter fields to only show audio-bindable field types (audio or text for URL)
-  const audioFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, AUDIO_FIELD_TYPES, { excludeMultipleAsset: true });
-    return flattenFieldGroups(filtered);
+  // Filter field groups to only show audio-bindable field types
+  const audioFieldGroups = useMemo(() => {
+    return filterFieldGroupsByType(fieldGroups, AUDIO_FIELD_TYPES, { excludeMultipleAsset: true });
   }, [fieldGroups]);
+
+  // Flatten for internal lookups
+  const audioFields = useMemo(() => {
+    return flattenFieldGroups(audioFieldGroups);
+  }, [audioFieldGroups]);
 
   // Detect current field ID if using FieldVariable
   const currentFieldId = useMemo(() => {
@@ -119,17 +123,23 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
     });
   }, [layer, onLayerUpdate]);
 
-  const handleFieldSelect = useCallback((fieldId: string) => {
+  const handleFieldSelect = useCallback((
+    fieldId: string,
+    relationshipPath: string[],
+    source?: FieldSourceType,
+    layerId?: string
+  ) => {
     if (!layer) return;
 
-    // Create FieldVariable from field ID
     const field = audioFields.find(f => f.id === fieldId);
     const fieldVariable: FieldVariable = {
       type: 'field',
       data: {
         field_id: fieldId,
-        relationships: [],
+        relationships: relationshipPath,
         field_type: field?.type || null,
+        source,
+        collection_layer_id: layerId,
       },
     };
 
@@ -364,24 +374,15 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
             <Label variant="muted">Field</Label>
 
             <div className="col-span-2 w-full">
-              <Select
-                value={selectedField || currentFieldId || ''}
-                onValueChange={handleFieldSelect}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a field" />
-                </SelectTrigger>
-                <SelectContent>
-                  {audioFields.map((field) => (
-                    <SelectItem key={field.id} value={field.id}>
-                      <span className="flex items-center gap-2">
-                        <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                        {field.name}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FieldSelectDropdown
+                fieldGroups={audioFieldGroups}
+                allFields={allFields || {}}
+                collections={collections || []}
+                value={selectedField || currentFieldId}
+                onSelect={handleFieldSelect}
+                placeholder="Select a field"
+                allowedFieldTypes={AUDIO_FIELD_TYPES}
+              />
             </div>
           </div>
         )}

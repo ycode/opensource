@@ -52,7 +52,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import FieldTreeSelect, { MultiSourceFieldTreeSelect, type FieldSourceType } from './FieldTreeSelect';
+import { CollectionFieldSelector, type FieldSourceType } from './CollectionFieldSelector';
 import { flattenFieldGroups, hasFieldsMatching, DISPLAYABLE_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
 import { RichTextLink, getLinkSettingsFromMark } from '@/lib/tiptap-extensions/rich-text-link';
 import RichTextLinkPopover from './RichTextLinkPopover';
@@ -683,7 +683,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
     return null;
   }
 
-  const handleFieldSelect = (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => {
+  const handleFieldSelect = (fieldId: string, relationshipPath: string[], source?: FieldSourceType, layerId?: string) => {
     const field = fields.find(f => f.id === fieldId);
     addFieldVariableInternal({
       type: 'field',
@@ -692,6 +692,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
         relationships: relationshipPath,
         source,
         field_type: field?.type || null,
+        collection_layer_id: layerId,
       },
     });
 
@@ -896,11 +897,11 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
                 </DropdownMenuTrigger>
                 {fieldGroups && (
                   <DropdownMenuContent
-                    className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                    className="w-56 py-1 px-1"
                     align="start"
                     sideOffset={4}
                   >
-                    <MultiSourceFieldTreeSelect
+                    <CollectionFieldSelector
                       fieldGroups={fieldGroups}
                       allFields={allFields || {}}
                       collections={collections || []}
@@ -1071,11 +1072,11 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
 
             {canShowVariables && fieldGroups && (
               <DropdownMenuContent
-                className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                className="w-56 py-1 px-1"
                 align="start"
                 sideOffset={4}
               >
-                <MultiSourceFieldTreeSelect
+                <CollectionFieldSelector
                   fieldGroups={fieldGroups}
                   allFields={allFields || {}}
                   collections={collections || []}
@@ -1138,11 +1139,11 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
 
             {fieldGroups && (
               <DropdownMenuContent
-                className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                className="w-56 py-1 px-1"
                 align="end"
                 sideOffset={4}
               >
-                <MultiSourceFieldTreeSelect
+                <CollectionFieldSelector
                   fieldGroups={fieldGroups}
                   allFields={allFields || {}}
                   collections={collections || []}

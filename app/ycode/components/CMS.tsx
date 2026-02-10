@@ -32,7 +32,7 @@ import { formatDate } from '@/lib/utils';
 import { formatDateInTimezone } from '@/lib/date-format-utils';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { slugify, isTruthyBooleanValue } from '@/lib/collection-utils';
+import { slugify, isTruthyBooleanValue, parseMultiReferenceValue } from '@/lib/collection-utils';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
 import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
@@ -71,20 +71,15 @@ function ReferenceFieldCell({ value, field, referenceItemsCache, fields }: Refer
   const cache = referenceItemsCache[refCollectionId] || {};
 
   if (field.type === 'multi_reference') {
-    // Parse JSON array of IDs
-    try {
-      const ids = JSON.parse(value);
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return <span className="text-muted-foreground">-</span>;
-      }
-      return (
-        <Badge variant="secondary" className="font-normal">
-          {ids.length} item{ids.length !== 1 ? 's' : ''}
-        </Badge>
-      );
-    } catch {
+    const ids = parseMultiReferenceValue(value);
+    if (ids.length === 0) {
       return <span className="text-muted-foreground">-</span>;
     }
+    return (
+      <Badge variant="secondary" className="font-normal">
+        {ids.length} item{ids.length !== 1 ? 's' : ''}
+      </Badge>
+    );
   }
 
   // Single reference - show item name

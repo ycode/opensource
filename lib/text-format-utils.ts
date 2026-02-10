@@ -234,17 +234,18 @@ export function getTiptapTextContent(text: string): {
 function getVariableNodeData(
   node: any,
   collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string>
+  pageCollectionItemData?: Record<string, string>,
+  layerDataMap?: Record<string, Record<string, string>>
 ): { fieldType: string | null; rawValue: unknown } {
   if (node.attrs?.variable?.type === 'field' && node.attrs.variable.data?.field_id) {
-    const { field_id, field_type, relationships = [], source } = node.attrs.variable.data;
+    const { field_id, field_type, relationships = [], source, collection_layer_id } = node.attrs.variable.data;
 
     // Build the full path for relationship resolution
     const fieldPath = relationships.length > 0
       ? [field_id, ...relationships].join('.')
       : field_id;
 
-    const rawValue = resolveFieldFromSources(fieldPath, source, collectionItemData, pageCollectionItemData);
+    const rawValue = resolveFieldFromSources(fieldPath, source, collectionItemData, pageCollectionItemData, collection_layer_id, layerDataMap);
     return { fieldType: field_type || null, rawValue };
   }
 
@@ -273,6 +274,7 @@ function resolveVariableNode(
  * @param isEditMode - If true, adds data-style attributes for style selection on canvas
  * @param collectionItemData - Collection layer item values for resolving inline variables
  * @param pageCollectionItemData - Page collection item values for resolving inline variables (dynamic pages)
+ * @param layerDataMap - Map of layer ID → item data for layer-specific resolution
  */
 function renderTextNode(
   node: any,
@@ -281,7 +283,8 @@ function renderTextNode(
   isEditMode = false,
   collectionItemData?: Record<string, string>,
   pageCollectionItemData?: Record<string, string>,
-  linkContext?: RichTextLinkContext
+  linkContext?: RichTextLinkContext,
+  layerDataMap?: Record<string, Record<string, string>>
 ): React.ReactNode {
   let text: React.ReactNode = node.text || '';
 
@@ -407,7 +410,8 @@ function renderNestedRichTextContent(
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC'
+  timezone: string = 'UTC',
+  layerDataMap?: Record<string, Record<string, string>>
 ): React.ReactNode[] {
   // richTextValue should be a Tiptap doc structure: { type: 'doc', content: [...] }
   if (!richTextValue) {
@@ -460,7 +464,7 @@ function renderNestedRichTextContent(
           if (!block.content || block.content.length === 0) {
             return React.createElement('span', props, '\u00A0');
           }
-          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap);
           return React.createElement('span', props, ...content);
         }
 
@@ -475,7 +479,7 @@ function renderNestedRichTextContent(
           if (!block.content || block.content.length === 0) {
             return React.createElement('span', props, '\u00A0');
           }
-          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap);
           return React.createElement('span', props, ...content);
         }
 
@@ -492,7 +496,7 @@ function renderNestedRichTextContent(
               DEFAULT_TEXT_STYLES.listItem?.classes ?? '';
             const itemContent = item.content?.flatMap((itemBlock: any) => {
               if (itemBlock.type === 'paragraph' && itemBlock.content) {
-                return renderInlineContent(itemBlock.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+                return renderInlineContent(itemBlock.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap);
               }
               return [];
             }) || [];
@@ -507,7 +511,7 @@ function renderNestedRichTextContent(
 
         // Fallback: render inline content
         if (block.content) {
-          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+          const content = renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap);
           return React.createElement('span', { key: blockKey }, ...content);
         }
 
@@ -530,7 +534,8 @@ function renderNestedRichTextContent(
       textStyles,
       isEditMode,
       linkContext,
-      timezone
+      timezone,
+      layerDataMap
     );
 
     // Add unique keys to each rendered node
@@ -556,17 +561,18 @@ function renderInlineContent(
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC'
+  timezone: string = 'UTC',
+  layerDataMap?: Record<string, Record<string, string>>
 ): React.ReactNode[] {
   return content.flatMap((node, idx) => {
     const key = `node-${idx}`;
 
     if (node.type === 'text') {
-      return [renderTextNode(node, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData, linkContext)];
+      return [renderTextNode(node, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData, linkContext, layerDataMap)];
     }
 
     if (node.type === 'dynamicVariable') {
-      const { fieldType, rawValue } = getVariableNodeData(node, collectionItemData, pageCollectionItemData);
+      const { fieldType, rawValue } = getVariableNodeData(node, collectionItemData, pageCollectionItemData, layerDataMap);
 
       // Handle rich_text fields - render nested Tiptap content
       if (fieldType === 'rich_text' && rawValue) {
@@ -589,7 +595,8 @@ function renderInlineContent(
             textStyles,
             isEditMode,
             linkContext,
-            timezone
+            timezone,
+            layerDataMap
           );
         }
       }
@@ -601,7 +608,7 @@ function renderInlineContent(
         text: value,
         marks: node.marks || [],
       };
-      return [renderTextNode(textNode, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData)];
+      return [renderTextNode(textNode, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData, undefined, layerDataMap)];
     }
 
     // Handle list nodes that were preserved during flattening
@@ -618,7 +625,7 @@ function renderInlineContent(
           DEFAULT_TEXT_STYLES.listItem?.classes ?? '';
         const itemContent = item.content?.flatMap((itemBlock: any) => {
           if (itemBlock.type === 'paragraph' && itemBlock.content) {
-            return renderInlineContent(itemBlock.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+            return renderInlineContent(itemBlock.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap);
           }
           return [];
         }) || [];
@@ -647,7 +654,8 @@ function renderBlock(
   useSpanForParagraphs = false,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC'
+  timezone: string = 'UTC',
+  layerDataMap?: Record<string, Record<string, string>>
 ): React.ReactNode {
   const key = `block-${idx}`;
 
@@ -659,7 +667,7 @@ function renderBlock(
     if (!block.content || block.content.length === 0) {
       return React.createElement(tag, { key, className: paragraphClass }, '\u00A0');
     }
-    return React.createElement(tag, { key, className: paragraphClass }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
+    return React.createElement(tag, { key, className: paragraphClass }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap));
   }
 
   if (block.type === 'heading') {
@@ -678,7 +686,7 @@ function renderBlock(
     if (isEditMode) {
       headingProps['data-style'] = styleKey;
     }
-    return React.createElement(tag, headingProps, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
+    return React.createElement(tag, headingProps, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap));
   }
 
   if (block.type === 'bulletList') {
@@ -693,7 +701,7 @@ function renderBlock(
       'ul',
       ulProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap)
       )
     );
   }
@@ -710,7 +718,7 @@ function renderBlock(
       'ol',
       olProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap)
       )
     );
   }
@@ -729,16 +737,17 @@ function renderListItem(
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC'
+  timezone: string = 'UTC',
+  layerDataMap?: Record<string, Record<string, string>>
 ): React.ReactNode {
   if (item.type !== 'listItem') return null;
 
   const children = item.content?.flatMap((block: any, idx: number) => {
     if (block.type === 'paragraph') {
       // For list items, render paragraph content without <p> wrapper
-      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap);
     }
-    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext, timezone);
+    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext, timezone, layerDataMap);
   });
 
   const liProps: Record<string, any> = {
@@ -790,12 +799,13 @@ export function hasBlockElementsWithInlineVariables(
 
 /**
  * Render DynamicRichTextVariable content to React elements
- * @param collectionItemData - Data from collection layer items
+ * @param collectionItemData - Merged collection layer data
  * @param pageCollectionItemData - Data from page collection (dynamic pages)
  * @param useSpanForParagraphs - If true, renders paragraphs as <span class="block"> instead of <p>
  * @param isEditMode - If true, adds data-style attributes for style selection on canvas
  * @param linkContext - Context for resolving page/asset/field links
  * @param timezone - Timezone for formatting date values
+ * @param layerDataMap - Map of layer ID → item data for layer-specific resolution
  */
 export function renderRichText(
   variable: DynamicRichTextVariable,
@@ -805,7 +815,8 @@ export function renderRichText(
   useSpanForParagraphs = false,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC'
+  timezone: string = 'UTC',
+  layerDataMap?: Record<string, Record<string, string>>
 ): React.ReactNode {
   const content = variable.data.content;
 
@@ -825,11 +836,11 @@ export function renderRichText(
     if (!paragraph.content || paragraph.content.length === 0) {
       return null;
     }
-    return renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
+    return renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap);
   }
 
   return doc.content.map((block: any, idx: number) =>
-    renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone)
+    renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, layerDataMap)
   );
 }
 

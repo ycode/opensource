@@ -49,7 +49,7 @@ import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 
 // 4b. Internal components
 import Canvas from './Canvas';
-import { MultiSourceFieldTreeSelect } from './FieldTreeSelect';
+import { CollectionFieldSelector } from './CollectionFieldSelector';
 import SelectionOverlay from '@/components/SelectionOverlay';
 import RichTextLinkPopover from './RichTextLinkPopover';
 
@@ -58,7 +58,7 @@ import { buildPageTree, getNodeIcon, buildLocalizedSlugPath, buildLocalizedDynam
 import { getTranslationValue } from '@/lib/localisation-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
-import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer, canLayerHaveLink } from '@/lib/layer-utils';
+import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer, findAllParentCollectionLayers, canLayerHaveLink } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 import { buildFieldGroups, hasFieldsMatching, flattenFieldGroups, DISPLAYABLE_FIELD_TYPES } from '@/lib/collection-field-utils';
 import { DropContainerIndicator, DropLineIndicator } from '@/components/DropIndicators';
@@ -1000,6 +1000,23 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return findParentCollectionLayer(layersToSearch, editingLayerId);
   }, [editingLayerId, editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
+  // Find all parent collection layers (for nested collections)
+  const allParentCollectionLayers = useMemo(() => {
+    if (!editingLayerId) return [];
+
+    let layersToSearch: Layer[] = [];
+    if (editingComponentId) {
+      layersToSearch = componentDrafts[editingComponentId] || [];
+    } else {
+      const draft = currentPageId ? draftsByPageId[currentPageId] : null;
+      layersToSearch = draft ? draft.layers : [];
+    }
+
+    if (!layersToSearch.length) return [];
+
+    return findAllParentCollectionLayers(layersToSearch, editingLayerId);
+  }, [editingLayerId, editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
+
   // Build field groups for multi-source inline variable selection
   const fieldGroups = useMemo(() => {
     const collectionVariable = editingLayerParentCollection
@@ -1015,14 +1032,19 @@ const CenterCanvas = React.memo(function CenterCanvas({
       }
       : null;
 
+    // Get all parent collection layers (closest first)
+    const parentCollectionLayers = allParentCollectionLayers
+      .map(layer => ({ layerId: layer.id, collectionId: getCollectionVariable(layer)?.id }))
+      .filter((item): item is { layerId: string; collectionId: string } => !!item.collectionId);
+
     return buildFieldGroups({
-      collectionLayer: collectionVariable ? { collectionId: collectionVariable.id } : null,
+      parentCollectionLayers,
       page: currentPage,
       fieldsByCollectionId: collectionFieldsFromStore,
       collections: collectionsFromStore,
       multiAssetContext,
     });
-  }, [editingLayerParentCollection, currentPage, collectionFieldsFromStore, collectionsFromStore]);
+  }, [editingLayerParentCollection, allParentCollectionLayers, currentPage, collectionFieldsFromStore, collectionsFromStore]);
 
   // Create assets map for Canvas (asset ID -> asset)
   const assetsMap = useMemo(() => {
@@ -2184,11 +2206,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
                 {fieldGroups && (
                   <DropdownMenuContent
-                    className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                    className="w-56 py-1 px-1 max-h-none!"
                     align="start"
                     sideOffset={4}
                   >
-                    <MultiSourceFieldTreeSelect
+                    <CollectionFieldSelector
                       fieldGroups={fieldGroups}
                       allFields={collectionFieldsFromStore}
                       collections={collectionsFromStore}
