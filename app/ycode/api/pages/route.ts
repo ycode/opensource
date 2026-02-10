@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
     console.log('[GET /ycode/api/pages] Starting request');
     console.log('[GET /ycode/api/pages] Vercel env:', process.env.VERCEL);
     console.log('[GET /ycode/api/pages] Supabase URL set:', !!process.env.SUPABASE_URL);
-    console.log('[GET /ycode/api/pages] Supabase Anon Key set:', !!process.env.SUPABASE_ANON_KEY);
-    console.log('[GET /ycode/api/pages] Supabase Service Role Key set:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    console.log('[GET /ycode/api/pages] Supabase Publishable Key set:', !!process.env.SUPABASE_PUBLISHABLE_KEY);
+    console.log('[GET /ycode/api/pages] Supabase Secret Key set:', !!process.env.SUPABASE_SECRET_KEY);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);

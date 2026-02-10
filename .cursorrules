@@ -1054,7 +1054,7 @@ Result: Perfect styling ✓
 const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
 // ✅ Server-side ONLY (API routes, Server Components)
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY;
 
 // ❌ WRONG: Server-side var in client code
 const secret = process.env.SECRET_KEY; // Undefined in browser!

@@ -279,7 +279,7 @@ export default function WelcomePage() {
                     <Field>
                       <InputGroup size="sm">
                         <InputGroupInput
-                          value="SUPABASE_ANON_KEY" size="sm"
+                          value="SUPABASE_PUBLISHABLE_KEY" size="sm"
                           readOnly
                         />
                         <InputGroupAddon align="inline-end">
@@ -287,7 +287,7 @@ export default function WelcomePage() {
                             size="xs"
                             variant="secondary"
                             className="mr-1"
-                            onClick={() => handleCopy('SUPABASE_ANON_KEY', 'anon')}
+                            onClick={() => handleCopy('SUPABASE_PUBLISHABLE_KEY', 'anon')}
                           >
                             <Icon name={copiedField === 'anon' ? 'check' : 'copy'} />
                             {copiedField === 'anon' ? 'Copied' : 'Copy'}
@@ -302,7 +302,7 @@ export default function WelcomePage() {
                     <Field>
                       <InputGroup size="sm">
                         <InputGroupInput
-                          value="SUPABASE_SERVICE_ROLE_KEY" size="sm"
+                          value="SUPABASE_SECRET_KEY" size="sm"
                           readOnly
                         />
                         <InputGroupAddon align="inline-end">
@@ -310,7 +310,7 @@ export default function WelcomePage() {
                             size="xs"
                             variant="secondary"
                             className="mr-1"
-                            onClick={() => handleCopy('SUPABASE_SERVICE_ROLE_KEY', 'service')}
+                            onClick={() => handleCopy('SUPABASE_SECRET_KEY', 'service')}
                           >
                             <Icon name={copiedField === 'service' ? 'check' : 'copy'} />
                             {copiedField === 'service' ? 'Copied' : 'Copy'}
