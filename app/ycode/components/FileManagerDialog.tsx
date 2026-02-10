@@ -1354,6 +1354,10 @@ export default function FileManagerDialog({
         updateAsset(id, { asset_folder_id: targetFolderId });
       });
 
+      // Remove moved assets from local list if they no longer belong in current folder
+      const movedIds = new Set(idsToMove);
+      setAssets(prev => prev.filter(a => !movedIds.has(a.id)));
+
       // Clear selection
       setSelectedAssetIds(new Set());
       setShowBulkMoveDialog(false);
@@ -1363,10 +1367,11 @@ export default function FileManagerDialog({
 
       if (response.error) {
         console.error('Failed to move assets:', response.error);
-        // Rollback: restore original folders
+        // Rollback: restore original folders and re-add to local list
         assetsToMove.forEach(({ id, originalFolderId }) => {
           updateAsset(id, { asset_folder_id: originalFolderId });
         });
+        setAssets(prev => [...assetsToMove.map(({ asset }) => asset), ...prev]);
         toast.error('Failed to move assets', {
           description: response.error,
         });
@@ -1376,14 +1381,19 @@ export default function FileManagerDialog({
       if (response.data) {
         const { success, failed } = response.data;
 
-        // Rollback failed moves
+        // Rollback failed moves and re-add to local list
         if (failed.length > 0) {
+          const failedAssets: Asset[] = [];
           failed.forEach((id) => {
             const item = assetsToMove.find((a) => a.id === id);
             if (item) {
               updateAsset(id, { asset_folder_id: item.originalFolderId });
+              failedAssets.push(item.asset);
             }
           });
+          if (failedAssets.length > 0) {
+            setAssets(prev => [...failedAssets, ...prev]);
+          }
         }
 
         if (failed.length > 0) {
@@ -1394,10 +1404,11 @@ export default function FileManagerDialog({
       }
     } catch (error) {
       console.error('Failed to move assets:', error);
-      // Rollback: restore original folders
+      // Rollback: restore original folders and re-add to local list
       assetsToMove.forEach(({ id, originalFolderId }) => {
         updateAsset(id, { asset_folder_id: originalFolderId });
       });
+      setAssets(prev => [...assetsToMove.map(({ asset }) => asset), ...prev]);
       toast.error('Failed to move assets');
     }
   };
@@ -1489,13 +1500,16 @@ export default function FileManagerDialog({
     const originalAsset = assetsById[editingAssetId] || assets.find(a => a.id === editingAssetId);
     if (!originalAsset) return;
 
+    // Check if folder is changing before try block (needed for rollback in catch)
+    const folderChanged = newFolderId !== originalAsset.asset_folder_id;
+
     try {
       // Build update data
       const updateData: { filename?: string; asset_folder_id?: string | null; content?: string | null } = {};
       if (newName !== originalAsset.filename) {
         updateData.filename = newName;
       }
-      if (newFolderId !== originalAsset.asset_folder_id) {
+      if (folderChanged) {
         updateData.asset_folder_id = newFolderId;
       }
       if (newContent !== undefined && newContent !== originalAsset.content) {
@@ -1513,6 +1527,12 @@ export default function FileManagerDialog({
 
       // Optimistically update in store
       updateAsset(editingAssetId, updateData);
+
+      // Remove from local list if folder changed (asset no longer belongs here)
+      if (folderChanged) {
+        setAssets(prev => prev.filter(a => a.id !== editingAssetId));
+      }
+
       setEditingAssetId(null);
       setEditAssetName('');
       setEditAssetFolderId(null);
@@ -1524,6 +1544,9 @@ export default function FileManagerDialog({
       if (response.error) {
         // Rollback: restore original values
         updateAsset(editingAssetId, originalAsset);
+        if (folderChanged) {
+          setAssets(prev => [originalAsset, ...prev]);
+        }
         toast.error('Unable to update asset', {
           description: response.error,
         });
@@ -1537,6 +1560,9 @@ export default function FileManagerDialog({
     } catch (error) {
       // Rollback on error
       updateAsset(editingAssetId, originalAsset);
+      if (folderChanged) {
+        setAssets(prev => [originalAsset, ...prev]);
+      }
       const errorMessage = error instanceof Error ? error.message : 'Failed to update asset';
       toast.error('Unable to update asset', {
         description: errorMessage,
