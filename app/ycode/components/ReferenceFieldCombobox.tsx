@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { collectionsApi } from '@/lib/api';
 import { findDisplayField, getItemDisplayName } from '@/lib/collection-field-utils';
+import { parseMultiReferenceValue } from '@/lib/collection-utils';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { cn } from '@/lib/utils';
 import type { CollectionItemWithValues } from '@/types';
@@ -28,8 +29,8 @@ import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 interface ReferenceFieldComboboxProps {
   /** The collection ID to fetch items from */
   collectionId: string;
-  /** Current value - single ID for reference, JSON array string for multi_reference */
-  value: string;
+  /** Current value - single ID for reference, JSON array string or array for multi_reference */
+  value: string | string[];
   /** Callback when value changes */
   onChange: (value: string) => void;
   /** Whether this is a multi-reference field */
@@ -67,14 +68,9 @@ export default function ReferenceFieldCombobox({
   const selectedIds = useMemo(() => {
     if (!value) return [];
     if (isMulti) {
-      try {
-        const parsed = JSON.parse(value);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
+      return parseMultiReferenceValue(value);
     }
-    return [value];
+    return Array.isArray(value) ? value : [value];
   }, [value, isMulti]);
 
   // Get display name for an item

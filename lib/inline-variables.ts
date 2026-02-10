@@ -47,13 +47,18 @@ export function resolveInlineVariables(
 /**
  * Resolve inline variables using raw field value maps
  * Supports both collection layer data and page collection data (dynamic pages)
+ * @param text - Text containing inline variable tags
+ * @param collectionItemData - Merged collection layer data
+ * @param pageCollectionItemData - Page collection data for dynamic pages
  * @param timezone - Optional timezone for formatting date values (defaults to UTC)
+ * @param layerDataMap - Optional map of layer ID → item data (for layer-specific resolution)
  */
 export function resolveInlineVariablesFromData(
   text: string,
   collectionItemData?: Record<string, string>,
   pageCollectionItemData?: Record<string, string> | null,
-  timezone: string = 'UTC'
+  timezone: string = 'UTC',
+  layerDataMap?: Record<string, Record<string, string>>
 ): string {
   if (!text) return '';
   if (!collectionItemData && !pageCollectionItemData) {
@@ -65,11 +70,19 @@ export function resolveInlineVariablesFromData(
     try {
       const parsed = JSON.parse(variableContent.trim());
       if (parsed.type === 'field' && parsed.data?.field_id) {
+        // Build field path with relationships if present
+        const relationships = parsed.data.relationships || [];
+        const fieldPath = relationships.length > 0
+          ? [parsed.data.field_id, ...relationships].join('.')
+          : parsed.data.field_id;
+
         const fieldValue = resolveFieldFromSources(
-          parsed.data.field_id,
+          fieldPath,
           parsed.data.source,
           collectionItemData,
-          pageCollectionItemData
+          pageCollectionItemData,
+          parsed.data.collection_layer_id,
+          layerDataMap
         );
         return formatFieldValue(fieldValue, parsed.data.field_type, timezone);
       }

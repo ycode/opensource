@@ -18,12 +18,13 @@ import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-util
 import { isValidLinkSettings } from '@/lib/link-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
+import { parseMultiReferenceValue, resolveReferenceFieldsSync } from '@/lib/collection-utils';
 import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
-import { renderRichText, hasBlockElements, getTextStyleClasses, type RichTextLinkContext } from '@/lib/text-format-utils';
+import { renderRichText, hasBlockElements, hasBlockElementsWithInlineVariables, getTextStyleClasses, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -135,8 +136,9 @@ interface LayerRendererProps {
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
   pageId?: string;
-  collectionItemData?: Record<string, string>; // Collection layer item field values (field_id -> value)
+  collectionItemData?: Record<string, string>; // Merged collection layer item data (field_id -> value)
   collectionItemId?: string; // The ID of the current collection layer item being rendered
+  layerDataMap?: Record<string, Record<string, string>>; // Map of collection layer ID -> item data for layer-specific resolution
   pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null; // Page's collection item data (for dynamic pages)
   hiddenLayerInfo?: HiddenLayerInfo[]; // Layer IDs with breakpoint info for animations
@@ -178,6 +180,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   pageId = '',
   collectionItemData,
   collectionItemId,
+  layerDataMap,
   pageCollectionItemId,
   pageCollectionItemData,
   collectionItemSlugs,
@@ -287,6 +290,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         pageId={pageId}
         collectionItemData={collectionItemData}
         collectionItemId={collectionItemId}
+        layerDataMap={layerDataMap}
         pageCollectionItemId={pageCollectionItemId}
         pageCollectionItemData={pageCollectionItemData}
         hiddenLayerInfo={hiddenLayerInfo}
@@ -343,6 +347,7 @@ const LayerItem: React.FC<{
   pageId: string;
   collectionItemData?: Record<string, string>;
   collectionItemId?: string; // The ID of the current collection layer item being rendered
+  layerDataMap?: Record<string, Record<string, string>>; // Map of collection layer ID -> item data
   pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null;
   hiddenLayerInfo?: HiddenLayerInfo[];
@@ -387,6 +392,7 @@ const LayerItem: React.FC<{
   pageId,
   collectionItemData,
   collectionItemId,
+  layerDataMap,
   pageCollectionItemId,
   pageCollectionItemData,
   hiddenLayerInfo,
@@ -428,6 +434,12 @@ const LayerItem: React.FC<{
   // Use layer's pre-resolved values if present (from SSR), otherwise use prop from parent
   const collectionLayerItemId = layer._collectionItemId || collectionItemId;
   const collectionLayerData = layer._collectionItemValues || collectionItemData;
+  // Layer-specific data map for resolving fields with collection_layer_id
+  // Merge SSR-embedded map with prop from parent (SSR data takes precedence)
+  const effectiveLayerDataMap = React.useMemo(() => ({
+    ...layerDataMap,
+    ...(layer._layerDataMap || {}),
+  }), [layerDataMap, layer._layerDataMap]);
   const getAssetFromStore = useAssetsStore((state) => state.getAsset);
   const assetsById = useAssetsStore((state) => state.assetsById);
   const timezone = useSettingsStore((state) => state.settingsByKey.timezone as string | null) ?? 'UTC';
@@ -436,6 +448,19 @@ const LayerItem: React.FC<{
   const getAsset = useCallback((id: string) => {
     // Check pre-resolved assets from server first
     if (resolvedAssets?.[id]) {
+      // SVG marker: asset has content but no public URL
+      // For link resolution, this triggers '#no-svg-url' return
+      // For image rendering, we need to get the actual content from store
+      if (resolvedAssets[id] === '#svg-content') {
+        // Check if actual SVG content is in the store (already loaded)
+        const storeAsset = getAssetFromStore(id);
+        if (storeAsset?.content) {
+          return storeAsset; // Return full asset with actual SVG content
+        }
+        // Not in store - return marker for link resolution (will show #no-svg-url)
+        // Image rendering will show placeholder until asset loads
+        return { public_url: null, content: '#svg-marker', _isSvgMarker: true };
+      }
       return { public_url: resolvedAssets[id] };
     }
     // Fall back to store (may trigger async fetch)
@@ -454,7 +479,12 @@ const LayerItem: React.FC<{
   if (textVariable?.type === 'dynamic_rich_text') {
     const restrictiveBlockTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'a', 'button'];
     const isRestrictiveTag = restrictiveBlockTags.includes(htmlTag);
-    const hasLists = hasBlockElements(textVariable as any);
+    // Check for lists in direct content AND in inline variables (CMS rich_text fields)
+    const hasLists = hasBlockElementsWithInlineVariables(
+      textVariable as any,
+      collectionLayerData,
+      pageCollectionItemData || undefined
+    );
 
     if (isRestrictiveTag && hasLists) {
       // Replace tag with div to allow list elements
@@ -569,6 +599,7 @@ const LayerItem: React.FC<{
         getAsset,
         anchorMap,
         resolvedAssets,
+        layerDataMap: effectiveLayerDataMap,
       };
 
     // Check for component variable override or default value
@@ -586,7 +617,7 @@ const LayerItem: React.FC<{
       if (valueToRender !== undefined) {
         // Value is typed as ComponentVariableValue - check if it's a text variable (has 'type' property)
         if ('type' in valueToRender && valueToRender.type === 'dynamic_rich_text') {
-          return renderRichText(valueToRender as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone);
+          return renderRichText(valueToRender as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, effectiveLayerDataMap);
         }
         if ('type' in valueToRender && valueToRender.type === 'dynamic_text') {
           return (valueToRender as any).data.content;
@@ -601,7 +632,7 @@ const LayerItem: React.FC<{
     if (textVariable?.type === 'dynamic_rich_text') {
       // Render rich text with formatting (bold, italic, etc.) and inline variables
       // In edit mode, adds data-style attributes for style selection
-      return renderRichText(textVariable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone);
+      return renderRichText(textVariable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, effectiveLayerDataMap);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
@@ -609,7 +640,7 @@ const LayerItem: React.FC<{
       const content = textVariable.data.content;
       if (content.includes('<ycode-inline-variable>')) {
         // Resolve inline variables with timezone-aware date formatting
-        return resolveInlineVariablesFromData(content, collectionLayerData, pageCollectionItemData ?? undefined, timezone);
+        return resolveInlineVariablesFromData(content, collectionLayerData, pageCollectionItemData ?? undefined, timezone, effectiveLayerDataMap);
       }
       // No inline variables, return plain content
       return content;
@@ -698,6 +729,7 @@ const LayerItem: React.FC<{
   const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
   const fieldsByCollectionId = useCollectionsStore((state) => state.fields);
+  const itemsByCollectionId = useCollectionsStore((state) => state.items);
   const allCollectionItems = React.useMemo(() => layerData || [], [layerData]);
 
   // Get the source for multi-asset field resolution
@@ -759,16 +791,9 @@ const LayerItem: React.FC<{
       return singleItem ? [singleItem] : [];
     }
 
-    // Handle multi-reference: value is a JSON array of item IDs
-    try {
-      const allowedIds = JSON.parse(refValue);
-      if (!Array.isArray(allowedIds)) return [];
-
-      // Filter to only items whose IDs are in the multi-reference array
-      return allCollectionItems.filter(item => allowedIds.includes(item.id));
-    } catch {
-      return [];
-    }
+    // Handle multi-reference: filter to items whose IDs are in the multi-reference array
+    const allowedIds = parseMultiReferenceValue(refValue);
+    return allCollectionItems.filter(item => allowedIds.includes(item.id));
   }, [allCollectionItems, sourceFieldId, sourceFieldType, sourceFieldSource, collectionLayerData, pageCollectionItemData, getAsset]);
 
   useEffect(() => {
@@ -981,6 +1006,7 @@ const LayerItem: React.FC<{
           pageId={pageId}
           collectionItemData={collectionLayerData}
           collectionItemId={collectionLayerItemId}
+          layerDataMap={effectiveLayerDataMap}
           pageCollectionItemId={pageCollectionItemId}
           pageCollectionItemData={pageCollectionItemData}
           hiddenLayerInfo={hiddenLayerInfo}
@@ -1398,15 +1424,16 @@ const LayerItem: React.FC<{
 
             // Check assetsById first (reactive) then getAsset (may trigger fetch)
             const asset = assetsById[assetId] || getAsset(assetId);
-            iconHtml = asset?.content || '';
+            // Skip SVG marker (not actual content)
+            iconHtml = (asset?.content && !(asset as any)._isSvgMarker) ? asset.content : '';
           }
         } else if (isFieldVariable(iconSrc)) {
-          const resolvedValue = resolveFieldValue(iconSrc, collectionLayerData, pageCollectionItemData);
+          const resolvedValue = resolveFieldValue(iconSrc, collectionLayerData, pageCollectionItemData, effectiveLayerDataMap);
           if (resolvedValue && typeof resolvedValue === 'string') {
             // Try to get as asset first (field contains asset ID)
             const asset = assetsById[resolvedValue] || getAsset(resolvedValue);
-            // Use asset content if available, otherwise treat as raw SVG code
-            iconHtml = asset?.content || resolvedValue;
+            // Use asset content if available (not marker), otherwise treat as raw SVG code
+            iconHtml = (asset?.content && !(asset as any)._isSvgMarker) ? asset.content : resolvedValue;
           }
         }
       }
@@ -1455,7 +1482,7 @@ const LayerItem: React.FC<{
         if (videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
           const rawVideoId = videoSrc.data.video_id || '';
           // Resolve inline variables in video ID (supports CMS binding)
-          const videoId = resolveInlineVariablesFromData(rawVideoId, collectionLayerData, pageCollectionItemData, timezone);
+          const videoId = resolveInlineVariablesFromData(rawVideoId, collectionLayerData, pageCollectionItemData, timezone, effectiveLayerDataMap);
           // Use normalized attributes for consistency (already handles string/boolean conversion)
           const privacyMode = normalizedAttributes?.youtubePrivacyMode === true;
           const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
@@ -1673,6 +1700,7 @@ const LayerItem: React.FC<{
               pageId={pageId}
               collectionItemData={collectionLayerData}
               collectionItemId={collectionLayerItemId}
+              layerDataMap={effectiveLayerDataMap}
               pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
               pages={pages}
@@ -1757,10 +1785,12 @@ const LayerItem: React.FC<{
       }
 
       if (collectionItems.length === 0) {
-        const emptyMessage =
-          sourceFieldType === 'multi_asset' && multiAssetSourceField
-            ? `The CMS item has no ${multiAssetSourceField.type}s`
-            : 'No collection items';
+        let emptyMessage = 'No collection items';
+        if (!collectionId) {
+          emptyMessage = 'No collection selected';
+        } else if (sourceFieldType === 'multi_asset' && multiAssetSourceField) {
+          emptyMessage = `The CMS item has no ${multiAssetSourceField.type}s`;
+        }
         return (
           <Tag {...elementProps}>
             <div className="text-muted-foreground text-sm p-4 text-center">
@@ -1773,56 +1803,87 @@ const LayerItem: React.FC<{
       // Repeat the element for each collection item
       return (
         <>
-          {collectionItems.map((item, index) => (
-            <Tag
-              key={item.id}
-              {...elementProps}
-              data-collection-item-id={item.id}
-              data-layer-id={layer.id} // Keep same layer ID for all instances
-            >
-              {textContent && textContent}
+          {collectionItems.map((item, index) => {
+            // Get collection fields for reference resolution
+            const collectionFields = collectionId ? fieldsByCollectionId[collectionId] || [] : [];
 
-              {children && children.length > 0 && (
-                <LayerRenderer
-                  layers={children}
-                  onLayerClick={onLayerClick}
-                  onLayerUpdate={onLayerUpdate}
-                  onLayerHover={onLayerHover}
-                  selectedLayerId={selectedLayerId}
-                  hoveredLayerId={hoveredLayerId}
-                  isEditMode={isEditMode}
-                  isPublished={isPublished}
-                  enableDragDrop={enableDragDrop}
-                  activeLayerId={activeLayerId}
-                  projected={projected}
-                  pageId={pageId}
-                  collectionItemData={item.values || {}}
-                  collectionItemId={item.id}
-                  pageCollectionItemId={pageCollectionItemId}
-                  pageCollectionItemData={pageCollectionItemData}
-                  hiddenLayerInfo={hiddenLayerInfo}
-                  editorHiddenLayerIds={editorHiddenLayerIds}
-                  editorBreakpoint={editorBreakpoint}
-                  currentLocale={currentLocale}
-                  availableLocales={availableLocales}
-                  liveLayerUpdates={liveLayerUpdates}
-                  parentComponentLayerId={parentComponentLayerId || (layer.componentId ? layer.id : undefined)}
-                  parentComponentOverrides={parentComponentOverrides}
-                  parentComponentVariables={parentComponentVariables}
-                  editingComponentVariables={editingComponentVariables}
-                  isInsideForm={isInsideForm || htmlTag === 'form'}
-                  parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
-                  pages={pages}
-                  folders={folders}
-                  collectionItemSlugs={collectionItemSlugs}
-                  isPreview={isPreview}
-                  translations={translations}
-                  anchorMap={anchorMap}
-                  resolvedAssets={resolvedAssets}
-                />
-              )}
-            </Tag>
-          ))}
+            // Resolve reference fields to add relationship paths (e.g., "refFieldId.targetFieldId")
+            const enhancedItemValues = collectionFields.length > 0
+              ? resolveReferenceFieldsSync(
+                item.values || {},
+                collectionFields,
+                itemsByCollectionId,
+                fieldsByCollectionId
+              )
+              : (item.values || {});
+
+            // Merge parent collection data with enhanced item values
+            // Parent data provides access to fields from outer collection layers
+            // Enhanced item values (with resolved references) take precedence
+            const mergedItemData = {
+              ...collectionLayerData,
+              ...enhancedItemValues,
+            };
+
+            // Build layer data map for layer-specific field resolution
+            // Add this collection layer's enhanced data (with resolved references) to the map
+            const updatedLayerDataMap = {
+              ...effectiveLayerDataMap,
+              [layer.id]: enhancedItemValues,
+            };
+
+            return (
+              <Tag
+                key={item.id}
+                {...elementProps}
+                data-collection-item-id={item.id}
+                data-layer-id={layer.id} // Keep same layer ID for all instances
+              >
+                {textContent && textContent}
+
+                {children && children.length > 0 && (
+                  <LayerRenderer
+                    layers={children}
+                    onLayerClick={onLayerClick}
+                    onLayerUpdate={onLayerUpdate}
+                    onLayerHover={onLayerHover}
+                    selectedLayerId={selectedLayerId}
+                    hoveredLayerId={hoveredLayerId}
+                    isEditMode={isEditMode}
+                    isPublished={isPublished}
+                    enableDragDrop={enableDragDrop}
+                    activeLayerId={activeLayerId}
+                    projected={projected}
+                    pageId={pageId}
+                    collectionItemData={mergedItemData}
+                    collectionItemId={item.id}
+                    layerDataMap={updatedLayerDataMap}
+                    pageCollectionItemId={pageCollectionItemId}
+                    pageCollectionItemData={pageCollectionItemData}
+                    hiddenLayerInfo={hiddenLayerInfo}
+                    editorHiddenLayerIds={editorHiddenLayerIds}
+                    editorBreakpoint={editorBreakpoint}
+                    currentLocale={currentLocale}
+                    availableLocales={availableLocales}
+                    liveLayerUpdates={liveLayerUpdates}
+                    parentComponentLayerId={parentComponentLayerId || (layer.componentId ? layer.id : undefined)}
+                    parentComponentOverrides={parentComponentOverrides}
+                    parentComponentVariables={parentComponentVariables}
+                    editingComponentVariables={editingComponentVariables}
+                    isInsideForm={isInsideForm || htmlTag === 'form'}
+                    parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
+                    pages={pages}
+                    folders={folders}
+                    collectionItemSlugs={collectionItemSlugs}
+                    isPreview={isPreview}
+                    translations={translations}
+                    anchorMap={anchorMap}
+                    resolvedAssets={resolvedAssets}
+                  />
+                )}
+              </Tag>
+            );
+          })}
         </>
       );
     }
@@ -1858,6 +1919,7 @@ const LayerItem: React.FC<{
               pageId={pageId}
               collectionItemData={collectionLayerData}
               collectionItemId={collectionLayerItemId}
+              layerDataMap={effectiveLayerDataMap}
               pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
               pages={pages}
@@ -1924,6 +1986,7 @@ const LayerItem: React.FC<{
             pageId={pageId}
             collectionItemData={collectionLayerData}
             collectionItemId={collectionLayerItemId}
+            layerDataMap={effectiveLayerDataMap}
             pageCollectionItemId={pageCollectionItemId}
             pageCollectionItemData={pageCollectionItemData}
             hiddenLayerInfo={hiddenLayerInfo}
@@ -1983,6 +2046,7 @@ const LayerItem: React.FC<{
       getAsset,
       anchorMap,
       resolvedAssets,
+      layerDataMap: effectiveLayerDataMap,
     };
     const linkHref = generateLinkHref(linkSettings, layerLinkContext);
 

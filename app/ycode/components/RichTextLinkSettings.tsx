@@ -18,13 +18,12 @@ import RichTextEditor from './RichTextEditor';
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { FieldSelectDropdown, type FieldSourceType } from './CollectionFieldSelector';
 import type { Layer, CollectionField, Collection, LinkSettings, LinkType, CollectionItemWithValues } from '@/types';
 import {
   createDynamicTextVariable,
@@ -39,7 +38,7 @@ import { collectionsApi } from '@/lib/api';
 import { getLayerIcon, getLayerName, getCollectionVariable } from '@/lib/layer-utils';
 import { getPageIcon } from '@/lib/page-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { filterFieldGroupsByType, getFieldIcon, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
+import { filterFieldGroupsByType, flattenFieldGroups, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
 
 export interface RichTextLinkSettingsProps {
   /** Current link settings */
@@ -114,9 +113,6 @@ export default function RichTextLinkSettings({
   const pageId = linkSettings?.page?.id || null;
   const collectionItemId = linkSettings?.page?.collection_item_id || null;
   const fieldId = linkSettings?.field?.data?.field_id || null;
-  const fieldSource = linkSettings?.field?.data?.source;
-  // Construct select value from source and field_id (e.g., "page-field123" or "collection-field123")
-  const fieldSelectValue = fieldId && fieldSource ? `${fieldSource}-${fieldId}` : (fieldId || null);
   const anchorLayerId = linkSettings?.anchor_layer_id || '';
 
   // Get link behavior from link settings
@@ -192,6 +188,12 @@ export default function RichTextLinkSettings({
   const linkFieldGroups = useMemo(
     () => filterFieldGroupsByType(fieldGroups, LINK_FIELD_TYPES, { excludeMultipleAsset: true }),
     [fieldGroups]
+  );
+
+  // Flatten field groups for field lookup
+  const linkFields = useMemo(
+    () => flattenFieldGroups(linkFieldGroups),
+    [linkFieldGroups]
   );
 
   // Check if we have collection fields available
@@ -396,38 +398,33 @@ export default function RichTextLinkSettings({
 
   // Handle field selection
   const handleFieldChange = useCallback(
-    (value: string) => {
+    (
+      selectedFieldId: string,
+      relationshipPath: string[],
+      source?: FieldSourceType,
+      layerId?: string
+    ) => {
       if (!linkSettings) return;
 
-      // Parse source-fieldId format (e.g., "page-field123" -> source: "page", field_id: "field123")
-      const parts = value.split('-');
-      const source = (parts[0] === 'page' || parts[0] === 'collection') ? parts[0] : undefined;
-      const fieldId = source ? parts.slice(1).join('-') : value;
-
-      // Find the field type from linkFieldGroups
-      let fieldType: CollectionField['type'] | undefined;
-      for (const group of linkFieldGroups) {
-        const field = group.fields.find(f => f.id === fieldId);
-        if (field) {
-          fieldType = field.type;
-          break;
-        }
-      }
+      // Find the field type
+      const field = linkFields.find(f => f.id === selectedFieldId);
+      const fieldType = field?.type;
 
       onChange({
         ...linkSettings,
         field: {
           type: 'field',
           data: {
-            field_id: fieldId,
-            relationships: [],
+            field_id: selectedFieldId,
+            relationships: relationshipPath,
             field_type: fieldType || null,
-            ...(source && { source }),
+            source,
+            collection_layer_id: layerId,
           },
         },
       });
     },
-    [linkSettings, onChange, linkFieldGroups]
+    [linkSettings, onChange, linkFields]
   );
 
   // Handle anchor layer ID change
@@ -709,32 +706,15 @@ export default function RichTextLinkSettings({
         <div className="grid grid-cols-3 items-center gap-2">
           <Label className="text-xs text-muted-foreground">Field</Label>
           <div className="col-span-2">
-            <Select
-              value={fieldSelectValue || ''}
-              onValueChange={handleFieldChange}
-              disabled={linkFieldGroups.length === 0}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue
-                  placeholder={linkFieldGroups.length === 0 ? 'No link fields' : 'Select field'}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {linkFieldGroups.map((group, groupIdx) => (
-                  <SelectGroup key={groupIdx}>
-                    {group.label && <SelectLabel>{group.label}</SelectLabel>}
-                    {group.fields.map((field) => (
-                      <SelectItem key={`${groupIdx}-${field.id}`} value={`${group.source}-${field.id}`}>
-                        <span className="flex items-center gap-2">
-                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                          {field.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                ))}
-              </SelectContent>
-            </Select>
+            <FieldSelectDropdown
+              fieldGroups={linkFieldGroups}
+              allFields={allFields || {}}
+              collections={collections || []}
+              value={fieldId}
+              onSelect={handleFieldChange}
+              placeholder="Select field"
+              allowedFieldTypes={LINK_FIELD_TYPES}
+            />
           </div>
         </div>
       )}

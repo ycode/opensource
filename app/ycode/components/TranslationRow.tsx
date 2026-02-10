@@ -5,7 +5,7 @@ import { Icon } from '@/components/ui/icon';
 import { Spinner } from '@/components/ui/spinner';
 import { Separator } from '@/components/ui/separator';
 import RichTextEditor from '@/app/ycode/components/RichTextEditor';
-import type { FieldGroup } from '@/app/ycode/components/FieldTreeSelect';
+import type { FieldGroup } from '@/app/ycode/components/CollectionFieldSelector';
 import FileManagerDialog from '@/app/ycode/components/FileManagerDialog';
 import { sanitizeSlug, checkDuplicatePageSlug, checkDuplicateFolderSlug, type ValidationResult } from '@/lib/page-utils';
 import type { TranslatableItem } from '@/lib/localisation-utils';

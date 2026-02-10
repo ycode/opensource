@@ -52,7 +52,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import FieldTreeSelect, { MultiSourceFieldTreeSelect, type FieldSourceType } from './FieldTreeSelect';
+import { CollectionFieldSelector, type FieldSourceType } from './CollectionFieldSelector';
 import { flattenFieldGroups, hasFieldsMatching, DISPLAYABLE_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
 import { RichTextLink, getLinkSettingsFromMark } from '@/lib/tiptap-extensions/rich-text-link';
 import RichTextLinkPopover from './RichTextLinkPopover';
@@ -200,7 +200,7 @@ const DynamicVariable = Node.create({
             {isEditable && (
               <Button
                 onClick={handleDelete}
-                className="!size-4 !p-0 -mr-1"
+                className="size-4! p-0! -mr-1"
                 variant="outline"
               >
                 <Icon name="x" className="size-2" />
@@ -402,31 +402,16 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
     editorProps: {
       attributes: {
         class: cn(
-          'w-full min-w-0 border border-transparent bg-input transition-[color,box-shadow] outline-none',
+          'w-full min-w-0 border border-transparent bg-input transition-[color,box-shadow] outline-none rounded-lg flex flex-col gap-3',
           'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[0px]',
           'disabled:cursor-not-allowed disabled:opacity-50',
           'rich-text-editor',
           // Compact variant (default) - size-based text and padding
-          !isFullVariant && size === 'xs' && 'min-h-[2rem] text-xs leading-5.5 px-2 py-1 rounded-lg',
-          !isFullVariant && size === 'sm' && 'min-h-[2.5rem] text-sm leading-6 px-3 py-1.5 rounded-lg',
-          // Full variant - larger text, more padding, prose styles for headings
-          isFullVariant && [
-            'min-h-[200px] leading-relaxed px-3 py-2.5',
-            'prose prose-sm dark:prose-invert max-w-none',
-            '[&>*:first-child]:mt-0',
-            '[&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h1]:mb-4',
-            '[&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-5 [&_h2]:mb-3',
-            '[&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2',
-            '[&_h4]:text-lg [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-2',
-            '[&_h5]:text-base [&_h5]:font-semibold [&_h5]:mt-2 [&_h5]:mb-1',
-            '[&_h6]:text-sm [&_h6]:font-semibold [&_h6]:mt-2 [&_h6]:mb-1',
-            '[&_p]:!my-2',
-            '[&_ul]:!list-disc [&_ul]:!pl-6 [&_ul]:!my-2',
-            '[&_ol]:!list-decimal [&_ol]:!pl-6 [&_ol]:!my-2',
-            '[&_li]:!my-1',
-            '[&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:py-0.5 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground',
-            '[&_code]:bg-input [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:font-mono',
-          ],
+          !isFullVariant && size === 'xs' && 'min-h-[2rem] text-xs leading-5.5 px-2 py-1',
+          !isFullVariant && size === 'sm' && 'min-h-[2.5rem] text-sm leading-6 px-3 py-1.5',
+          // Full variant - larger text, more padding
+          // Element styles (h1-h6, p, ul, ol, li, blockquote, code) defined in globals.css
+          isFullVariant && 'rich-text-editor-full min-h-[200px] leading-relaxed px-3 py-2.5',
           className
         ),
       },
@@ -698,7 +683,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
     return null;
   }
 
-  const handleFieldSelect = (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => {
+  const handleFieldSelect = (fieldId: string, relationshipPath: string[], source?: FieldSourceType, layerId?: string) => {
     const field = fields.find(f => f.id === fieldId);
     addFieldVariableInternal({
       type: 'field',
@@ -707,6 +692,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
         relationships: relationshipPath,
         source,
         field_type: field?.type || null,
+        collection_layer_id: layerId,
       },
     });
 
@@ -911,11 +897,11 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
                 </DropdownMenuTrigger>
                 {fieldGroups && (
                   <DropdownMenuContent
-                    className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                    className="w-56 py-1 px-1"
                     align="start"
                     sideOffset={4}
                   >
-                    <MultiSourceFieldTreeSelect
+                    <CollectionFieldSelector
                       fieldGroups={fieldGroups}
                       allFields={allFields || {}}
                       collections={collections || []}
@@ -936,7 +922,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             type="button"
             variant="ghost"
             size="xs"
-            className={cn('!size-6', editor.isActive('bold') && 'bg-accent')}
+            className={cn('size-6!', editor.isActive('bold') && 'bg-accent')}
             disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -953,7 +939,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             type="button"
             variant="ghost"
             size="xs"
-            className={cn('!size-6', editor.isActive('italic') && 'bg-accent')}
+            className={cn('size-6!', editor.isActive('italic') && 'bg-accent')}
             disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -970,7 +956,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             type="button"
             variant="ghost"
             size="xs"
-            className={cn('!size-6', editor.isActive('underline') && 'bg-accent')}
+            className={cn('size-6!', editor.isActive('underline') && 'bg-accent')}
             disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -987,7 +973,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             type="button"
             variant="ghost"
             size="xs"
-            className={cn('!size-6', editor.isActive('strike') && 'bg-accent')}
+            className={cn('size-6!', editor.isActive('strike') && 'bg-accent')}
             disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -1004,7 +990,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             type="button"
             variant="ghost"
             size="xs"
-            className={cn('!size-6', editor.isActive('superscript') && 'bg-accent')}
+            className={cn('size-6!', editor.isActive('superscript') && 'bg-accent')}
             disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -1021,7 +1007,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             type="button"
             variant="ghost"
             size="xs"
-            className={cn('!size-6', editor.isActive('subscript') && 'bg-accent')}
+            className={cn('size-6!', editor.isActive('subscript') && 'bg-accent')}
             disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -1039,7 +1025,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             type="button"
             variant="ghost"
             size="xs"
-            className={cn('!size-6', editor.isActive('bulletList') && 'bg-accent')}
+            className={cn('size-6!', editor.isActive('bulletList') && 'bg-accent')}
             disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -1055,7 +1041,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
             type="button"
             variant="ghost"
             size="xs"
-            className={cn('!size-6', editor.isActive('orderedList') && 'bg-accent')}
+            className={cn('size-6!', editor.isActive('orderedList') && 'bg-accent')}
             disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -1076,7 +1062,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
                 type="button"
                 variant="ghost"
                 size="xs"
-                className="!size-6"
+                className="size-6!"
                 title={canShowVariables ? 'Insert Variable' : 'No variables available'}
                 disabled={!canShowVariables || disabled}
               >
@@ -1086,11 +1072,11 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
 
             {canShowVariables && fieldGroups && (
               <DropdownMenuContent
-                className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                className="w-56 py-1 px-1"
                 align="start"
                 sideOffset={4}
               >
-                <MultiSourceFieldTreeSelect
+                <CollectionFieldSelector
                   fieldGroups={fieldGroups}
                   allFields={allFields || {}}
                   collections={collections || []}
@@ -1119,7 +1105,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
                     type="button"
                     variant="ghost"
                     size="xs"
-                    className={cn('!size-6', editor.isActive('richTextLink') && 'bg-accent')}
+                    className={cn('size-6!', editor.isActive('richTextLink') && 'bg-accent')}
                     disabled={disabled}
                     title="Link"
                   >
@@ -1153,11 +1139,11 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
 
             {fieldGroups && (
               <DropdownMenuContent
-                className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                className="w-56 py-1 px-1"
                 align="end"
                 sideOffset={4}
               >
-                <MultiSourceFieldTreeSelect
+                <CollectionFieldSelector
                   fieldGroups={fieldGroups}
                   allFields={allFields || {}}
                   collections={collections || []}

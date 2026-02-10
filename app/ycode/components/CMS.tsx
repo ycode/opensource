@@ -32,7 +32,7 @@ import { formatDate } from '@/lib/utils';
 import { formatDateInTimezone } from '@/lib/date-format-utils';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { slugify, isTruthyBooleanValue } from '@/lib/collection-utils';
+import { slugify, isTruthyBooleanValue, parseMultiReferenceValue } from '@/lib/collection-utils';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
 import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
@@ -42,6 +42,7 @@ import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
 import FieldFormPopover from './FieldFormPopover';
 import CollectionItemSheet from './CollectionItemSheet';
+import CSVImportDialog from './CSVImportDialog';
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import type { CollectionItemWithValues, CollectionField, Collection, CollectionFieldData } from '@/types';
@@ -70,20 +71,15 @@ function ReferenceFieldCell({ value, field, referenceItemsCache, fields }: Refer
   const cache = referenceItemsCache[refCollectionId] || {};
 
   if (field.type === 'multi_reference') {
-    // Parse JSON array of IDs
-    try {
-      const ids = JSON.parse(value);
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return <span className="text-muted-foreground">-</span>;
-      }
-      return (
-        <Badge variant="secondary" className="font-normal">
-          {ids.length} item{ids.length !== 1 ? 's' : ''}
-        </Badge>
-      );
-    } catch {
+    const ids = parseMultiReferenceValue(value);
+    if (ids.length === 0) {
       return <span className="text-muted-foreground">-</span>;
     }
+    return (
+      <Badge variant="secondary" className="font-normal">
+        {ids.length} item{ids.length !== 1 ? 's' : ''}
+      </Badge>
+    );
   }
 
   // Single reference - show item name
@@ -402,6 +398,9 @@ const CMS = React.memo(function CMS() {
   const [switchToManualDialogOpen, setSwitchToManualDialogOpen] = useState(false);
   const [pendingDragEvent, setPendingDragEvent] = useState<DragEndEvent | null>(null);
 
+  // CSV import dialog state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
     () => (selectedCollectionId ? (fields[selectedCollectionId] || []) : []),
@@ -645,6 +644,21 @@ const CMS = React.memo(function CMS() {
     }
     prevPageSizeRef.current = pageSize;
   }, [pageSize]);
+
+  // Auto-navigate to a valid page when current page becomes empty but items exist elsewhere
+  useEffect(() => {
+    // Only check after initial load completes and we're not loading
+    if (!initialLoadCompleteRef.current || showSkeleton) return;
+    if (!selectedCollectionId) return;
+
+    // If current page is empty but there are items in the collection, go to last valid page
+    if (collectionItems.length === 0 && totalItems > 0 && currentPage > 1) {
+      const lastValidPage = Math.max(1, Math.ceil(totalItems / pageSize));
+      if (currentPage > lastValidPage) {
+        setCurrentPage(lastValidPage);
+      }
+    }
+  }, [collectionItems.length, totalItems, currentPage, pageSize, selectedCollectionId, showSkeleton]);
 
   // Track fetched reference collections to prevent duplicate calls
   const fetchedReferenceCollections = React.useRef<Set<string>>(new Set());
@@ -1939,6 +1953,16 @@ const CMS = React.memo(function CMS() {
             onReorder={handleReorderFields}
           />
 
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setImportDialogOpen(true)}
+              disabled={!selectedCollectionId || collectionFields.length === 0}
+            >
+              <Icon name="upload" />
+              Import
+            </Button>
+
           <Button
             size="sm"
             variant="secondary"
@@ -2022,7 +2046,7 @@ const CMS = React.memo(function CMS() {
             </div>
 
             {/* Pagination Controls */}
-            {selectedCollectionId && (showSkeleton || sortedItems.length > 0) && (
+            {selectedCollectionId && (showSkeleton || sortedItems.length > 0 || totalItems > 0 || currentPage > 1) && (
               <div className="flex items-center justify-between px-4 py-4 border-t mt-auto">
 
                 <div className="flex items-center gap-2">
@@ -2051,6 +2075,10 @@ const CMS = React.memo(function CMS() {
                 <div className="flex items-center gap-4">
                   {showSkeleton ? (
                     <div className="h-4 w-48 bg-secondary/50 rounded-[6px] animate-pulse" />
+                  ) : totalItems === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No results
+                    </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
                       Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
@@ -2156,6 +2184,20 @@ const CMS = React.memo(function CMS() {
         confirmVariant="default"
         onConfirm={handleConfirmSwitchToManual}
       />
+
+      {/* CSV Import Dialog */}
+      {selectedCollectionId && (
+        <CSVImportDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          collectionId={selectedCollectionId}
+          fields={collectionFields}
+          onImportComplete={() => {
+            // Refresh collection items after import
+            loadItems(selectedCollectionId, currentPage, pageSize);
+          }}
+        />
+      )}
       </div>
     </div>
   );

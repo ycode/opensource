@@ -8,6 +8,7 @@ import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { resolveFieldFromSources } from '@/lib/cms-variables-utils';
+import { parseMultiReferenceValue } from '@/lib/collection-utils';
 import { getInheritedValue } from '@/lib/tailwind-class-mapper';
 import { cloneDeep } from 'lodash';
 import { layerHasLink, hasLinkInTree, hasRichTextLinks } from '@/lib/link-utils';
@@ -160,17 +161,7 @@ export function canMoveLayer(layers: Layer[], layerId: string, newParentId: stri
  * Get collection variable from layer (checks variables first, then fallback)
  */
 export function getCollectionVariable(layer: Layer): CollectionVariable | null {
-  if (layer.variables?.collection) {
-    return layer.variables.collection;
-  }
-
-  if (layer.collection?.id) {
-    return {
-      id: layer.collection.id,
-    };
-  }
-
-  return null;
+  return layer.variables?.collection ?? null;
 }
 
 /**
@@ -288,6 +279,51 @@ export function findParentCollectionLayer(layers: Layer[], layerId: string): Lay
   }
 
   return null;
+}
+
+/**
+ * Find all parent collection layers by traversing up the tree
+ * @param layers - Root layers array
+ * @param layerId - ID of the layer to start from
+ * @returns Array of parent collection layers, ordered from nearest to farthest
+ */
+export function findAllParentCollectionLayers(layers: Layer[], layerId: string): Layer[] {
+  const result: Layer[] = [];
+
+  // Helper to find a layer and its parent chain
+  const findLayerWithParents = (layers: Layer[], targetId: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
+    for (const layer of layers) {
+      if (layer.id === targetId) {
+        return { layer, parent };
+      }
+      if (layer.children) {
+        const found = findLayerWithParents(layer.children, targetId, layer);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  // Find the target layer and its parent
+  const layerResult = findLayerWithParents(layers, layerId);
+  if (!layerResult) return result;
+
+  // Traverse up the parent chain collecting all collection layers
+  let current = layerResult.parent;
+  while (current) {
+    // Check if this layer has a collection binding
+    const hasCollectionVariable = !!getCollectionVariable(current);
+
+    if (hasCollectionVariable) {
+      result.push(current);
+    }
+
+    // Move up to the next parent
+    const parentResult = findLayerWithParents(layers, current.id);
+    current = parentResult ? parentResult.parent : null;
+  }
+
+  return result;
 }
 
 /**
@@ -625,28 +661,38 @@ export function getSiblingIds(layers: Layer[], layerId: string): string[] {
 }
 
 /**
- * Resolve field value from collection item data using source-aware resolution
- * @param fieldVariable - The FieldVariable containing field_id and optional source
- * @param collectionItemData - Collection layer item data (field_id -> value)
- * @param pageCollectionItemData - Page collection item data for dynamic pages
+ * Resolve field variable value from collection item data
+ * Uses variables structure for collection binding
+ * @param fieldVariable - FieldVariable with field_id, source, and optional collection_layer_id
+ * @param collectionItemData - Merged collection layer data (field_id → value)
+ * @param pageCollectionItemData - Page collection data for dynamic pages
+ * @param layerDataMap - Optional map of layer ID → item data (for layer-specific resolution)
  * @returns The resolved value or undefined if not found
  */
 export function resolveFieldValue(
   fieldVariable: FieldVariable,
   collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string> | null
+  pageCollectionItemData?: Record<string, string> | null,
+  layerDataMap?: Record<string, Record<string, string>>
 ): string | undefined {
-  const fieldId = fieldVariable.data.field_id;
-  if (!fieldId) {
+  const { field_id, source, collection_layer_id, relationships = [] } = fieldVariable.data;
+  if (!field_id) {
     return undefined;
   }
 
-  // Use source-aware resolution (respects source: 'page' | 'collection')
+  // Build full field path for nested references
+  const fieldPath = relationships.length > 0
+    ? [field_id, ...relationships].join('.')
+    : field_id;
+
+  // Use source-aware resolution with layer-specific support
   return resolveFieldFromSources(
-    fieldId,
-    fieldVariable.data.source,
+    fieldPath,
+    source,
     collectionItemData,
-    pageCollectionItemData
+    pageCollectionItemData,
+    collection_layer_id,
+    layerDataMap
   );
 }
 
@@ -1248,15 +1294,10 @@ function evaluateCondition(
         try {
           const allowedIds = JSON.parse(compareValue || '[]');
           if (!Array.isArray(allowedIds)) return false;
-          // For multi-reference, value might be a JSON array
-          try {
-            const valueIds = JSON.parse(value);
-            if (Array.isArray(valueIds)) {
-              // Check if any of the value IDs are in the allowed list
-              return valueIds.some((id: string) => allowedIds.includes(id));
-            }
-          } catch {
-            // Not a JSON array, treat as single ID
+          // For multi-reference, value might be an array or JSON string
+          const valueIds = parseMultiReferenceValue(value);
+          if (valueIds.length > 0) {
+            return valueIds.some((id: string) => allowedIds.includes(id));
           }
           return allowedIds.includes(value);
         } catch {
@@ -1268,15 +1309,10 @@ function evaluateCondition(
         try {
           const excludedIds = JSON.parse(compareValue || '[]');
           if (!Array.isArray(excludedIds)) return true;
-          // For multi-reference, value might be a JSON array
-          try {
-            const valueIds = JSON.parse(value);
-            if (Array.isArray(valueIds)) {
-              // Check if none of the value IDs are in the excluded list
-              return !valueIds.some((id: string) => excludedIds.includes(id));
-            }
-          } catch {
-            // Not a JSON array, treat as single ID
+          // For multi-reference, value might be an array or JSON string
+          const valueIds = parseMultiReferenceValue(value);
+          if (valueIds.length > 0) {
+            return !valueIds.some((id: string) => excludedIds.includes(id));
           }
           return !excludedIds.includes(value);
         } catch {
@@ -1295,14 +1331,7 @@ function evaluateCondition(
         try {
           const requiredIds = JSON.parse(compareValue || '[]');
           if (!Array.isArray(requiredIds)) return false;
-          // Parse the multi-reference value
-          let valueIds: string[] = [];
-          try {
-            const parsed = JSON.parse(value);
-            valueIds = Array.isArray(parsed) ? parsed : [];
-          } catch {
-            valueIds = value ? [value] : [];
-          }
+          const valueIds = parseMultiReferenceValue(value);
           return requiredIds.every((id: string) => valueIds.includes(id));
         } catch {
           return false;
@@ -1313,14 +1342,7 @@ function evaluateCondition(
         try {
           const requiredIds = JSON.parse(compareValue || '[]');
           if (!Array.isArray(requiredIds)) return false;
-          // Parse the multi-reference value
-          let valueIds: string[] = [];
-          try {
-            const parsed = JSON.parse(value);
-            valueIds = Array.isArray(parsed) ? parsed : [];
-          } catch {
-            valueIds = value ? [value] : [];
-          }
+          const valueIds = parseMultiReferenceValue(value);
           // Check exact match (same items, regardless of order)
           return requiredIds.length === valueIds.length &&
                  requiredIds.every((id: string) => valueIds.includes(id));
@@ -1336,12 +1358,8 @@ function evaluateCondition(
         // For page_collection source, this is handled by PageCollectionOperator logic
         // For collection_field source with multi_reference, check array length
         if (condition.source === 'collection_field') {
-          try {
-            const arr = JSON.parse(value || '[]');
-            return Array.isArray(arr) && arr.length > 0;
-          } catch {
-            return isPresent;
-          }
+          const arr = parseMultiReferenceValue(value);
+          return arr.length > 0 || isPresent;
         }
         // For page_collection, handled by pageCollectionCounts
         return true;
@@ -1349,12 +1367,12 @@ function evaluateCondition(
 
       case 'has_no_items': {
         if (condition.source === 'collection_field') {
-          try {
-            const arr = JSON.parse(value || '[]');
-            return !Array.isArray(arr) || arr.length === 0;
-          } catch {
-            return !isPresent;
+          const arr = parseMultiReferenceValue(value);
+          // If parsed as array, check length; otherwise fall back to presence check
+          if (Array.isArray(value) || (typeof value === 'string' && value.startsWith('['))) {
+            return arr.length === 0;
           }
+          return !isPresent;
         }
         return true;
       }

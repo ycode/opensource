@@ -535,6 +535,43 @@ export async function getMaxIdValue(
 }
 
 /**
+ * Bulk create items in a single INSERT
+ * @param items - Array of items to create (id is auto-generated if not provided)
+ */
+export async function createItemsBulk(
+  items: Array<CreateCollectionItemData & { id?: string }>
+): Promise<CollectionItem[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  if (items.length === 0) return [];
+
+  const now = new Date().toISOString();
+  const itemsToInsert = items.map(item => ({
+    id: item.id || randomUUID(),
+    collection_id: item.collection_id,
+    manual_order: item.manual_order ?? 0,
+    is_published: item.is_published ?? false,
+    created_at: now,
+    updated_at: now,
+  }));
+
+  const { data, error } = await client
+    .from('collection_items')
+    .insert(itemsToInsert)
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to bulk create items: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
  * Create a new item
  */
 export async function createItem(itemData: CreateCollectionItemData): Promise<CollectionItem> {

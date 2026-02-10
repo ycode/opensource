@@ -56,19 +56,37 @@ export function formatFieldValue(
 /**
  * Resolve a field value from data sources based on source preference
  * Used for inline variables with page/collection source selection
+ *
+ * @param fieldId - The field ID (or field path for nested references)
+ * @param source - Optional source preference ('page' | 'collection')
+ * @param collectionItemData - Merged collection layer data
+ * @param pageCollectionItemData - Page collection data for dynamic pages
+ * @param collectionLayerId - Optional specific collection layer ID (for layer-specific resolution)
+ * @param layerDataMap - Optional map of layer ID → item data (for layer-specific resolution)
  */
 export function resolveFieldFromSources(
   fieldId: string,
   source: string | undefined,
   collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string> | null
+  pageCollectionItemData?: Record<string, string> | null,
+  collectionLayerId?: string,
+  layerDataMap?: Record<string, Record<string, string>>
 ): string | undefined {
+  // Page source - use page data only
   if (source === 'page') {
     return pageCollectionItemData?.[fieldId];
   }
+
+  // If specific layer ID is provided and exists in layerDataMap, use that layer's data
+  if (collectionLayerId && layerDataMap?.[collectionLayerId]) {
+    return layerDataMap[collectionLayerId][fieldId];
+  }
+
+  // Collection source - use merged collection data
   if (source === 'collection') {
     return collectionItemData?.[fieldId];
   }
+
   // No explicit source - check collection first, then page (backwards compatibility)
   return collectionItemData?.[fieldId] ?? pageCollectionItemData?.[fieldId];
 }
