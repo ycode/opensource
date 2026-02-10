@@ -503,50 +503,10 @@ export default function WebhooksPage() {
           )}
         </div>
 
-        {/* Documentation */}
-        <header className="pt-10 pb-3">
+        {/* TODO: Uncomment when Webhooks Documentation is ready for release */}
+        {/* <header className="pt-10 pb-3">
           <span className="text-base font-medium">Documentation</span>
-        </header>
-
-        <div className="flex flex-col gap-6 bg-secondary/20 p-8 rounded-lg text-sm">
-          <section>
-            <h3 className="font-medium mb-2">Payload Format</h3>
-            <p className="text-muted-foreground mb-3">
-              Webhooks are sent as POST requests with a JSON body:
-            </p>
-            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
-{`{
-  "event": "form.submitted",
-  "timestamp": "2026-02-05T10:30:00.000Z",
-  "data": {
-    "form_id": "contact",
-    "submission_id": "uuid",
-    "fields": { ... }
-  }
-}`}
-            </pre>
-          </section>
-
-          <section>
-            <h3 className="font-medium mb-2">Signature Verification</h3>
-            <p className="text-muted-foreground mb-3">
-              If you configure a secret, requests include an HMAC-SHA256 signature in the{' '}
-              <code className="bg-secondary px-1 py-0.5 rounded">X-Ycode-Signature</code> header:
-            </p>
-            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
-{`X-Ycode-Signature: sha256=<signature>
-X-Ycode-Event: form.submitted
-X-Ycode-Delivery: <delivery-id>`}
-            </pre>
-            <p className="text-muted-foreground mt-3 text-xs">
-              Verify by computing{' '}
-              <code className="bg-secondary px-1 py-0.5 rounded">
-                HMAC-SHA256(secret, request_body)
-              </code>{' '}
-              and comparing with the signature.
-            </p>
-          </section>
-        </div>
+        </header> */}
       </div>
 
       {/* Create Webhook Dialog */}
