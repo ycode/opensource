@@ -1,15 +1,6 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
 import { getSupabaseAdmin } from '../supabase-server';
-
-/**
- * Template Export Service
- *
- * Generates SQL export of the current database content for use as a template.
- */
-
-// Production template service URL (can be overridden for local development)
-const TEMPLATE_API_URL =
-  process.env.TEMPLATE_API_URL || 'https://templates-lv53y07hp-ycode.vercel.app';
+import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
 
 // API key for uploading templates to the shared template service
 const TEMPLATE_UPLOAD_API_KEY =
@@ -288,10 +279,11 @@ export async function exportTemplateSQL(
         query = query.where('is_published', false);
       }
 
-      // For assets table, exclude seeded icons (source = 'remix-icons')
-      // User uploads have source like 'file-manager', seeded icons have 'remix-icons'
+      // For assets table, exclude any seeded/external icons
       if (table === 'assets') {
-        query = query.whereNot('source', 'remix-icons');
+        query = query.where(function() {
+          this.whereNull('source').orWhere('source', 'file-manager');
+        });
       }
 
       // Check if tenant_id exists (cloud vs opensource)
@@ -518,7 +510,7 @@ export async function exportAndUploadTemplate(
 
     // 3. Upload to template service
     console.log('[exportAndUpload] Uploading to template service...');
-    const response = await fetch(`${TEMPLATE_API_URL}/api/templates/upload`, {
+    const response = await fetch(`${YCODE_EXTERNAL_API_URL}/api/templates/upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

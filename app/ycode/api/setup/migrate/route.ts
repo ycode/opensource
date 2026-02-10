@@ -6,7 +6,7 @@ import { noCache } from '@/lib/api-response';
  * POST /ycode/api/setup/migrate
  *
  * Automatically runs pending Supabase migrations using Knex, if any
- * Then runs seed data (like Remix Icons)
+ * Then runs seed data
  */
 export async function POST() {
   try {

@@ -776,7 +776,7 @@ export default function AppsPage() {
       {/* App Settings Sheet */}
       <Sheet
         open={!!selectedAppId}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!open) closeAppSettings();
         }}
       >
@@ -872,7 +872,7 @@ export default function AppsPage() {
                             <Collapsible
                               key={connection.id}
                               open={expandedConnectionId === connection.id}
-                              onOpenChange={(open) => {
+                              onOpenChange={(open: boolean) => {
                                 if (open) {
                                   expandConnection(connection);
                                 } else {
@@ -1021,7 +1021,7 @@ export default function AppsPage() {
       {/* Delete Connection Confirmation Dialog */}
       <ConfirmDialog
         open={!!connectionToDelete}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!open) setConnectionToDelete(null);
         }}
         title="Delete connection?"

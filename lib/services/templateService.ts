@@ -1,19 +1,7 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
 import { getSupabaseAdmin } from '../supabase-server';
 import { migrations } from '../migrations-loader';
-
-/**
- * Template Service
- *
- * Handles fetching templates from the template service and applying them
- * to the local database.
- */
-
-const STORAGE_BUCKET = 'assets';
-
-// Production template service URL (can be overridden for local development)
-const TEMPLATE_API_URL =
-  process.env.TEMPLATE_API_URL || 'https://templates-virid.vercel.app/';
+import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
 
 /**
  * Tables to truncate when applying a template.
@@ -33,6 +21,8 @@ const TABLES_TO_TRUNCATE = [
   'pages',
   'page_folders',
 ];
+
+const STORAGE_BUCKET = 'assets';
 
 export interface TemplateCategory {
   id: string;
@@ -74,7 +64,7 @@ export async function listTemplatesWithCategories(): Promise<{
   templates: Template[];
   categories: TemplateCategory[];
 }> {
-  const response = await fetch(`${TEMPLATE_API_URL}/api/templates`, {
+  const response = await fetch(`${YCODE_EXTERNAL_API_URL}/api/templates`, {
     cache: 'no-store',
   });
 
@@ -111,7 +101,7 @@ export async function listCategories(): Promise<TemplateCategory[]> {
  * Get template details from the template service
  */
 export async function getTemplate(id: string): Promise<TemplateDetails | null> {
-  const response = await fetch(`${TEMPLATE_API_URL}/api/templates/${id}`, {
+  const response = await fetch(`${YCODE_EXTERNAL_API_URL}/api/templates/${id}`, {
     cache: 'no-store',
   });
 
@@ -322,7 +312,7 @@ export async function applyTemplate(
   try {
     // 1. Fetch processed SQL from template service
     const response = await fetch(
-      `${TEMPLATE_API_URL}/api/templates/${templateId}/apply`,
+      `${YCODE_EXTERNAL_API_URL}/api/templates/${templateId}/apply`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

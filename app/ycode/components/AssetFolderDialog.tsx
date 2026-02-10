@@ -133,7 +133,7 @@ export default function AssetFolderDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4.5">
+        <div className="flex flex-col gap-4.5 pt-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="folder-name">Name</Label>
             <Input

@@ -74,6 +74,17 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTreeDragDrop } from '@/hooks/use-tree-drag-drop';
 import { toast } from 'sonner';
 import type { AffectedPageEntity, AffectedComponentEntity } from '@/lib/asset-usage-utils';
+import { fetchRemixIcons, type RemixIcon, type RemixIconCategory } from '@/lib/remix-icons-api';
+
+/** Virtual folder IDs for the icon library tree */
+const VIRTUAL_LIBRARIES_ID = '__libraries__';
+const VIRTUAL_ICONS_ID = '__libraries-icons__';
+const VIRTUAL_REMIX_ID = '__libraries-icons-remix__';
+const REMIX_ICONS_PER_PAGE = 100;
+
+/** All virtual folder IDs */
+const VIRTUAL_FOLDER_IDS = new Set([VIRTUAL_LIBRARIES_ID, VIRTUAL_ICONS_ID, VIRTUAL_REMIX_ID]);
+const isVirtualFolder = (id: string | null): boolean => id !== null && VIRTUAL_FOLDER_IDS.has(id);
 
 interface FileManagerDialogProps {
   open: boolean;
@@ -550,6 +561,19 @@ export default function FileManagerDialog({
   const [showBulkDeleteConfirmDialog, setShowBulkDeleteConfirmDialog] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Remix Icons state
+  const [remixIcons, setRemixIcons] = useState<RemixIcon[]>([]);
+  const [remixCategories, setRemixCategories] = useState<RemixIconCategory[]>([]);
+  const [remixTotalIcons, setRemixTotalIcons] = useState(0);
+  const [remixTotal, setRemixTotal] = useState(0);
+  const [isLoadingRemixIcons, setIsLoadingRemixIcons] = useState(false);
+  const [hasMoreRemixIcons, setHasMoreRemixIcons] = useState(true);
+  const [remixCategory, setRemixCategory] = useState<string | undefined>(undefined);
+  const [remixStyle, setRemixStyle] = useState<'fill' | 'line' | undefined>(undefined);
+  const remixLoadMoreRef = useRef<HTMLDivElement>(null);
+
+  const isRemixIconsView = selectedFolderId === VIRTUAL_REMIX_ID;
+
   // Get folders and store actions
   const folders = useAssetsStore((state) => state.folders);
   const setFolders = useAssetsStore((state) => state.setFolders);
@@ -598,6 +622,72 @@ export default function FileManagerDialog({
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // --- Remix Icons fetching ---
+  const loadRemixIcons = useCallback(async (offset: number, reset: boolean = false) => {
+    if (isLoadingRemixIcons && !reset) return;
+    setIsLoadingRemixIcons(true);
+
+    try {
+      const result = await fetchRemixIcons({
+        search: debouncedSearch.trim() || undefined,
+        category: remixCategory,
+        style: remixStyle,
+        limit: REMIX_ICONS_PER_PAGE,
+        offset,
+      });
+
+      if (reset || offset === 0) {
+        setRemixIcons(result.icons);
+      } else {
+        setRemixIcons(prev => [...prev, ...result.icons]);
+      }
+
+      setRemixTotal(result.total);
+      setRemixCategories(result.categories);
+      setRemixTotalIcons(result.totalIcons);
+      setHasMoreRemixIcons(offset + result.icons.length < result.total);
+    } catch (error) {
+      console.error('Failed to fetch Remix Icons:', error);
+    } finally {
+      setIsLoadingRemixIcons(false);
+    }
+  }, [debouncedSearch, remixCategory, remixStyle, isLoadingRemixIcons]);
+
+  // Reset and reload remix icons when search/filters change
+  useEffect(() => {
+    if (!isRemixIconsView) return;
+    setRemixIcons([]);
+    setHasMoreRemixIcons(true);
+    loadRemixIcons(0, true);
+  }, [isRemixIconsView, debouncedSearch, remixCategory, remixStyle]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Infinite scroll for remix icons
+  useEffect(() => {
+    if (!isRemixIconsView || !remixLoadMoreRef.current || !hasMoreRemixIcons || isLoadingRemixIcons) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreRemixIcons && !isLoadingRemixIcons) {
+          loadRemixIcons(remixIcons.length);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(remixLoadMoreRef.current);
+    return () => observer.disconnect();
+  }, [isRemixIconsView, hasMoreRemixIcons, isLoadingRemixIcons, remixIcons.length, loadRemixIcons]);
+
+  /** Open the Create SVG dialog pre-filled with a Remix Icon */
+  const handleRemixIconClick = useCallback((icon: RemixIcon) => {
+    setIsCreateSvgMode(true);
+    setEditingAssetId(null);
+    setEditAssetName(icon.name);
+    setEditAssetFolderId(null);
+    setEditAssetContent(icon.svg);
+    setShowEditAssetDialog(true);
+  }, []);
 
   // Load assets when folder, search, or category changes
   const loadAssets = useCallback(async (page: number, reset: boolean = false) => {
@@ -655,17 +745,18 @@ export default function FileManagerDialog({
     }
   }, [fetchAssets, selectedFolderId, debouncedSearch, selectedCategories, getAllDescendantFolderIds, isLoadingAssets]);
 
-  // Reset and reload when folder, search, or category changes
+  // Reset and reload when folder, search, or category changes (skip for virtual folders)
   useEffect(() => {
+    if (isVirtualFolder(selectedFolderId)) return;
     setAssets([]);
     setCurrentPage(1);
     setHasMoreAssets(true);
     loadAssets(1, true);
   }, [selectedFolderId, debouncedSearch, selectedCategories]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Infinite scroll observer
+  // Infinite scroll observer (skip for virtual folders - they have their own)
   useEffect(() => {
-    if (!loadMoreRef.current || !hasMoreAssets || isLoadingAssets) return;
+    if (isVirtualFolder(selectedFolderId) || !loadMoreRef.current || !hasMoreAssets || isLoadingAssets) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -678,7 +769,7 @@ export default function FileManagerDialog({
 
     observer.observe(loadMoreRef.current);
     return () => observer.disconnect();
-  }, [hasMoreAssets, isLoadingAssets, currentPage, loadAssets]);
+  }, [selectedFolderId, hasMoreAssets, isLoadingAssets, currentPage, loadAssets]);
 
   // Get uploading assets for the current folder
   const currentUploadingAssets = useMemo(() => {
@@ -1321,7 +1412,7 @@ export default function FileManagerDialog({
     setIsCreateSvgMode(true);
     setEditingAssetId(null);
     setEditAssetName('');
-    setEditAssetFolderId(selectedFolderId);
+    setEditAssetFolderId(isVirtualFolder(selectedFolderId) ? null : selectedFolderId);
     setEditAssetContent('');
     setShowEditAssetDialog(true);
   };
@@ -1559,7 +1650,7 @@ export default function FileManagerDialog({
           className="h-[80vh]"
           aria-describedby={undefined}
         >
-          <DialogHeader>
+          <DialogHeader className="-mt-8.75">
             <DialogTitle className="sr-only">File Manager</DialogTitle>
 
             <div className="flex items-center justify-between gap-2 pr-7 -ml-2.5">
@@ -1800,7 +1891,7 @@ export default function FileManagerDialog({
                         {(folderAssetCounts['root'] || 0) > 0 && (
                           <span
                             className={cn(
-                              'text-xs mr-1 pointer-events-none shrink-0 group-hover:opacity-0',
+                              'text-xs mr-3 pointer-events-none shrink-0 group-hover:opacity-0',
                               selectedFolderId === null ? 'opacity-70' : 'opacity-40'
                             )}
                           >
@@ -1830,204 +1921,530 @@ export default function FileManagerDialog({
                     />
                   );
                 })}
+
+                {/* Virtual Libraries tree: Libraries > Icons > Remix */}
+                <div className="mt-4">
+                  {/* Libraries */}
+                  {(() => {
+                    const isLibrariesCollapsed = collapsedIds.has(VIRTUAL_LIBRARIES_ID);
+                    const isLibrariesSelected = selectedFolderId === VIRTUAL_LIBRARIES_ID;
+
+                    return (
+                      <>
+                        <div
+                          className={cn(
+                            'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none',
+                            'hover:bg-secondary/50',
+                            isLibrariesSelected && 'bg-primary text-primary-foreground hover:bg-primary',
+                            !isLibrariesSelected && 'text-secondary-foreground/80 dark:text-muted-foreground'
+                          )}
+                          style={{ paddingLeft: '8px' }}
+                          onClick={() => {
+                            setSelectedFolderId(VIRTUAL_LIBRARIES_ID);
+                            setCollapsedIds(prev => {
+                              const next = new Set(prev);
+                              next.delete(VIRTUAL_LIBRARIES_ID);
+                              return next;
+                            });
+                          }}
+                        >
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggle(VIRTUAL_LIBRARIES_ID);
+                            }}
+                            className={cn(
+                              'w-4 h-4 flex items-center justify-center shrink-0 cursor-pointer',
+                              isLibrariesCollapsed ? '' : 'rotate-90'
+                            )}
+                          >
+                            <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isLibrariesSelected && 'opacity-80')} />
+                          </div>
+                          <Icon
+                            name="layers"
+                            className={`size-3 ml-1 mr-2 ${isLibrariesSelected ? 'opacity-90' : 'opacity-50'}`}
+                          />
+                          <span className="grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+                            Libraries
+                          </span>
+                        </div>
+
+                        {/* Icons (child of Libraries) */}
+                        {!isLibrariesCollapsed && (() => {
+                          const isIconsCollapsed = collapsedIds.has(VIRTUAL_ICONS_ID);
+                          const isIconsSelected = selectedFolderId === VIRTUAL_ICONS_ID;
+
+                          return (
+                            <>
+                              <div
+                                className={cn(
+                                  'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none',
+                                  'hover:bg-secondary/50',
+                                  isIconsSelected && 'bg-primary text-primary-foreground hover:bg-primary',
+                                  !isIconsSelected && 'text-secondary-foreground/80 dark:text-muted-foreground'
+                                )}
+                                style={{ paddingLeft: '22px' }}
+                                onClick={() => {
+                                  setSelectedFolderId(VIRTUAL_ICONS_ID);
+                                  setCollapsedIds(prev => {
+                                    const next = new Set(prev);
+                                    next.delete(VIRTUAL_ICONS_ID);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                {/* Vertical connector */}
+                                <div className={cn('absolute z-10 top-0 bottom-0 w-px', isIconsSelected ? 'bg-white/30' : 'bg-white/10')} style={{ left: '16px' }} />
+
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggle(VIRTUAL_ICONS_ID);
+                                  }}
+                                  className={cn(
+                                    'w-4 h-4 flex items-center justify-center shrink-0 cursor-pointer',
+                                    isIconsCollapsed ? '' : 'rotate-90'
+                                  )}
+                                >
+                                  <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isIconsSelected && 'opacity-80')} />
+                                </div>
+                                <Icon
+                                  name="folder"
+                                  className={`size-3 ml-1 mr-2 ${isIconsSelected ? 'opacity-90' : 'opacity-50'}`}
+                                />
+                                <span className="grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+                                  Icons
+                                </span>
+                              </div>
+
+                              {/* Remix (child of Icons) */}
+                              {!isIconsCollapsed && (() => {
+                                return (
+                                  <div
+                                    className={cn(
+                                      'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none',
+                                      'hover:bg-secondary/50',
+                                      isRemixIconsView && 'bg-primary text-primary-foreground hover:bg-primary',
+                                      !isRemixIconsView && 'text-secondary-foreground/80 dark:text-muted-foreground'
+                                    )}
+                                    style={{ paddingLeft: '36px' }}
+                                    onClick={() => setSelectedFolderId(VIRTUAL_REMIX_ID)}
+                                  >
+                                    {/* Vertical connectors */}
+                                    <div className={cn('absolute z-10 top-0 bottom-0 w-px', isRemixIconsView ? 'bg-white/30' : 'bg-white/10')} style={{ left: '16px' }} />
+                                    <div className={cn('absolute z-10 top-0 bottom-0 w-px', isRemixIconsView ? 'bg-white/30' : 'bg-white/10')} style={{ left: '30px' }} />
+
+                                    <div className="w-4 h-4 shrink-0 flex items-center justify-center">
+                                      <div className={cn('ml-px w-1.5 h-px bg-white opacity-0')} />
+                                    </div>
+                                    <Icon
+                                      name="folder"
+                                      className={`size-3 ml-1 mr-2 ${isRemixIconsView ? 'opacity-90' : 'opacity-50'}`}
+                                    />
+                                    <span className="grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+                                      Remix
+                                    </span>
+                                    {remixTotalIcons > 0 && (
+                                      <span
+                                        className={cn(
+                                          'text-xs mr-3 pointer-events-none shrink-0',
+                                          isRemixIconsView ? 'opacity-70' : 'opacity-40'
+                                        )}
+                                      >
+                                        {remixTotalIcons.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </>
+                          );
+                        })()}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
 
             {/* File Grid */}
             <div className="flex-1 py-5 px-6 overflow-y-auto flex flex-col gap-6">
-              {/* Breadcrumb */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  {searchQuery.trim() ? (
-                    <>
-                      <span className="text-foreground font-medium">
-                        Results for &quot;{searchQuery}&quot;
-                      </span>
-                      <Icon name="chevronRight" className="size-2.5 opacity-50" />
-                      <span className="text-muted-foreground font-medium">
-                        {assets.length} {assets.length === 1 ? 'file' : 'files'}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      {breadcrumbPath.map((item, index) => (
-                        <React.Fragment key={item.id || 'root'}>
-                          <button
-                            onClick={() => setSelectedFolderId(item.id)}
-                            className={cn(
-                              'hover:text-foreground transition-colors',
-                              index === breadcrumbPath.length - 1 ? 'text-foreground font-medium' : 'cursor-pointer'
-                            )}
-                          >
-                            {item.name}
-                          </button>
-                          {index < breadcrumbPath.length - 1 && (
-                            <Icon name="chevronRight" className="size-2.5 opacity-50" />
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Show asset count */}
-                  {totalAssets > 0 && selectedAssetIds.size === 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {assets.length === totalAssets
-                        ? `${totalAssets} files`
-                        : `${assets.length} of ${totalAssets} files`}
-                    </span>
-                  )}
-
-                  {selectedAssetIds.size > 0 ? (
-                    <>
-                      <span className="text-xs text-muted-foreground">
-                        {selectedAssetIds.size} selected
-                      </span>
-
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        className="px-2!"
-                        onClick={() => {
-                          setBulkMoveTargetFolderId(selectedFolderId);
-                          setShowBulkMoveDialog(true);
-                        }}
-                      >
-                        <Icon name="folder" />
-                        Move
-                      </Button>
-
-                      <Button
-                        size="xs"
-                        variant="destructive"
-                        className="px-2!"
-                        onClick={() => setShowBulkDeleteConfirmDialog(true)}
-                      >
-                        <Icon name="trash" />
-                        Delete
-                      </Button>
-
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        onClick={handleClearSelection}
-                      >
-                        Deselect all
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="xs"
-                      variant="secondary"
-                      onClick={handleSelectAll}
-                      disabled={assets.length === 0}
-                      className="text-xs"
-                    >
-                      Select all
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Loading indicator for initial load - show ONLY this, nothing else */}
-              {isLoadingAssets && assets.length === 0 && currentUploadingAssets.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <Spinner />
-                </div>
-              ) : (searchQuery.trim() ? true : childFolders.length === 0) && assets.length === 0 && currentUploadingAssets.length === 0 ? (
-                <div className="flex-1 flex flex-col">
-                  <div className="flex-1 w-full flex-col flex gap-1 items-center justify-center">
-                    <div>
-                      No files found
-                    </div>
-                    <div className="text-muted-foreground">
-                      {searchQuery.trim() || selectedCategories !== null
-                        ? 'No files were found using the current filters'
-                        : selectedFolderId === null
-                          ? 'No files'
-                          : 'No folders or assets in this folder'}
-                    </div>
+              {selectedFolderId === VIRTUAL_LIBRARIES_ID ? (
+                <>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground h-7">
+                    <span className="text-foreground font-medium">Libraries</span>
                   </div>
-                  <div className="flex-1"></div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4">
-                  {/* Display child folders (hide when searching) */}
-                  {!searchQuery.trim() && childFolders.map((folder) => (
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4">
                     <FileGridItem
-                      key={folder.id}
-                      id={folder.id}
-                      name={folder.name}
+                      id={VIRTUAL_ICONS_ID}
+                      name="Icons"
                       type="folder"
                       onClick={() => {
-                        setSelectedFolderId(folder.id);
-                        // Auto-expand the folder in the tree
-                        setCollapsedIds((prev) => {
+                        setSelectedFolderId(VIRTUAL_ICONS_ID);
+                        setCollapsedIds(prev => {
                           const next = new Set(prev);
-                          next.delete(folder.id);
+                          next.delete(VIRTUAL_LIBRARIES_ID);
+                          next.delete(VIRTUAL_ICONS_ID);
                           return next;
                         });
                       }}
-                      onEdit={() => handleEditFolder(folder.id)}
-                      onDelete={() => handleDeleteFolder(folder.id)}
                     />
-                  ))}
-
-                  {/* Display uploading assets */}
-                  {currentUploadingAssets.map((uploadingAsset) => {
-                    // Remove file extension from name
-                    const nameWithoutExtension = uploadingAsset.filename.replace(/\.[^/.]+$/, '');
-
-                    return (
-                      <FileGridItem
-                        key={uploadingAsset.id}
-                        id={uploadingAsset.id}
-                        name={nameWithoutExtension}
-                        type="uploading"
-                        file={uploadingAsset.file}
-                      />
-                    );
-                  })}
-
-                  {/* Display existing assets */}
-                  {assets.map((asset) => (
-                    <FileGridItem
-                      key={asset.id}
-                      id={asset.id}
-                      name={asset.filename}
-                      type="asset"
-                      mimeType={asset.mime_type}
-                      imageUrl={asset.public_url}
-                      content={asset.content}
-                      onClick={() => onAssetSelect?.(asset)}
-                      isSelected={selectedAssetIds.has(asset.id)}
-                      onSelectChange={(selected) => handleAssetSelect(asset.id, selected)}
-                      onPreview={
-                        asset.mime_type?.startsWith('image/') && asset.public_url
-                          ? () => handlePreviewAsset(asset.public_url!)
-                          : undefined
-                      }
-                      onEdit={() => handleEditAsset(asset.id)}
-                      onDelete={() => handleDeleteAsset(asset.id)}
-                    />
-                  ))}
-
-                  {/* Infinite scroll trigger */}
-                  {hasMoreAssets && (
-                    <div
-                      ref={loadMoreRef}
-                      className="col-span-full flex items-center justify-center py-4"
+                  </div>
+                </>
+              ) : selectedFolderId === VIRTUAL_ICONS_ID ? (
+                <>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground h-7">
+                    <button
+                      onClick={() => setSelectedFolderId(VIRTUAL_LIBRARIES_ID)}
+                      className="hover:text-foreground transition-colors cursor-pointer"
                     >
-                      {isLoadingAssets ? (
-                        <Spinner />
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Scroll for more</span>
+                      Libraries
+                    </button>
+                    <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                    <span className="text-foreground font-medium">Icons</span>
+                  </div>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4">
+                    <FileGridItem
+                      id={VIRTUAL_REMIX_ID}
+                      name="Remix"
+                      type="folder"
+                      onClick={() => {
+                        setSelectedFolderId(VIRTUAL_REMIX_ID);
+                        setCollapsedIds(prev => {
+                          const next = new Set(prev);
+                          next.delete(VIRTUAL_LIBRARIES_ID);
+                          next.delete(VIRTUAL_ICONS_ID);
+                          return next;
+                        });
+                      }}
+                    />
+                  </div>
+                </>
+              ) : isRemixIconsView ? (
+                <>
+                  {/* Remix Icons header */}
+                  <div className="flex items-center justify-between gap-2 h-7">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <button
+                        onClick={() => setSelectedFolderId(VIRTUAL_LIBRARIES_ID)}
+                        className="hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        Libraries
+                      </button>
+                      <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                      <button
+                        onClick={() => setSelectedFolderId(VIRTUAL_ICONS_ID)}
+                        className="hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        Icons
+                      </button>
+                      <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                      <span className="text-foreground font-medium">Remix</span>
+                      {debouncedSearch.trim() && (
+                        <>
+                          <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                          <span className="text-muted-foreground font-medium">
+                            &quot;{debouncedSearch}&quot;
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {remixTotal > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {remixIcons.length === remixTotal
+                            ? `${remixTotal.toLocaleString()} icons`
+                            : `${remixIcons.length.toLocaleString()} of ${remixTotal.toLocaleString()} icons`}
+                        </span>
+                      )}
+
+                      {/* Category filter (hidden for now) */}
+                      {/*}
+                      <Select
+                        value={remixCategory || '__all__'}
+                        onValueChange={(value) => setRemixCategory(value === '__all__' ? undefined : value)}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-32">
+                          <SelectValue placeholder="All categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all__">All categories</SelectItem>
+                          {remixCategories.map((cat) => (
+                            <SelectItem key={cat.name} value={cat.name}>{cat.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      */}
+
+                      {/* Style filter */}
+                      <Select
+                        value={remixStyle || '__all__'}
+                        onValueChange={(value) => setRemixStyle(value === '__all__' ? undefined : value as 'fill' | 'line')}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-24">
+                          <SelectValue placeholder="All styles" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all__">All styles</SelectItem>
+                          <SelectItem value="fill">Fill</SelectItem>
+                          <SelectItem value="line">Line</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Remix Icons grid */}
+                  {isLoadingRemixIcons && remixIcons.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <Spinner />
+                    </div>
+                  ) : remixIcons.length === 0 ? (
+                    <div className="flex-1 flex flex-col">
+                      <div className="flex-1 w-full flex-col flex gap-1 items-center justify-center">
+                        <div>No icons found</div>
+                        <div className="text-muted-foreground">
+                          Try a different search or filter
+                        </div>
+                      </div>
+                      <div className="flex-1" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4">
+                      {remixIcons.map((icon) => (
+                        <div
+                          key={`${icon.source}-${icon.name}`}
+                          className="flex flex-col gap-1.5 group"
+                        >
+                          <div
+                            className="relative aspect-square bg-secondary/30 rounded-md flex items-center justify-center overflow-hidden hover:bg-secondary/60 cursor-pointer"
+                            onClick={() => handleRemixIconClick(icon)}
+                          >
+                            <div className="absolute inset-0 opacity-10 bg-checkerboard" />
+                            <div
+                              data-icon
+                              className="relative w-full h-full flex items-center justify-center p-5 pointer-events-none text-foreground z-10"
+                              dangerouslySetInnerHTML={{ __html: icon.svg }}
+                            />
+                          </div>
+                          <span className="truncate max-w-full text-xs opacity-60 text-center" title={icon.name}>
+                            {icon.name}
+                          </span>
+                        </div>
+                      ))}
+
+                      {/* Infinite scroll trigger */}
+                      {hasMoreRemixIcons && (
+                        <div
+                          ref={remixLoadMoreRef}
+                          className="col-span-full flex items-center justify-center py-4"
+                        >
+                          {isLoadingRemixIcons ? (
+                            <Spinner />
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Scroll for more</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
-                </div>
+                </>
+              ) : (
+                <>
+                  {/* Breadcrumb */}
+                  <div className="flex items-center justify-between gap-2 h-7">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      {searchQuery.trim() ? (
+                        <>
+                          <span className="text-foreground font-medium">
+                            Results for &quot;{searchQuery}&quot;
+                          </span>
+                          <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                          <span className="text-muted-foreground font-medium">
+                            {assets.length} {assets.length === 1 ? 'file' : 'files'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {breadcrumbPath.map((item, index) => (
+                            <React.Fragment key={item.id || 'root'}>
+                              <button
+                                onClick={() => setSelectedFolderId(item.id)}
+                                className={cn(
+                                  'hover:text-foreground transition-colors',
+                                  index === breadcrumbPath.length - 1 ? 'text-foreground font-medium' : 'cursor-pointer'
+                                )}
+                              >
+                                {item.name}
+                              </button>
+                              {index < breadcrumbPath.length - 1 && (
+                                <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Show asset count */}
+                      {totalAssets > 0 && selectedAssetIds.size === 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {assets.length === totalAssets
+                            ? `${totalAssets} files`
+                            : `${assets.length} of ${totalAssets} files`}
+                        </span>
+                      )}
+
+                      {selectedAssetIds.size > 0 ? (
+                        <>
+                          <span className="text-xs text-muted-foreground">
+                            {selectedAssetIds.size} selected
+                          </span>
+
+                          <Button
+                            size="xs"
+                            variant="secondary"
+                            className="px-2!"
+                            onClick={() => {
+                              setBulkMoveTargetFolderId(selectedFolderId);
+                              setShowBulkMoveDialog(true);
+                            }}
+                          >
+                            <Icon name="folder" />
+                            Move
+                          </Button>
+
+                          <Button
+                            size="xs"
+                            variant="destructive"
+                            className="px-2!"
+                            onClick={() => setShowBulkDeleteConfirmDialog(true)}
+                          >
+                            <Icon name="trash" />
+                            Delete
+                          </Button>
+
+                          <Button
+                            size="xs"
+                            variant="secondary"
+                            onClick={handleClearSelection}
+                          >
+                            Deselect all
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          onClick={handleSelectAll}
+                          disabled={assets.length === 0}
+                          className="text-xs"
+                        >
+                          Select all
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Loading indicator for initial load - show ONLY this, nothing else */}
+                  {isLoadingAssets && assets.length === 0 && currentUploadingAssets.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <Spinner />
+                    </div>
+                  ) : (searchQuery.trim() ? true : childFolders.length === 0) && assets.length === 0 && currentUploadingAssets.length === 0 ? (
+                    <div className="flex-1 flex flex-col">
+                      <div className="flex-1 w-full flex-col flex gap-1 items-center justify-center">
+                        <div>
+                          No files found
+                        </div>
+                        <div className="text-muted-foreground">
+                          {searchQuery.trim() || selectedCategories !== null
+                            ? 'No files were found using the current filters'
+                            : selectedFolderId === null
+                              ? 'No files'
+                              : 'No folders or assets in this folder'}
+                        </div>
+                      </div>
+                      <div className="flex-1"></div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4">
+                      {/* Display child folders (hide when searching) */}
+                      {!searchQuery.trim() && childFolders.map((folder) => (
+                        <FileGridItem
+                          key={folder.id}
+                          id={folder.id}
+                          name={folder.name}
+                          type="folder"
+                          onClick={() => {
+                            setSelectedFolderId(folder.id);
+                            // Auto-expand the folder in the tree
+                            setCollapsedIds((prev) => {
+                              const next = new Set(prev);
+                              next.delete(folder.id);
+                              return next;
+                            });
+                          }}
+                          onEdit={() => handleEditFolder(folder.id)}
+                          onDelete={() => handleDeleteFolder(folder.id)}
+                        />
+                      ))}
+
+                      {/* Display uploading assets */}
+                      {currentUploadingAssets.map((uploadingAsset) => {
+                        // Remove file extension from name
+                        const nameWithoutExtension = uploadingAsset.filename.replace(/\.[^/.]+$/, '');
+
+                        return (
+                          <FileGridItem
+                            key={uploadingAsset.id}
+                            id={uploadingAsset.id}
+                            name={nameWithoutExtension}
+                            type="uploading"
+                            file={uploadingAsset.file}
+                          />
+                        );
+                      })}
+
+                      {/* Display existing assets */}
+                      {assets.map((asset) => (
+                        <FileGridItem
+                          key={asset.id}
+                          id={asset.id}
+                          name={asset.filename}
+                          type="asset"
+                          mimeType={asset.mime_type}
+                          imageUrl={asset.public_url}
+                          content={asset.content}
+                          onClick={() => onAssetSelect?.(asset)}
+                          isSelected={selectedAssetIds.has(asset.id)}
+                          onSelectChange={(selected) => handleAssetSelect(asset.id, selected)}
+                          onPreview={
+                            asset.mime_type?.startsWith('image/') && asset.public_url
+                              ? () => handlePreviewAsset(asset.public_url!)
+                              : undefined
+                          }
+                          onEdit={() => handleEditAsset(asset.id)}
+                          onDelete={() => handleDeleteAsset(asset.id)}
+                        />
+                      ))}
+
+                      {/* Infinite scroll trigger */}
+                      {hasMoreAssets && (
+                        <div
+                          ref={loadMoreRef}
+                          className="col-span-full flex items-center justify-center py-4"
+                        >
+                          {isLoadingAssets ? (
+                            <Spinner />
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Scroll for more</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -2040,7 +2457,7 @@ export default function FileManagerDialog({
         onOpenChange={setShowCreateFolderDialog}
         onConfirm={handleCreateFolder}
         mode="create"
-        initialParentFolderId={selectedFolderId}
+        initialParentFolderId={isVirtualFolder(selectedFolderId) ? null : selectedFolderId}
         folders={folders}
       />
 
@@ -2205,7 +2622,7 @@ export default function FileManagerDialog({
             <DialogTitle>Move {selectedAssetIds.size} asset{selectedAssetIds.size > 1 ? 's' : ''}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-4.5">
+          <div className="flex flex-col gap-4.5 pt-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="bulk-move-folder">Folder</Label>
               <Select
@@ -2255,8 +2672,11 @@ export default function FileManagerDialog({
         onOpenChange={(open) => {
           setShowEditAssetDialog(open);
           if (!open) {
-            setEditAssetContent(null);
-            setIsCreateSvgMode(false);
+            // Delay cleanup until after close animation
+            setTimeout(() => {
+              setEditAssetContent(null);
+              setIsCreateSvgMode(false);
+            }, 200);
           }
         }}
       >
@@ -2268,7 +2688,7 @@ export default function FileManagerDialog({
             <DialogTitle>{isCreateSvgMode ? 'New SVG icon' : 'Edit asset'}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-4.5">
+          <div className="flex flex-col gap-4.5 pt-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="asset-name">File name</Label>
               <Input
@@ -2324,11 +2744,7 @@ export default function FileManagerDialog({
             <DialogFooter className="grid grid-cols-2 mt-1">
               <Button
                 variant="secondary"
-                onClick={() => {
-                  setShowEditAssetDialog(false);
-                  setEditAssetContent(null);
-                  setIsCreateSvgMode(false);
-                }}
+                onClick={() => setShowEditAssetDialog(false)}
               >
                 Cancel
               </Button>
