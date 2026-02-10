@@ -429,6 +429,12 @@ export default function HeaderBar({
               File manager
             </DropdownMenuItem>
 
+            <DropdownMenuItem
+              onClick={() => router.push('/ycode/integrations/apps')}
+            >
+              Integrations
+            </DropdownMenuItem>
+
             <DropdownMenuSeparator />
 
             <DropdownMenuSub>

@@ -6,8 +6,9 @@ import {
   deleteFormSubmissionsByFormId,
   bulkDeleteFormSubmissions,
 } from '@/lib/repositories/formSubmissionRepository';
-import { sendFormSubmissionWebhook } from '@/lib/services/webhookService';
+import { dispatchFormSubmittedEvent } from '@/lib/services/webhookService';
 import { sendFormSubmissionEmail, extractReplyToEmail } from '@/lib/services/emailService';
+import { processAppIntegrations } from '@/lib/apps/integration-service';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -87,17 +88,13 @@ export async function POST(request: NextRequest) {
       metadata,
     });
 
-    // Send webhook notification if enabled (fire and forget)
-    if (body.webhook?.enabled && body.webhook?.url) {
-      sendFormSubmissionWebhook(
-        body.webhook.url,
-        body.form_id,
-        submission.id,
-        body.payload,
-        metadata,
-        submission.created_at
-      );
-    }
+    // Dispatch webhook event (fire and forget)
+    dispatchFormSubmittedEvent({
+      form_id: body.form_id,
+      submission_id: submission.id,
+      fields: body.payload,
+      metadata,
+    });
 
     // Send email notification if enabled (fire and forget)
     if (body.email?.enabled && body.email?.to) {
@@ -119,6 +116,9 @@ export async function POST(request: NextRequest) {
         }
       );
     }
+
+    // Process app integrations (fire and forget)
+    processAppIntegrations(body.form_id, submission.id, body.payload);
 
     return NextResponse.json(
       { data: submission, message: 'Form submitted successfully' },

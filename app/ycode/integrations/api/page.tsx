@@ -6,7 +6,6 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
-  FieldLegend,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -36,7 +35,7 @@ interface ApiKey {
   created_at: string;
 }
 
-export default function ApiKeysSettingsPage() {
+export default function ApiPage() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
@@ -137,88 +136,74 @@ export default function ApiKeysSettingsPage() {
     <div className="p-8">
       <div className="max-w-3xl mx-auto">
 
-        <header className="pt-8 pb-3">
-          <span className="text-base font-medium">API keys</span>
+        <header className="pt-8 pb-3 flex items-center justify-between">
+          <span className="text-base font-medium">API</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowGenerateDialog(true)}
+          >
+            Generate API key
+          </Button>
         </header>
 
-        <div className="flex flex-col gap-6 bg-secondary/20 p-8 rounded-lg">
+        <p className="text-sm text-muted-foreground mb-6">
+          Manage API keys for accessing your site&apos;s public API.
+        </p>
 
-          <header className="flex justify-between">
-
-            <div>
-              <FieldLegend>
-                API keys
-              </FieldLegend>
-              <FieldDescription>
-                Manage API keys for accessing your site&apos;s public API. Keys are used to authenticate requests to <code className="text-xs bg-secondary px-1 py-0.5 rounded">/api/v1/*</code> endpoints.
-              </FieldDescription>
-            </div>
-
-            <div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowGenerateDialog(true)}
+        {isLoading ? (
+          <div className="py-12 text-center text-muted-foreground text-sm">
+            Loading...
+          </div>
+        ) : apiKeys.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {apiKeys.map((key) => (
+              <div
+                key={key.id}
+                className="flex items-center gap-4 p-4 bg-secondary/20 rounded-lg"
               >
-                Generate API key
-              </Button>
-            </div>
-
-          </header>
-
-          {isLoading ? (
-            <div className="border-t pt-8 pb-4 text-center text-muted-foreground text-sm">
-              Loading...
-            </div>
-          ) : apiKeys.length > 0 ? (
-            <div className="border-t -mb-4 divide-y">
-              {apiKeys.map((key) => (
-                <div key={key.id} className="py-4 flex items-center gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <Label className="font-medium">{key.name}</Label>
-                      <code className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded font-mono">
-                        {key.key_prefix}...
-                      </code>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Created {formatDate(key.created_at)} · Last used: {formatLastUsed(key.last_used_at)}
-                    </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <Label className="font-medium">{key.name}</Label>
+                    <code className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded font-mono">
+                      {key.key_prefix}...
+                    </code>
                   </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                      >
-                        <Icon name="more" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => {
-                          setKeyToDelete(key);
-                          setShowDeleteDialog(true);
-                        }}
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="text-xs text-muted-foreground">
+                    Created {formatDate(key.created_at)} · Last used: {formatLastUsed(key.last_used_at)}
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="border-t pt-8 pb-4 text-center text-muted-foreground text-sm">
-              No API keys yet. Click &ldquo;Generate API key&rdquo; to create one.
-            </div>
-          )}
 
-        </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                    >
+                      <Icon name="more" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => {
+                        setKeyToDelete(key);
+                        setShowDeleteDialog(true);
+                      }}
+                    >
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground text-sm border border-dashed rounded-lg">
+            No API keys yet. Click &ldquo;Generate API key&rdquo; to create one.
+          </div>
+        )}
 
-        {/* API Documentation */}
         <header className="pt-10 pb-3">
           <span className="text-base font-medium">API Documentation</span>
         </header>
@@ -274,7 +259,6 @@ export default function ApiKeysSettingsPage() {
                 <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
                   <div><span className="text-green-500">GET</span> /api/v1/forms/{'{form_id}'}/submissions</div>
                   <div><span className="text-blue-500">POST</span> /api/v1/forms/{'{form_id}'}/submissions</div>
-                  <div><span className="text-green-500">GET</span> /api/v1/forms/{'{form_id}'}/submissions/{'{submission_id}'}</div>
                   <div><span className="text-yellow-500">PATCH</span> /api/v1/forms/{'{form_id}'}/submissions/{'{submission_id}'}</div>
                   <div><span className="text-red-500">DELETE</span> /api/v1/forms/{'{form_id}'}/submissions/{'{submission_id}'}</div>
                 </div>
@@ -283,144 +267,63 @@ export default function ApiKeysSettingsPage() {
             </div>
           </section>
 
-          {/* Query Parameters */}
+          {/* Collections API */}
           <section>
-            <h3 className="font-medium mb-2">Query Parameters</h3>
+            <h3 className="font-medium mb-2">Collections API</h3>
             <p className="text-muted-foreground mb-3">
-              Use these parameters with GET requests. Field names are case-insensitive.
+              Items are returned with their field values. Reference fields include linked item data.
             </p>
-            <div className="bg-secondary p-3 rounded-lg text-xs space-y-3">
-              <div>
-                <div className="font-medium text-foreground mb-1">Pagination</div>
-                <div className="space-y-1 text-muted-foreground">
-                  <div><code className="text-blue-400">page</code> - Page number (default: 1)</div>
-                  <div><code className="text-blue-400">per_page</code> - Items per page (default: 100, max: 1000)</div>
-                  <div><code className="text-blue-400">limit</code> - Limit total records (max: 1000)</div>
-                </div>
-              </div>
-              <div>
-                <div className="font-medium text-foreground mb-1">Sorting</div>
-                <div className="space-y-1 text-muted-foreground">
-                  <div><code className="text-blue-400">sort_by</code> - Field name to sort by</div>
-                  <div><code className="text-blue-400">order_by</code> - Sort order: <code className="text-green-400">asc</code> or <code className="text-green-400">desc</code></div>
-                </div>
-              </div>
-              <div>
-                <div className="font-medium text-foreground mb-1">Filtering</div>
-                <div className="space-y-1 text-muted-foreground">
-                  <div><code className="text-blue-400">filter[FieldName]</code> - Filter by exact field value</div>
-                </div>
-              </div>
-              <div>
-                <div className="font-medium text-foreground mb-1">Field Projection</div>
-                <div className="space-y-1 text-muted-foreground">
-                  <div><code className="text-blue-400">fields[CollectionName]</code> - Limit returned fields</div>
-                  <div><code className="text-blue-400">fields[CollectionName.RefField]</code> - Limit nested reference fields</div>
-                </div>
-              </div>
-            </div>
-            <p className="text-muted-foreground mt-3 text-xs">
-              Example: <code className="bg-secondary px-1 py-0.5 rounded">?sort_by=Name&amp;order_by=desc&amp;filter[Status]=active&amp;fields[Posts]=Name,Author</code>
-            </p>
-          </section>
 
-          {/* Field Projections */}
-          <section>
-            <h3 className="font-medium mb-2">Field Projections</h3>
-            <p className="text-muted-foreground mb-3">
-              Limit which fields are returned to reduce payload size. Use the collection name for root fields, and dot notation for nested references.
-            </p>
-            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
-{`// Only return Name and Author from Blog Posts
-?fields[Blog Posts]=Name,Author
+            <div className="space-y-4">
+              <div>
+                <div className="font-medium text-xs mb-2">List Items</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Supports pagination with <code className="bg-secondary px-1 py-0.5 rounded">page</code> and <code className="bg-secondary px-1 py-0.5 rounded">per_page</code> (max 100).
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`GET /api/v1/collections/{collection_id}/items?page=1&per_page=50`}
+                </pre>
+              </div>
 
-// Also limit Author to just Name and Email
-?fields[Blog Posts]=Name,Author&fields[Blog Posts.Author]=Name,Email
-
-// Deep nesting supported
-?fields[People]=Name,Hometown&fields[People.Hometown]=Name,Country`}
-            </pre>
-            <p className="text-muted-foreground mt-3 text-xs">
-              Note: <code className="bg-secondary px-1 py-0.5 rounded">_id</code> is always included. Reference fields must be listed to be resolved.
-            </p>
-          </section>
-
-          {/* Creating Items */}
-          <section>
-            <h3 className="font-medium mb-2">Creating Items</h3>
-            <p className="text-muted-foreground mb-3">
-              Send field values directly in the request body. Field names are case-insensitive.
-            </p>
-            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+              <div>
+                <div className="font-medium text-xs mb-2">Create Item</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Pass field values using <strong>field names</strong> as keys. For reference fields, pass the referenced item&apos;s <code className="bg-secondary px-1 py-0.5 rounded">_id</code> (UUID).
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
 {`POST /api/v1/collections/{collection_id}/items
 Content-Type: application/json
 
 {
   "Name": "My Blog Post",
   "Slug": "my-blog-post",
-  "Author": "author-uuid-here",
-  "Categories": "[\\"cat-uuid-1\\", \\"cat-uuid-2\\"]"
+  "Author": "550e8400-e29b-41d4-a716-446655440000"
 }`}
-            </pre>
-            <p className="text-muted-foreground mt-3 text-xs">
-              Reference fields accept the item UUID. Multi-reference fields accept a JSON array string of UUIDs.
-            </p>
-          </section>
+                </pre>
+              </div>
 
-          {/* Updating Items */}
-          <section>
-            <h3 className="font-medium mb-2">Updating Items</h3>
-            <div className="space-y-3">
               <div>
-                <div className="font-medium text-xs mb-2">PUT - Full Replace</div>
+                <div className="font-medium text-xs mb-2">Update Item</div>
                 <p className="text-muted-foreground text-xs mb-2">
-                  Replaces all field values. Fields not included are cleared (except protected fields).
+                  Use <code className="bg-secondary px-1 py-0.5 rounded">PUT</code> for full replacement or <code className="bg-secondary px-1 py-0.5 rounded">PATCH</code> for partial updates.
                 </p>
-              </div>
-              <div>
-                <div className="font-medium text-xs mb-2">PATCH - Partial Update</div>
-                <p className="text-muted-foreground text-xs mb-2">
-                  Only updates the fields you send. Other fields remain unchanged.
-                </p>
-              </div>
-            </div>
-            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto mt-3">
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
 {`PATCH /api/v1/collections/{collection_id}/items/{item_id}
 Content-Type: application/json
 
 {
   "Name": "Updated Title"
 }`}
-            </pre>
-          </section>
-
-          {/* Reference Fields */}
-          <section>
-            <h3 className="font-medium mb-2">Reference Fields</h3>
-            <p className="text-muted-foreground mb-3">
-              Reference fields are automatically resolved to include the full referenced item data:
-            </p>
-            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
-{`// Single reference returns an object:
-"Author": {
-  "_id": "abc-123",
-  "Name": "John Doe",
-  "Email": "john@example.com"
-}
-
-// Multi-reference returns an array:
-"Categories": [
-  { "_id": "cat-1", "Name": "Technology" },
-  { "_id": "cat-2", "Name": "Design" }
-]`}
-            </pre>
+                </pre>
+              </div>
+            </div>
           </section>
 
           {/* Response Format */}
           <section>
             <h3 className="font-medium mb-2">Response Format</h3>
             <p className="text-muted-foreground mb-3">
-              Responses include <code className="text-xs bg-secondary px-1 py-0.5 rounded">_id</code> (database UUID) and field values using exact field names:
+              Items include system fields (<code className="text-xs bg-secondary px-1 py-0.5 rounded">_id</code>, <code className="text-xs bg-secondary px-1 py-0.5 rounded">ID</code>, <code className="text-xs bg-secondary px-1 py-0.5 rounded">Created Date</code>, <code className="text-xs bg-secondary px-1 py-0.5 rounded">Updated Date</code>) plus all collection field values:
             </p>
             <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
 {`{

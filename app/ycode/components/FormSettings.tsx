@@ -88,35 +88,12 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
     [layer, onLayerUpdate]
   );
 
-  const handleWebhookNotificationChange = useCallback(
-    (key: keyof NonNullable<FormSettingsType['webhook_notification']>, value: any) => {
-      if (!layer) return;
-
-      onLayerUpdate(layer.id, {
-        settings: {
-          ...layer.settings,
-          form: {
-            ...layer.settings?.form,
-            webhook_notification: {
-              ...layer.settings?.form?.webhook_notification,
-              enabled: layer.settings?.form?.webhook_notification?.enabled ?? false,
-              url: layer.settings?.form?.webhook_notification?.url ?? '',
-              [key]: value,
-            },
-          },
-        },
-      });
-    },
-    [layer, onLayerUpdate]
-  );
-
   // Only show for form layers
   if (!layer || layer.name !== 'form') {
     return null;
   }
 
   const emailNotification = formSettings.email_notification || { enabled: false, to: '' };
-  const webhookNotification = formSettings.webhook_notification || { enabled: false, url: '' };
 
   return (
     <SettingsPanel
@@ -227,35 +204,6 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
             )}
           </div>
 
-          {/* Webhook Notification */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="webhook-enabled" className="text-xs">
-                Webhook
-              </Label>
-              <Switch
-                id="webhook-enabled"
-                checked={webhookNotification.enabled}
-                onCheckedChange={(checked) => handleWebhookNotificationChange('enabled', checked)}
-              />
-            </div>
-
-            {webhookNotification.enabled && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="webhook-url" className="text-xs font-normal">
-                  URL
-                </Label>
-                <Input
-                  id="webhook-url"
-                  type="url"
-                  value={webhookNotification.url || ''}
-                  onChange={(e) => handleWebhookNotificationChange('url', e.target.value)}
-                  placeholder="https://example.com/webhook"
-                  className="text-xs"
-                />
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </SettingsPanel>

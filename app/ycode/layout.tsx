@@ -43,8 +43,8 @@ export default function YCodeLayout({ children }: { children: React.ReactNode })
     return <>{children}</>;
   }
 
-  // For settings, localization, profile, and forms routes, pass children to YCodeBuilder so it can render them
-  if (routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms') {
+  // For settings, localization, profile, forms, and integrations routes, pass children to YCodeBuilder so it can render them
+  if (routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations') {
     return <YCodeBuilder>{children}</YCodeBuilder>;
   }
 

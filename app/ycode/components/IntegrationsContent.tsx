@@ -4,20 +4,17 @@ import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
-const SETTINGS_ITEMS = [
-  { id: 'general', label: 'General', path: '/ycode/settings/general' },
-  { id: 'users', label: 'Users', path: '/ycode/settings/users' },
-  { id: 'redirects', label: 'Redirects', path: '/ycode/settings/redirects' },
-  { id: 'email', label: 'Email', path: '/ycode/settings/email' },
-  { id: 'templates', label: 'Templates', path: '/ycode/settings/templates' },
-  { id: 'updates', label: 'Updates', path: '/ycode/settings/updates' },
+const INTEGRATIONS_ITEMS = [
+  { id: 'apps', label: 'Apps', path: '/ycode/integrations/apps' },
+  { id: 'webhooks', label: 'Webhooks', path: '/ycode/integrations/webhooks' },
+  { id: 'api', label: 'API', path: '/ycode/integrations/api' },
 ];
 
-interface SettingsContentProps {
+interface IntegrationsContentProps {
   children: React.ReactNode;
 }
 
-export default function SettingsContent({ children }: SettingsContentProps) {
+export default function IntegrationsContent({ children }: IntegrationsContentProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -26,12 +23,12 @@ export default function SettingsContent({ children }: SettingsContentProps) {
       {/* Left Sidebar */}
       <div className="w-60 border-r flex flex-col px-4">
         <header className="py-5 flex justify-between">
-          <span className="font-medium">Settings</span>
+          <span className="font-medium">Integrations</span>
         </header>
 
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-0">
-            {SETTINGS_ITEMS.map((item) => {
+            {INTEGRATIONS_ITEMS.map((item) => {
               const isActive = pathname === item.path;
 
               return (
