@@ -23,6 +23,7 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('width').nullable();
     table.integer('height').nullable();
     table.text('content').nullable(); // Inline SVG content for icon assets
+    table.string('content_hash', 64).nullable(); // SHA-256 hash for change detection during publishing
     table.boolean('is_published').notNullable().defaultTo(false);
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());

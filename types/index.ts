@@ -561,6 +561,7 @@ export interface Asset {
   source: string; // Required: identifies where the asset was uploaded from
   asset_folder_id?: string | null;
   content?: string | null; // Inline SVG content for icon assets
+  content_hash?: string | null; // SHA-256 hash for change detection during publishing
   is_published: boolean;
   created_at: string;
   updated_at: string;
@@ -1240,4 +1241,33 @@ export interface SitemapSettings {
   defaultChangeFrequency?: SitemapChangeFrequency;
   // Custom XML sitemap (when mode is 'custom')
   customXml?: string;
+}
+
+/** Stats for a single table during publishing */
+export interface PublishTableStats {
+  durationMs: number;
+  added: number;
+  updated: number;
+  deleted: number;
+}
+
+/** Aggregated publishing statistics returned by the publish API */
+export interface PublishStats {
+  totalDurationMs: number;
+  tables: {
+    page_folders: PublishTableStats;
+    pages: PublishTableStats;
+    page_layers: PublishTableStats;
+    collections: PublishTableStats;
+    collection_fields: PublishTableStats;
+    collection_items: PublishTableStats;
+    collection_item_values: PublishTableStats;
+    components: PublishTableStats;
+    layer_styles: PublishTableStats;
+    asset_folders: PublishTableStats;
+    assets: PublishTableStats;
+    locales: PublishTableStats;
+    translations: PublishTableStats;
+    css: PublishTableStats;
+  };
 }

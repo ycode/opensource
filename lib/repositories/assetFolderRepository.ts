@@ -227,8 +227,6 @@ export async function deleteAssetFolder(id: string): Promise<void> {
   const descendantFolderIds = await getDescendantFolderIds(id);
   const allFolderIds = [id, ...descendantFolderIds];
 
-  console.log(`[deleteAssetFolder] Deleting folder ${id} and ${descendantFolderIds.length} descendant folders`);
-
   // Soft-delete all draft assets within these folders
   const { error: assetsError } = await client
     .from('assets')
@@ -252,8 +250,6 @@ export async function deleteAssetFolder(id: string): Promise<void> {
   if (foldersError) {
     throw new Error(`Failed to delete folders: ${foldersError.message}`);
   }
-
-  console.log(`[deleteAssetFolder] Successfully deleted folder ${id} and its contents`);
 }
 
 /**
@@ -334,8 +330,18 @@ export async function getDeletedDraftAssetFolders(): Promise<AssetFolder[]> {
   return data || [];
 }
 
+/** Check if a draft asset folder differs from its published version */
+function hasAssetFolderChanged(draft: AssetFolder, published: AssetFolder): boolean {
+  return (
+    draft.name !== published.name ||
+    draft.asset_folder_id !== published.asset_folder_id ||
+    draft.depth !== published.depth ||
+    draft.order !== published.order
+  );
+}
+
 /**
- * Publish asset folders - copies draft to published
+ * Publish asset folders - copies draft to published, skipping unchanged folders
  */
 export async function publishAssetFolders(folderIds: string[]): Promise<{ count: number }> {
   if (folderIds.length === 0) {
@@ -376,25 +382,32 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
   // Sort by depth to ensure parents are published before children
   draftFolders.sort((a, b) => a.depth - b.depth);
 
-  // Check which folders already have published versions
-  const existingPublishedIds = new Set<string>();
+  // Fetch existing published versions (full data for comparison)
+  const publishedById = new Map<string, AssetFolder>();
   for (let i = 0; i < folderIds.length; i += SUPABASE_WRITE_BATCH_SIZE) {
     const batchIds = folderIds.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data: existingPublished } = await client
       .from('asset_folders')
-      .select('id')
+      .select('*')
       .in('id', batchIds)
       .eq('is_published', true);
 
-    existingPublished?.forEach(f => existingPublishedIds.add(f.id));
+    existingPublished?.forEach(f => publishedById.set(f.id, f));
   }
 
-  // Prepare published records
-  const toInsert: any[] = [];
-  const toUpdate: any[] = [];
+  // Only publish folders that are new or changed
+  const recordsToUpsert: any[] = [];
+  const now = new Date().toISOString();
 
   for (const draft of draftFolders) {
-    const publishedRecord = {
+    const existing = publishedById.get(draft.id);
+
+    // Skip if published version exists and is identical
+    if (existing && !hasAssetFolderChanged(draft, existing)) {
+      continue;
+    }
+
+    recordsToUpsert.push({
       id: draft.id,
       name: draft.name,
       asset_folder_id: draft.asset_folder_id,
@@ -402,24 +415,17 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
       order: draft.order,
       is_published: true,
       created_at: draft.created_at,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
       deleted_at: null,
-    };
-
-    if (existingPublishedIds.has(draft.id)) {
-      toUpdate.push(publishedRecord);
-    } else {
-      toInsert.push(publishedRecord);
-    }
+    });
   }
 
-  // Batch upsert all records (both new and existing)
   // Keep sorted by depth to ensure parents are processed first
-  const allRecords = [...toInsert, ...toUpdate].sort((a, b) => a.depth - b.depth);
+  recordsToUpsert.sort((a: any, b: any) => a.depth - b.depth);
 
-  if (allRecords.length > 0) {
-    for (let i = 0; i < allRecords.length; i += SUPABASE_WRITE_BATCH_SIZE) {
-      const batch = allRecords.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
+  if (recordsToUpsert.length > 0) {
+    for (let i = 0; i < recordsToUpsert.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+      const batch = recordsToUpsert.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
       const { error: upsertError } = await client
         .from('asset_folders')
         .upsert(batch, {
@@ -432,7 +438,7 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
     }
   }
 
-  return { count: draftFolders.length };
+  return { count: recordsToUpsert.length };
 }
 
 /**

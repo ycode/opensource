@@ -176,16 +176,26 @@ export async function fixOrphanedPageSlugs(
   }
 }
 
+/** Result of page publishing with timing */
+export interface PublishPagesResult {
+  count: number;
+  timing: {
+    pagesDurationMs: number;
+    layersDurationMs: number;
+    layersCount: number;
+  };
+}
+
 /**
  * Publish specified pages
  * Creates/updates separate published versions while keeping drafts unchanged
  *
  * @param pageIds - Array of draft page IDs to publish
- * @returns Object with count of published pages
+ * @returns Object with count of published pages and timing stats
  */
-export async function publishPages(pageIds: string[]): Promise<{ count: number }> {
+export async function publishPages(pageIds: string[]): Promise<PublishPagesResult> {
   if (pageIds.length === 0) {
-    return { count: 0 };
+    return { count: 0, timing: { pagesDurationMs: 0, layersDurationMs: 0, layersCount: 0 } };
   }
 
   // Import folder functions
@@ -217,7 +227,7 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
   );
 
   if (validDraftPages.length === 0) {
-    return { count: 0 };
+    return { count: 0, timing: { pagesDurationMs: 0, layersDurationMs: 0, layersCount: 0 } };
   }
 
   // Step 2: Collect all unique folder IDs from pages
@@ -298,9 +308,6 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
       const parentIsInBatch = foldersBeingPublished.has(draftFolder.page_folder_id);
       
       if (!parentIsPublished && !parentIsInBatch) {
-        console.warn(
-          `Parent folder ${draftFolder.page_folder_id} is not published, skipping folder ${draftFolder.id}`
-        );
         continue;
       }
       // Use the same ID since published folders share the same ID as drafts
@@ -342,9 +349,6 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
       const parentIsInBatch = foldersBeingPublished.has(draftPage.page_folder_id);
       
       if (!parentIsPublished && !parentIsInBatch) {
-        console.warn(
-          `Parent folder ${draftPage.page_folder_id} is not published, skipping page ${draftPage.id}`
-        );
         continue;
       }
       // Use the same ID since published folders share the same ID as drafts
@@ -410,8 +414,6 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
       .map((row) => row.id);
 
     if (idsToDelete.length > 0) {
-      console.log('[publishPages] Removing conflicting published pages:', idsToDelete);
-
       // Delete page_layers first (FK constraint)
       const { error: layersDeleteError } = await client
         .from('page_layers')
@@ -436,6 +438,9 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
     }
   }
 
+  // Time pages upsert
+  const pagesStart = performance.now();
+
   // Batch upsert pages
   if (pagesToUpsert.length > 0) {
     const { error: upsertError } = await client
@@ -448,6 +453,8 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
       throw new Error(`Failed to upsert pages: ${upsertError.message}`);
     }
   }
+
+  const pagesDurationMs = Math.round(performance.now() - pagesStart);
 
   // Step 9: Batch publish page layers
   // Filter to pages that have a published version (either just upserted or already exists)
@@ -469,12 +476,17 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
     })
     .map(p => p.id);
 
-  // Batch publish all layers in one operation
-  try {
-    await batchPublishPageLayers(pageIdsForLayerPublish);
-  } catch (error) {
-    console.error('Error batch publishing layers:', error);
-  }
+  // Time layers publishing
+  const layersStart = performance.now();
+  const layersCount = await batchPublishPageLayers(pageIdsForLayerPublish);
+  const layersDurationMs = Math.round(performance.now() - layersStart);
 
-  return { count: pageIdsForLayerPublish.length };
+  return {
+    count: pageIdsForLayerPublish.length,
+    timing: {
+      pagesDurationMs,
+      layersDurationMs,
+      layersCount,
+    },
+  };
 }

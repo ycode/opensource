@@ -2,7 +2,7 @@
  * Hash Utilities
  *
  * Provides content hashing functionality for change detection across
- * pages, components, and layer styles.
+ * pages, components, layer styles, and assets.
  */
 
 import crypto from 'crypto';
@@ -190,5 +190,35 @@ export function generateLayerStyleContentHash(styleData: {
     name: styleData.name,
     classes: styleData.classes,
     design: styleData.design,
+  });
+}
+
+/**
+ * Generate a hash for asset content
+ * Covers all mutable fields that affect the published output
+ */
+export function generateAssetContentHash(assetData: {
+  filename: string;
+  storage_path: string | null;
+  public_url: string | null;
+  file_size: number;
+  mime_type: string;
+  width?: number | null;
+  height?: number | null;
+  asset_folder_id?: string | null;
+  content?: string | null;
+  source: string;
+}): string {
+  return generateContentHash({
+    filename: assetData.filename,
+    storage_path: assetData.storage_path,
+    public_url: assetData.public_url,
+    file_size: assetData.file_size,
+    mime_type: assetData.mime_type,
+    width: assetData.width ?? null,
+    height: assetData.height ?? null,
+    asset_folder_id: assetData.asset_folder_id ?? null,
+    content: assetData.content ?? null,
+    source: assetData.source,
   });
 }

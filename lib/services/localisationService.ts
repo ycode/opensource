@@ -9,6 +9,10 @@ import type { Locale, Translation } from '@/types';
 export interface PublishLocalisationResult {
   locales: number;
   translations: number;
+  timing: {
+    localesDurationMs: number;
+    translationsDurationMs: number;
+  };
 }
 
 /**
@@ -25,6 +29,11 @@ export async function publishLocalisation(): Promise<PublishLocalisationResult> 
   const deletedAt = new Date().toISOString();
   let publishedLocalesCount = 0;
   let publishedTranslationsCount = 0;
+  let localesDurationMs = 0;
+  let translationsDurationMs = 0;
+
+  // === LOCALES ===
+  const localesStart = performance.now();
 
   // Step 1: Fetch all draft locales (including soft-deleted)
   const { data: allDraftLocales, error: localesError } = await client
@@ -116,6 +125,11 @@ export async function publishLocalisation(): Promise<PublishLocalisationResult> 
       publishedLocalesCount = activeDraftLocales.length;
     }
   }
+
+  localesDurationMs = Math.round(performance.now() - localesStart);
+
+  // === TRANSLATIONS ===
+  const translationsStart = performance.now();
 
   // Step 4: Fetch all draft translations (including soft-deleted)
   const { data: allDraftTranslations, error: translationsError } = await client
@@ -212,8 +226,14 @@ export async function publishLocalisation(): Promise<PublishLocalisationResult> 
     }
   }
 
+  translationsDurationMs = Math.round(performance.now() - translationsStart);
+
   return {
     locales: publishedLocalesCount,
     translations: publishedTranslationsCount,
+    timing: {
+      localesDurationMs,
+      translationsDurationMs,
+    },
   };
 }

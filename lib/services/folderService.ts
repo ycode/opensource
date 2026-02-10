@@ -192,9 +192,6 @@ export async function publishFolders(
       
       if (!parentIsPublished && !parentIsInBatch) {
         // Parent folder is not published and not in this batch - skip this folder
-        console.warn(
-          `Parent folder ${folder.page_folder_id} is not published, skipping folder ${folder.id}`
-        );
         continue;
       }
       
@@ -203,6 +200,20 @@ export async function publishFolders(
     }
     
     foldersBeingPublished.add(folder.id);
+
+    // Skip if published version exists and is identical
+    const existing = publishedFoldersById.get(folder.id);
+    if (
+      existing &&
+      existing.name === folder.name &&
+      existing.slug === folder.slug &&
+      existing.page_folder_id === publishedParentId &&
+      existing.order === folder.order &&
+      existing.depth === folder.depth &&
+      JSON.stringify(existing.settings) === JSON.stringify(folder.settings)
+    ) {
+      continue;
+    }
     
     foldersToUpsert.push({
       id: folder.id,

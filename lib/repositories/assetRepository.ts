@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '../supabase/constants';
+import { generateAssetContentHash } from '../hash-utils';
 import type { Asset } from '../../types';
 
 export interface CreateAssetData {
@@ -254,10 +255,24 @@ export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
   }
 
   const now = new Date().toISOString();
+  const content_hash = generateAssetContentHash({
+    filename: assetData.filename,
+    storage_path: assetData.storage_path ?? null,
+    public_url: assetData.public_url ?? null,
+    file_size: assetData.file_size,
+    mime_type: assetData.mime_type,
+    width: assetData.width ?? null,
+    height: assetData.height ?? null,
+    asset_folder_id: assetData.asset_folder_id ?? null,
+    content: assetData.content ?? null,
+    source: assetData.source,
+  });
+
   const { data, error } = await client
     .from('assets')
     .insert({
       ...assetData,
+      content_hash,
       is_published: false,
       updated_at: now,
     })
@@ -287,6 +302,7 @@ export async function updateAsset(id: string, assetData: UpdateAssetData): Promi
     throw new Error('Supabase not configured');
   }
 
+  // Update the asset fields first, then recompute hash from the full record
   const { data, error } = await client
     .from('assets')
     .update({
@@ -303,7 +319,33 @@ export async function updateAsset(id: string, assetData: UpdateAssetData): Promi
     throw new Error(`Failed to update asset: ${error.message}`);
   }
 
-  return data;
+  // Recompute content_hash from the full updated record
+  const content_hash = generateAssetContentHash({
+    filename: data.filename,
+    storage_path: data.storage_path,
+    public_url: data.public_url,
+    file_size: data.file_size,
+    mime_type: data.mime_type,
+    width: data.width,
+    height: data.height,
+    asset_folder_id: data.asset_folder_id,
+    content: data.content,
+    source: data.source,
+  });
+
+  const { data: updated, error: hashError } = await client
+    .from('assets')
+    .update({ content_hash })
+    .eq('id', id)
+    .eq('is_published', false)
+    .select()
+    .single();
+
+  if (hashError) {
+    throw new Error(`Failed to update asset hash: ${hashError.message}`);
+  }
+
+  return updated;
 }
 
 /**
@@ -461,14 +503,18 @@ export async function bulkUpdateAssets(
     return { success: [], failed: [] };
   }
 
-  // Update all draft assets in batches
+  const now = new Date().toISOString();
+
+  // Update fields, then recompute hashes from the full records
   for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
     const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
+
+    // Apply the field updates
     const { error } = await client
       .from('assets')
       .update({
         ...updates,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       })
       .in('id', batchIds)
       .eq('is_published', false)
@@ -476,6 +522,37 @@ export async function bulkUpdateAssets(
 
     if (error) {
       throw new Error(`Failed to update assets: ${error.message}`);
+    }
+
+    // Fetch updated records and recompute hashes
+    const { data: updatedAssets } = await client
+      .from('assets')
+      .select('*')
+      .in('id', batchIds)
+      .eq('is_published', false)
+      .is('deleted_at', null);
+
+    if (updatedAssets && updatedAssets.length > 0) {
+      const hashRecords = updatedAssets.map(a => ({
+        id: a.id,
+        is_published: false as const,
+        content_hash: generateAssetContentHash({
+          filename: a.filename,
+          storage_path: a.storage_path,
+          public_url: a.public_url,
+          file_size: a.file_size,
+          mime_type: a.mime_type,
+          width: a.width,
+          height: a.height,
+          asset_folder_id: a.asset_folder_id,
+          content: a.content,
+          source: a.source,
+        }),
+      }));
+
+      await client
+        .from('assets')
+        .upsert(hashRecords, { onConflict: 'id,is_published' });
     }
   }
 
@@ -605,7 +682,7 @@ export async function getDeletedDraftAssets(): Promise<Asset[]> {
 }
 
 /**
- * Publish assets - copies draft to published
+ * Publish assets - copies draft to published, using content_hash for change detection
  */
 export async function publishAssets(assetIds: string[]): Promise<{ count: number }> {
   if (assetIds.length === 0) {
@@ -618,10 +695,8 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
     throw new Error('Supabase not configured');
   }
 
-  // Batch size to avoid Supabase URL length limits
-  const draftAssets: Asset[] = [];
-
   // Fetch draft assets in batches
+  const draftAssets: Asset[] = [];
   for (let i = 0; i < assetIds.length; i += SUPABASE_WRITE_BATCH_SIZE) {
     const batchIds = assetIds.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data, error: fetchError } = await client
@@ -644,25 +719,32 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
     return { count: 0 };
   }
 
-  // Check which assets already have published versions (also in batches)
-  const existingPublishedIds = new Set<string>();
+  // Fetch existing published content_hash values only (lightweight query)
+  const publishedHashById = new Map<string, string | null>();
   for (let i = 0; i < assetIds.length; i += SUPABASE_WRITE_BATCH_SIZE) {
     const batchIds = assetIds.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data: existingPublished } = await client
       .from('assets')
-      .select('id')
+      .select('id, content_hash')
       .in('id', batchIds)
       .eq('is_published', true);
 
-    existingPublished?.forEach(a => existingPublishedIds.add(a.id));
+    existingPublished?.forEach(a => publishedHashById.set(a.id, a.content_hash));
   }
 
-  // Prepare published records
-  const toInsert: any[] = [];
-  const toUpdate: any[] = [];
+  // Only publish assets that are new or changed (compare draft hash vs published hash)
+  const recordsToUpsert: any[] = [];
+  const now = new Date().toISOString();
 
   for (const draft of draftAssets) {
-    const publishedRecord = {
+    const publishedHash = publishedHashById.get(draft.id);
+
+    // Skip if published version exists with identical hash (both must be non-null)
+    if (draft.content_hash && publishedHash && draft.content_hash === publishedHash) {
+      continue;
+    }
+
+    recordsToUpsert.push({
       id: draft.id,
       source: draft.source,
       filename: draft.filename,
@@ -674,25 +756,17 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
       height: draft.height,
       asset_folder_id: draft.asset_folder_id,
       content: draft.content,
+      content_hash: draft.content_hash,
       is_published: true,
       created_at: draft.created_at,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
       deleted_at: null,
-    };
-
-    if (existingPublishedIds.has(draft.id)) {
-      toUpdate.push(publishedRecord);
-    } else {
-      toInsert.push(publishedRecord);
-    }
+    });
   }
 
-  // Batch upsert all records (both new and existing)
-  const allRecords = [...toInsert, ...toUpdate];
-
-  if (allRecords.length > 0) {
-    for (let i = 0; i < allRecords.length; i += SUPABASE_WRITE_BATCH_SIZE) {
-      const batch = allRecords.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
+  if (recordsToUpsert.length > 0) {
+    for (let i = 0; i < recordsToUpsert.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+      const batch = recordsToUpsert.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
       const { error: upsertError } = await client
         .from('assets')
         .upsert(batch, {
@@ -705,7 +779,7 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
     }
   }
 
-  return { count: draftAssets.length };
+  return { count: recordsToUpsert.length };
 }
 
 /**

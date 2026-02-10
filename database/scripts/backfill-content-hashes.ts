@@ -6,48 +6,108 @@
  * - PageLayers (layers + CSS hash)
  * - Components (name + layers hash)
  * - LayerStyles (name + classes + design hash)
+ * - Assets (all mutable fields hash)
  * 
  * Run this after the content_hash migrations have been applied.
  * 
- * Usage: npx ts-node database/scripts/backfill-content-hashes.ts
+ * Usage: npx tsx database/scripts/backfill-content-hashes.ts
  */
 
-import { getSupabaseAdmin } from '../../lib/supabase-server';
+import fs from 'fs';
+import path from 'path';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import {
   generatePageMetadataHash,
   generatePageLayersHash,
   generateComponentContentHash,
   generateLayerStyleContentHash,
+  generateAssetContentHash,
 } from '../../lib/hash-utils';
 
-async function backfillPageHashes() {
+const PAGE_SIZE = 1000;
+
+/** Create Supabase client from .credentials.json (bypasses server-only modules) */
+async function getSupabaseClient(): Promise<SupabaseClient> {
+  const credentialsPath = path.join(process.cwd(), '.credentials.json');
+
+  if (!fs.existsSync(credentialsPath)) {
+    throw new Error(
+      'Supabase credentials not found. Please configure Supabase in the builder first.'
+    );
+  }
+
+  const credentialsFile = fs.readFileSync(credentialsPath, 'utf-8');
+  const credentials = JSON.parse(credentialsFile);
+  const config = credentials.supabase_config;
+
+  if (!config?.connectionUrl || !config?.serviceRoleKey) {
+    throw new Error('Invalid Supabase configuration in .credentials.json');
+  }
+
+  const match = config.connectionUrl.match(/postgres\.([^:]+)/);
+  if (!match) {
+    throw new Error('Could not parse project reference from connection URL');
+  }
+
+  const projectRef = match[1];
+  const projectUrl = `https://${projectRef}.supabase.co`;
+
+  return createClient(projectUrl, config.serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+/**
+ * Fetch all rows matching a query using pagination.
+ * Supabase caps results at 1000 per request.
+ */
+async function fetchAllPaginated(
+  client: SupabaseClient,
+  table: string,
+  applyFilters: (query: any) => any,
+): Promise<any[]> {
+  const allRows: any[] = [];
+  let offset = 0;
+
+  while (true) {
+    const baseQuery = client.from(table).select('*');
+    const { data, error } = await applyFilters(baseQuery)
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch ${table}: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) break;
+
+    allRows.push(...data);
+
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return allRows;
+}
+
+async function backfillPageHashes(client: SupabaseClient) {
   console.log('Backfilling page content hashes...');
-  const client = await getSupabaseAdmin();
-  
-  if (!client) {
-    throw new Error('Supabase not configured');
-  }
-  
-  // Get all pages
-  const { data: pages, error } = await client
-    .from('pages')
-    .select('*')
-    .is('deleted_at', null);
-  
-  if (error) {
-    throw new Error(`Failed to fetch pages: ${error.message}`);
-  }
-  
-  if (!pages || pages.length === 0) {
-    console.log('  No pages found');
+
+  const pages = await fetchAllPaginated(client, 'pages', (q) =>
+    q.is('deleted_at', null).is('content_hash', null)
+  );
+
+  if (pages.length === 0) {
+    console.log('  No pages need backfilling');
     return;
   }
-  
+
   let updated = 0;
-  
+
   for (const page of pages) {
     try {
-      // Calculate hash for page metadata
       const hash = generatePageMetadataHash({
         name: page.name,
         slug: page.slug,
@@ -56,13 +116,12 @@ async function backfillPageHashes() {
         is_dynamic: page.is_dynamic || false,
         error_page: page.error_page || null,
       });
-      
-      // Update page with content_hash
+
       const { error: updateError } = await client
         .from('pages')
         .update({ content_hash: hash })
         .eq('id', page.id);
-      
+
       if (updateError) {
         console.error(`  Error updating page ${page.id}:`, updateError.message);
       } else {
@@ -72,49 +131,36 @@ async function backfillPageHashes() {
       console.error(`  Error processing page ${page.id}:`, error);
     }
   }
-  
+
   console.log(`  Updated ${updated} of ${pages.length} pages`);
 }
 
-async function backfillPageLayersHashes() {
+async function backfillPageLayersHashes(client: SupabaseClient) {
   console.log('Backfilling page_layers content hashes...');
-  const client = await getSupabaseAdmin();
-  
-  if (!client) {
-    throw new Error('Supabase not configured');
-  }
-  
-  // Get all page_layers
-  const { data: pageLayersRecords, error } = await client
-    .from('page_layers')
-    .select('*')
-    .is('deleted_at', null);
-  
-  if (error) {
-    throw new Error(`Failed to fetch page_layers: ${error.message}`);
-  }
-  
-  if (!pageLayersRecords || pageLayersRecords.length === 0) {
-    console.log('  No page_layers found');
+
+  const pageLayersRecords = await fetchAllPaginated(client, 'page_layers', (q) =>
+    q.is('deleted_at', null).is('content_hash', null)
+  );
+
+  if (pageLayersRecords.length === 0) {
+    console.log('  No page_layers need backfilling');
     return;
   }
-  
+
   let updated = 0;
-  
+
   for (const record of pageLayersRecords) {
     try {
-      // Calculate hash for layers + CSS
       const hash = generatePageLayersHash({
         layers: record.layers || [],
         generated_css: record.generated_css || null,
       });
-      
-      // Update page_layers with content_hash
+
       const { error: updateError } = await client
         .from('page_layers')
         .update({ content_hash: hash })
         .eq('id', record.id);
-      
+
       if (updateError) {
         console.error(`  Error updating page_layers ${record.id}:`, updateError.message);
       } else {
@@ -124,48 +170,36 @@ async function backfillPageLayersHashes() {
       console.error(`  Error processing page_layers ${record.id}:`, error);
     }
   }
-  
+
   console.log(`  Updated ${updated} of ${pageLayersRecords.length} page_layers records`);
 }
 
-async function backfillComponentHashes() {
+async function backfillComponentHashes(client: SupabaseClient) {
   console.log('Backfilling component content hashes...');
-  const client = await getSupabaseAdmin();
-  
-  if (!client) {
-    throw new Error('Supabase not configured');
-  }
-  
-  // Get all components
-  const { data: components, error } = await client
-    .from('components')
-    .select('*');
-  
-  if (error) {
-    throw new Error(`Failed to fetch components: ${error.message}`);
-  }
-  
-  if (!components || components.length === 0) {
-    console.log('  No components found');
+
+  const components = await fetchAllPaginated(client, 'components', (q) =>
+    q.is('content_hash', null)
+  );
+
+  if (components.length === 0) {
+    console.log('  No components need backfilling');
     return;
   }
-  
+
   let updated = 0;
-  
+
   for (const component of components) {
     try {
-      // Calculate hash for component
       const hash = generateComponentContentHash({
         name: component.name,
         layers: component.layers || [],
       });
-      
-      // Update component with content_hash
+
       const { error: updateError } = await client
         .from('components')
         .update({ content_hash: hash })
         .eq('id', component.id);
-      
+
       if (updateError) {
         console.error(`  Error updating component ${component.id}:`, updateError.message);
       } else {
@@ -175,49 +209,37 @@ async function backfillComponentHashes() {
       console.error(`  Error processing component ${component.id}:`, error);
     }
   }
-  
+
   console.log(`  Updated ${updated} of ${components.length} components`);
 }
 
-async function backfillLayerStyleHashes() {
+async function backfillLayerStyleHashes(client: SupabaseClient) {
   console.log('Backfilling layer_styles content hashes...');
-  const client = await getSupabaseAdmin();
-  
-  if (!client) {
-    throw new Error('Supabase not configured');
-  }
-  
-  // Get all layer styles
-  const { data: styles, error } = await client
-    .from('layer_styles')
-    .select('*');
-  
-  if (error) {
-    throw new Error(`Failed to fetch layer_styles: ${error.message}`);
-  }
-  
-  if (!styles || styles.length === 0) {
-    console.log('  No layer_styles found');
+
+  const styles = await fetchAllPaginated(client, 'layer_styles', (q) =>
+    q.is('content_hash', null)
+  );
+
+  if (styles.length === 0) {
+    console.log('  No layer_styles need backfilling');
     return;
   }
-  
+
   let updated = 0;
-  
+
   for (const style of styles) {
     try {
-      // Calculate hash for layer style
       const hash = generateLayerStyleContentHash({
         name: style.name,
         classes: style.classes || '',
         design: style.design || {},
       });
-      
-      // Update layer_style with content_hash
+
       const { error: updateError } = await client
         .from('layer_styles')
         .update({ content_hash: hash })
         .eq('id', style.id);
-      
+
       if (updateError) {
         console.error(`  Error updating layer_style ${style.id}:`, updateError.message);
       } else {
@@ -227,19 +249,70 @@ async function backfillLayerStyleHashes() {
       console.error(`  Error processing layer_style ${style.id}:`, error);
     }
   }
-  
+
   console.log(`  Updated ${updated} of ${styles.length} layer_styles`);
+}
+
+async function backfillAssetHashes(client: SupabaseClient) {
+  console.log('Backfilling asset content hashes...');
+
+  const assets = await fetchAllPaginated(client, 'assets', (q) =>
+    q.is('content_hash', null).is('deleted_at', null)
+  );
+
+  if (assets.length === 0) {
+    console.log('  No assets need backfilling');
+    return;
+  }
+
+  let updated = 0;
+
+  for (const asset of assets) {
+    try {
+      const hash = generateAssetContentHash({
+        filename: asset.filename,
+        storage_path: asset.storage_path,
+        public_url: asset.public_url,
+        file_size: asset.file_size,
+        mime_type: asset.mime_type,
+        width: asset.width,
+        height: asset.height,
+        asset_folder_id: asset.asset_folder_id,
+        content: asset.content,
+        source: asset.source,
+      });
+
+      const { error: updateError } = await client
+        .from('assets')
+        .update({ content_hash: hash })
+        .eq('id', asset.id)
+        .eq('is_published', asset.is_published);
+
+      if (updateError) {
+        console.error(`  Error updating asset ${asset.id}:`, updateError.message);
+      } else {
+        updated++;
+      }
+    } catch (error) {
+      console.error(`  Error processing asset ${asset.id}:`, error);
+    }
+  }
+
+  console.log(`  Updated ${updated} of ${assets.length} assets`);
 }
 
 async function main() {
   console.log('Starting content hash backfill...\n');
-  
+
   try {
-    await backfillPageHashes();
-    await backfillPageLayersHashes();
-    await backfillComponentHashes();
-    await backfillLayerStyleHashes();
-    
+    const client = await getSupabaseClient();
+
+    await backfillPageHashes(client);
+    await backfillPageLayersHashes(client);
+    await backfillComponentHashes(client);
+    await backfillLayerStyleHashes(client);
+    await backfillAssetHashes(client);
+
     console.log('\n✅ Content hash backfill completed successfully');
   } catch (error) {
     console.error('\n❌ Backfill failed:', error);
