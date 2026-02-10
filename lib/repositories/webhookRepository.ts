@@ -23,12 +23,20 @@ export type WebhookEventType =
   | 'asset.uploaded'
   | 'asset.deleted';
 
+export interface WebhookFilters {
+  /** Filter form.submitted events to a specific form */
+  form_id?: string | null;
+  /** Filter collection_item.* events to a specific collection */
+  collection_id?: string | null;
+}
+
 export interface Webhook {
   id: string;
   name: string;
   url: string;
   secret: string | null;
   events: WebhookEventType[];
+  filters: WebhookFilters | null;
   enabled: boolean;
   last_triggered_at: string | null;
   failure_count: number;
@@ -54,6 +62,7 @@ export interface CreateWebhookData {
   url: string;
   secret?: string;
   events: WebhookEventType[];
+  filters?: WebhookFilters | null;
 }
 
 export interface UpdateWebhookData {
@@ -61,6 +70,7 @@ export interface UpdateWebhookData {
   url?: string;
   secret?: string | null;
   events?: WebhookEventType[];
+  filters?: WebhookFilters | null;
   enabled?: boolean;
 }
 
@@ -169,6 +179,7 @@ export async function createWebhook(webhookData: CreateWebhookData): Promise<Web
       url: webhookData.url,
       secret: webhookData.secret || null,
       events: webhookData.events,
+      filters: webhookData.filters || null,
       enabled: true,
       failure_count: 0,
       created_at: new Date().toISOString(),
@@ -202,6 +213,7 @@ export async function updateWebhook(id: string, updates: UpdateWebhookData): Pro
   if (updates.url !== undefined) updateData.url = updates.url;
   if (updates.secret !== undefined) updateData.secret = updates.secret;
   if (updates.events !== undefined) updateData.events = updates.events;
+  if (updates.filters !== undefined) updateData.filters = updates.filters;
   if (updates.enabled !== undefined) updateData.enabled = updates.enabled;
 
   const { data, error } = await client
@@ -437,6 +449,7 @@ function mapWebhookFromDb(data: any): Webhook {
     url: data.url,
     secret: data.secret,
     events: Array.isArray(data.events) ? data.events : [],
+    filters: data.filters || null,
     enabled: data.enabled,
     last_triggered_at: data.last_triggered_at,
     failure_count: data.failure_count || 0,

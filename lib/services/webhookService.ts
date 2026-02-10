@@ -24,6 +24,10 @@ export interface WebhookEvent {
   timestamp: string;
   data: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  /** Resource ID for filter matching (e.g., form_id or collection_id) */
+  resourceId?: string;
+  /** Resource type for filter matching ('form' or 'collection') */
+  resourceType?: 'form' | 'collection';
 }
 
 export interface WebhookPayload {
@@ -63,9 +67,28 @@ export async function dispatchWebhookEvent(event: WebhookEvent): Promise<void> {
       return;
     }
 
-    // Dispatch to all webhooks in parallel
+    // Filter webhooks by resource if the event has a resource context
+    const matchingWebhooks = webhooks.filter((webhook) => {
+      if (!webhook.filters) return true; // No filters = match all
+
+      if (event.resourceType === 'form' && webhook.filters.form_id) {
+        return webhook.filters.form_id === event.resourceId;
+      }
+
+      if (event.resourceType === 'collection' && webhook.filters.collection_id) {
+        return webhook.filters.collection_id === event.resourceId;
+      }
+
+      return true; // No matching filter type = match all
+    });
+
+    if (matchingWebhooks.length === 0) {
+      return;
+    }
+
+    // Dispatch to all matching webhooks in parallel
     await Promise.allSettled(
-      webhooks.map((webhook) => deliverToWebhook(webhook, event))
+      matchingWebhooks.map((webhook) => deliverToWebhook(webhook, event))
     );
   } catch (error) {
     console.error('Error dispatching webhook event:', error);
@@ -196,6 +219,8 @@ export async function dispatchFormSubmittedEvent(data: {
       fields: data.fields,
     },
     metadata: data.metadata,
+    resourceType: 'form',
+    resourceId: data.form_id,
   });
 }
 
@@ -226,6 +251,8 @@ export async function dispatchCollectionItemCreatedEvent(data: {
     type: 'collection_item.created',
     timestamp: new Date().toISOString(),
     data,
+    resourceType: 'collection',
+    resourceId: data.collection_id,
   });
 }
 
@@ -242,6 +269,8 @@ export async function dispatchCollectionItemUpdatedEvent(data: {
     type: 'collection_item.updated',
     timestamp: new Date().toISOString(),
     data,
+    resourceType: 'collection',
+    resourceId: data.collection_id,
   });
 }
 
@@ -257,6 +286,8 @@ export async function dispatchCollectionItemDeletedEvent(data: {
     type: 'collection_item.deleted',
     timestamp: new Date().toISOString(),
     data,
+    resourceType: 'collection',
+    resourceId: data.collection_id,
   });
 }
 

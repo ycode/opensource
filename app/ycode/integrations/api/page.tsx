@@ -6,7 +6,6 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
-  FieldLegend,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -137,86 +136,73 @@ export default function ApiPage() {
     <div className="p-8">
       <div className="max-w-3xl mx-auto">
 
-        <header className="pt-8 pb-3">
+        <header className="pt-8 pb-3 flex items-center justify-between">
           <span className="text-base font-medium">API</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowGenerateDialog(true)}
+          >
+            Generate API key
+          </Button>
         </header>
 
-        <div className="flex flex-col gap-6 bg-secondary/20 p-8 rounded-lg">
+        <p className="text-sm text-muted-foreground mb-6">
+          Manage API keys for accessing your site&apos;s public API.
+        </p>
 
-          <header className="flex justify-between">
-
-            <div>
-              <FieldLegend>
-                API keys
-              </FieldLegend>
-              <FieldDescription>
-                Manage API keys for accessing your site&apos;s public API. Keys are used to authenticate requests to <code className="text-xs bg-secondary px-1 py-0.5 rounded">/api/v1/*</code> endpoints.
-              </FieldDescription>
-            </div>
-
-            <div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowGenerateDialog(true)}
+        {isLoading ? (
+          <div className="py-12 text-center text-muted-foreground text-sm">
+            Loading...
+          </div>
+        ) : apiKeys.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {apiKeys.map((key) => (
+              <div
+                key={key.id}
+                className="flex items-center gap-4 p-4 bg-secondary/20 rounded-lg"
               >
-                Generate API key
-              </Button>
-            </div>
-
-          </header>
-
-          {isLoading ? (
-            <div className="border-t pt-8 pb-4 text-center text-muted-foreground text-sm">
-              Loading...
-            </div>
-          ) : apiKeys.length > 0 ? (
-            <div className="border-t -mb-4 divide-y">
-              {apiKeys.map((key) => (
-                <div key={key.id} className="py-4 flex items-center gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <Label className="font-medium">{key.name}</Label>
-                      <code className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded font-mono">
-                        {key.key_prefix}...
-                      </code>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Created {formatDate(key.created_at)} · Last used: {formatLastUsed(key.last_used_at)}
-                    </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <Label className="font-medium">{key.name}</Label>
+                    <code className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded font-mono">
+                      {key.key_prefix}...
+                    </code>
                   </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                      >
-                        <Icon name="more" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => {
-                          setKeyToDelete(key);
-                          setShowDeleteDialog(true);
-                        }}
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="text-xs text-muted-foreground">
+                    Created {formatDate(key.created_at)} · Last used: {formatLastUsed(key.last_used_at)}
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="border-t pt-8 pb-4 text-center text-muted-foreground text-sm">
-              No API keys yet. Click &ldquo;Generate API key&rdquo; to create one.
-            </div>
-          )}
 
-        </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                    >
+                      <Icon name="more" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => {
+                        setKeyToDelete(key);
+                        setShowDeleteDialog(true);
+                      }}
+                    >
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground text-sm border border-dashed rounded-lg">
+            No API keys yet. Click &ldquo;Generate API key&rdquo; to create one.
+          </div>
+        )}
 
         {/* TODO: Uncomment when API Documentation is ready for release */}
         {/* <header className="pt-10 pb-3">

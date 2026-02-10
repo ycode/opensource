@@ -6,14 +6,19 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
-  FieldLegend,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import Icon from '@/components/ui/icon';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -57,12 +62,18 @@ type WebhookEventType =
   | 'asset.uploaded'
   | 'asset.deleted';
 
+interface WebhookFilters {
+  form_id?: string | null;
+  collection_id?: string | null;
+}
+
 interface Webhook {
   id: string;
   name: string;
   url: string;
   secret: string | null;
   events: WebhookEventType[];
+  filters: WebhookFilters | null;
   enabled: boolean;
   last_triggered_at: string | null;
   failure_count: number;
@@ -91,9 +102,6 @@ const EVENT_TYPES: { value: WebhookEventType; label: string; description: string
   { value: 'collection_item.created', label: 'Collection Item Created', description: 'When a CMS item is created' },
   { value: 'collection_item.updated', label: 'Collection Item Updated', description: 'When a CMS item is updated' },
   { value: 'collection_item.deleted', label: 'Collection Item Deleted', description: 'When a CMS item is deleted' },
-  { value: 'page.created', label: 'Page Created', description: 'When a page is created' },
-  { value: 'page.published', label: 'Page Published', description: 'When a page is published' },
-  { value: 'asset.uploaded', label: 'Asset Uploaded', description: 'When an asset is uploaded' },
 ];
 
 // =============================================================================
@@ -104,26 +112,26 @@ export default function WebhooksPage() {
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Create webhook dialog
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [newWebhookName, setNewWebhookName] = useState('');
-  const [newWebhookUrl, setNewWebhookUrl] = useState('');
-  const [newWebhookEvents, setNewWebhookEvents] = useState<Set<WebhookEventType>>(new Set());
+  // Create/Edit webhook sheet
+  const [showWebhookSheet, setShowWebhookSheet] = useState(false);
+  const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);
+  const [webhookName, setWebhookName] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookEvent, setWebhookEvent] = useState<WebhookEventType | ''>('');
+  const [webhookFilterFormId, setWebhookFilterFormId] = useState<string>('');
+  const [webhookFilterCollectionId, setWebhookFilterCollectionId] = useState<string>('');
   const [generateSecret, setGenerateSecret] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Filter select data
+  const [forms, setForms] = useState<{ form_id: string; submission_count: number }[]>([]);
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
+  const [isLoadingFilterData, setIsLoadingFilterData] = useState(false);
 
   // Secret display dialog
   const [showSecretDialog, setShowSecretDialog] = useState(false);
   const [createdWebhook, setCreatedWebhook] = useState<Webhook | null>(null);
   const [copied, setCopied] = useState(false);
-
-  // Edit webhook dialog
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editUrl, setEditUrl] = useState('');
-  const [editEvents, setEditEvents] = useState<Set<WebhookEventType>>(new Set());
-  const [isSaving, setIsSaving] = useState(false);
 
   // Delete dialog
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -158,85 +166,62 @@ export default function WebhooksPage() {
     }
   };
 
-  const handleCreateWebhook = async () => {
-    if (!newWebhookName.trim() || !newWebhookUrl.trim() || newWebhookEvents.size === 0) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const response = await fetch('/ycode/api/webhooks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newWebhookName.trim(),
-          url: newWebhookUrl.trim(),
-          events: Array.from(newWebhookEvents),
-          generateSecret,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create webhook');
-      }
-
-      if (result.data) {
-        setWebhooks((prev) => [result.data, ...prev]);
-        setShowCreateDialog(false);
-        resetCreateForm();
-
-        // Show secret if generated
-        if (result.data.generated_secret) {
-          setCreatedWebhook(result.data);
-          setShowSecretDialog(true);
-        } else {
-          toast.success('Webhook created');
-        }
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create webhook');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleUpdateWebhook = async () => {
-    if (!editingWebhook || !editName.trim() || !editUrl.trim() || editEvents.size === 0) {
+  const handleSaveWebhook = async () => {
+    if (!webhookName.trim() || !webhookUrl.trim() || !webhookEvent) {
       toast.error('Please fill in all required fields');
       return;
     }
 
     setIsSaving(true);
     try {
-      const response = await fetch(`/ycode/api/webhooks/${editingWebhook.id}`, {
-        method: 'PUT',
+      const isEditing = !!editingWebhook;
+      const url = isEditing
+        ? `/ycode/api/webhooks/${editingWebhook.id}`
+        : '/ycode/api/webhooks';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      // Build filters object (only include non-empty values)
+      const filters: WebhookFilters = {};
+      if (webhookFilterFormId) filters.form_id = webhookFilterFormId;
+      if (webhookFilterCollectionId) filters.collection_id = webhookFilterCollectionId;
+      const hasFilters = Object.keys(filters).length > 0;
+
+      const body = isEditing
+        ? { name: webhookName.trim(), url: webhookUrl.trim(), events: [webhookEvent], filters: hasFilters ? filters : null }
+        : { name: webhookName.trim(), url: webhookUrl.trim(), events: [webhookEvent], filters: hasFilters ? filters : null, generateSecret };
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editName.trim(),
-          url: editUrl.trim(),
-          events: Array.from(editEvents),
-        }),
+        body: JSON.stringify(body),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to update webhook');
+        throw new Error(result.error || `Failed to ${isEditing ? 'update' : 'create'} webhook`);
       }
 
       if (result.data) {
-        setWebhooks((prev) =>
-          prev.map((w) => (w.id === editingWebhook.id ? result.data : w))
-        );
-        setShowEditDialog(false);
-        setEditingWebhook(null);
-        toast.success('Webhook updated');
+        if (isEditing) {
+          setWebhooks((prev) =>
+            prev.map((w) => (w.id === editingWebhook.id ? result.data : w))
+          );
+          toast.success('Webhook updated');
+        } else {
+          setWebhooks((prev) => [result.data, ...prev]);
+          // Show secret if generated
+          if (result.data.generated_secret) {
+            setCreatedWebhook(result.data);
+            setShowSecretDialog(true);
+          } else {
+            toast.success('Webhook created');
+          }
+        }
+        closeWebhookSheet();
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update webhook');
+      toast.error(error instanceof Error ? error.message : 'Failed to save webhook');
     } finally {
       setIsSaving(false);
     }
@@ -331,18 +316,55 @@ export default function WebhooksPage() {
     }
   };
 
-  const openEditDialog = (webhook: Webhook) => {
-    setEditingWebhook(webhook);
-    setEditName(webhook.name);
-    setEditUrl(webhook.url);
-    setEditEvents(new Set(webhook.events));
-    setShowEditDialog(true);
+  const loadFilterData = async () => {
+    setIsLoadingFilterData(true);
+    try {
+      const [formsRes, collectionsRes] = await Promise.all([
+        fetch('/ycode/api/form-submissions?summary=true'),
+        fetch('/ycode/api/collections'),
+      ]);
+      const formsResult = await formsRes.json();
+      const collectionsResult = await collectionsRes.json();
+      if (formsResult.data) setForms(formsResult.data);
+      if (collectionsResult.data) setCollections(collectionsResult.data);
+    } catch (error) {
+      console.error('Failed to load filter data:', error);
+    } finally {
+      setIsLoadingFilterData(false);
+    }
   };
 
-  const resetCreateForm = () => {
-    setNewWebhookName('');
-    setNewWebhookUrl('');
-    setNewWebhookEvents(new Set());
+  const openCreateSheet = () => {
+    setEditingWebhook(null);
+    setWebhookName('');
+    setWebhookUrl('');
+    setWebhookEvent('');
+    setWebhookFilterFormId('');
+    setWebhookFilterCollectionId('');
+    setGenerateSecret(true);
+    setShowWebhookSheet(true);
+    loadFilterData();
+  };
+
+  const openEditSheet = (webhook: Webhook) => {
+    setEditingWebhook(webhook);
+    setWebhookName(webhook.name);
+    setWebhookUrl(webhook.url);
+    setWebhookEvent(webhook.events[0] || '');
+    setWebhookFilterFormId(webhook.filters?.form_id || '');
+    setWebhookFilterCollectionId(webhook.filters?.collection_id || '');
+    setShowWebhookSheet(true);
+    loadFilterData();
+  };
+
+  const closeWebhookSheet = () => {
+    setShowWebhookSheet(false);
+    setEditingWebhook(null);
+    setWebhookName('');
+    setWebhookUrl('');
+    setWebhookEvent('');
+    setWebhookFilterFormId('');
+    setWebhookFilterCollectionId('');
     setGenerateSecret(true);
   };
 
@@ -387,121 +409,121 @@ export default function WebhooksPage() {
   return (
     <div className="p-8">
       <div className="max-w-3xl mx-auto">
-        <header className="pt-8 pb-3">
+        <header className="pt-8 pb-3 flex items-center justify-between">
           <span className="text-base font-medium">Webhooks</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={openCreateSheet}
+          >
+            Create webhook
+          </Button>
         </header>
 
-        <div className="flex flex-col gap-6 bg-secondary/20 p-8 rounded-lg">
-          <header className="flex justify-between">
-            <div>
-              <FieldLegend>Webhooks</FieldLegend>
-              <FieldDescription>
-                Receive real-time notifications when events occur in your Ycode site.
-                Webhooks are sent as POST requests with a JSON payload.
-              </FieldDescription>
-            </div>
+        <p className="text-sm text-muted-foreground mb-6">
+          Receive real-time notifications when events occur in your Ycode site.
+        </p>
 
-            <div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowCreateDialog(true)}
+        {isLoading ? (
+          <div className="py-12 flex justify-center">
+            <Spinner />
+          </div>
+        ) : webhooks.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {webhooks.map((webhook) => (
+              <div
+                key={webhook.id}
+                className="p-4 bg-secondary/20 rounded-lg"
               >
-                Create webhook
-              </Button>
-            </div>
-          </header>
-
-          {isLoading ? (
-            <div className="border-t pt-8 pb-4 flex justify-center">
-              <Spinner />
-            </div>
-          ) : webhooks.length > 0 ? (
-            <div className="border-t -mb-4 divide-y">
-              {webhooks.map((webhook) => (
-                <div key={webhook.id} className="py-4 flex items-center gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <Label className="font-medium">{webhook.name}</Label>
-                      {!webhook.enabled && (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          Disabled
-                        </Badge>
-                      )}
-                      {webhook.failure_count > 0 && (
-                        <Badge variant="destructive">
-                          {webhook.failure_count} failures
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate mb-1">
-                      {webhook.url}
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {webhook.events.slice(0, 3).map((event) => (
-                        <Badge
-                          key={event} variant="secondary"
-                          className="text-[10px]"
-                        >
-                          {event}
-                        </Badge>
-                      ))}
-                      {webhook.events.length > 3 && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          +{webhook.events.length - 3} more
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-2">
-                      Last triggered: {formatRelativeTime(webhook.last_triggered_at)}
-                    </div>
+                {/* Top row: title + events on left, controls on right */}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+                    <Label className="font-medium">{webhook.name}</Label>
+                    {webhook.failure_count > 0 && (
+                      <Badge variant="destructive">
+                        {webhook.failure_count} failures
+                      </Badge>
+                    )}
+                    {webhook.events.slice(0, 3).map((event) => (
+                      <Badge
+                        key={event}
+                        variant="secondary"
+                        className="text-[10px]"
+                      >
+                        {event}
+                      </Badge>
+                    ))}
+                    {webhook.events.length > 3 && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        +{webhook.events.length - 3} more
+                      </Badge>
+                    )}
                   </div>
 
-                  <Switch
-                    checked={webhook.enabled}
-                    onCheckedChange={() => handleToggleEnabled(webhook)}
-                  />
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="secondary" size="xs">
-                        <Icon name="more" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => handleTestWebhook(webhook)}
-                        disabled={testingWebhookId === webhook.id}
-                      >
-                        {testingWebhookId === webhook.id ? 'Sending...' : 'Send test'}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleViewDeliveries(webhook)}>
-                        View deliveries
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => openEditDialog(webhook)}>
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => {
-                          setWebhookToDelete(webhook);
-                          setShowDeleteDialog(true);
-                        }}
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Switch
+                      checked={webhook.enabled}
+                      onCheckedChange={() => handleToggleEnabled(webhook)}
+                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="secondary" size="xs">
+                          <Icon name="more" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleTestWebhook(webhook)}
+                          disabled={testingWebhookId === webhook.id}
+                        >
+                          {testingWebhookId === webhook.id ? 'Sending...' : 'Send test'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleViewDeliveries(webhook)}>
+                          View deliveries
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => openEditSheet(webhook)}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => {
+                            setWebhookToDelete(webhook);
+                            setShowDeleteDialog(true);
+                          }}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="border-t pt-8 pb-4 text-center text-muted-foreground text-sm">
-              No webhooks configured yet. Click &ldquo;Create webhook&rdquo; to get started.
-            </div>
-          )}
-        </div>
+
+                {/* Bottom row: URL on left, last triggered on right */}
+                <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 truncate mr-4">
+                    <span className="truncate">{webhook.url}</span>
+                    {webhook.filters?.form_id && (
+                      <Badge variant="outline" className="text-[10px] shrink-0">
+                        Form: {webhook.filters.form_id}
+                      </Badge>
+                    )}
+                    {webhook.filters?.collection_id && (
+                      <Badge variant="outline" className="text-[10px] shrink-0">
+                        Collection: {collections.find((c) => c.id === webhook.filters?.collection_id)?.name || webhook.filters.collection_id.slice(0, 8)}
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="shrink-0">Last triggered: {formatRelativeTime(webhook.last_triggered_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground text-sm border border-dashed rounded-lg">
+            No webhooks configured yet. Click &ldquo;Create webhook&rdquo; to get started.
+          </div>
+        )}
 
         {/* TODO: Uncomment when Webhooks Documentation is ready for release */}
         {/* <header className="pt-10 pb-3">
@@ -509,25 +531,31 @@ export default function WebhooksPage() {
         </header> */}
       </div>
 
-      {/* Create Webhook Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create webhook</DialogTitle>
-            <DialogDescription>
-              Configure a new webhook endpoint to receive event notifications.
-            </DialogDescription>
-          </DialogHeader>
+      {/* Create/Edit Webhook Sheet */}
+      <Sheet
+        open={showWebhookSheet}
+        onOpenChange={(open) => {
+          if (!open) closeWebhookSheet();
+        }}
+      >
+        <SheetContent className="sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="mr-auto">
+              {editingWebhook ? 'Edit webhook' : 'Create webhook'}
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              {editingWebhook ? 'Update webhook configuration.' : 'Configure a new webhook endpoint.'}
+            </SheetDescription>
+          </SheetHeader>
 
-          <div className="flex flex-col gap-6">
+          <div className="mt-6 flex flex-col gap-6">
             <Field>
               <FieldLabel htmlFor="webhook-name">Name</FieldLabel>
               <Input
                 id="webhook-name"
                 placeholder="e.g., Form Notifications"
-                value={newWebhookName}
-                onChange={(e) => setNewWebhookName(e.target.value)}
-                autoFocus
+                value={webhookName}
+                onChange={(e) => setWebhookName(e.target.value)}
               />
             </Field>
 
@@ -540,82 +568,151 @@ export default function WebhooksPage() {
                 id="webhook-url"
                 type="url"
                 placeholder="https://example.com/webhook"
-                value={newWebhookUrl}
-                onChange={(e) => setNewWebhookUrl(e.target.value)}
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
               />
             </Field>
 
             <Field>
-              <FieldLabel>Events</FieldLabel>
+              <FieldLabel>Event</FieldLabel>
               <FieldDescription>
-                Select which events should trigger this webhook.
+                Select which event should trigger this webhook.
               </FieldDescription>
-              <div className="border rounded-lg p-3 space-y-2 max-h-[200px] overflow-y-auto mt-2">
-                {EVENT_TYPES.map((event) => (
-                  <div key={event.value} className="flex items-start gap-2">
-                    <Checkbox
-                      id={`event-${event.value}`}
-                      checked={newWebhookEvents.has(event.value)}
-                      onCheckedChange={(checked) => {
-                        setNewWebhookEvents((prev) => {
-                          const next = new Set(prev);
-                          if (checked) {
-                            next.add(event.value);
-                          } else {
-                            next.delete(event.value);
-                          }
-                          return next;
-                        });
-                      }}
-                    />
-                    <label
-                      htmlFor={`event-${event.value}`}
-                      className="text-sm cursor-pointer leading-tight"
+              <Select
+                value={webhookEvent}
+                onValueChange={(value) => {
+                  setWebhookEvent(value as WebhookEventType);
+                  // Clear resource filters when event type changes
+                  setWebhookFilterFormId('');
+                  setWebhookFilterCollectionId('');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an event" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENT_TYPES.map((event) => (
+                    <SelectItem
+                      key={event.value}
+                      value={event.value}
                     >
-                      <div className="font-medium">{event.label}</div>
-                      <div className="text-xs text-muted-foreground">{event.description}</div>
-                    </label>
-                  </div>
-                ))}
-              </div>
+                      {event.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="generate-secret" className="text-sm">
-                  Generate signing secret
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Recommended for security
-                </p>
+            {/* Resource Filters - show based on selected event */}
+            {webhookEvent === 'form.submitted' && (
+              <Field>
+                <FieldLabel>Form filter</FieldLabel>
+                <FieldDescription>
+                  Only trigger for a specific form, or leave as &ldquo;All forms&rdquo;.
+                </FieldDescription>
+                {isLoadingFilterData ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Spinner /> Loading forms...
+                  </div>
+                ) : (
+                  <Select
+                    value={webhookFilterFormId}
+                    onValueChange={(value) => setWebhookFilterFormId(value === '__all__' ? '' : value)}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="All forms" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All forms</SelectItem>
+                      {forms.map((form) => (
+                        <SelectItem
+                          key={form.form_id}
+                          value={form.form_id}
+                        >
+                          {form.form_id} ({form.submission_count} submissions)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
+            )}
+
+            {(webhookEvent === 'collection_item.created' ||
+              webhookEvent === 'collection_item.updated' ||
+              webhookEvent === 'collection_item.deleted') && (
+              <Field>
+                <FieldLabel>Collection filter</FieldLabel>
+                <FieldDescription>
+                  Only trigger for a specific collection, or leave as &ldquo;All collections&rdquo;.
+                </FieldDescription>
+                {isLoadingFilterData ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Spinner /> Loading collections...
+                  </div>
+                ) : (
+                  <Select
+                    value={webhookFilterCollectionId}
+                    onValueChange={(value) => setWebhookFilterCollectionId(value === '__all__' ? '' : value)}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="All collections" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All collections</SelectItem>
+                      {collections.map((collection) => (
+                        <SelectItem
+                          key={collection.id}
+                          value={collection.id}
+                        >
+                          {collection.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
+            )}
+
+            {!editingWebhook && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="generate-secret" className="text-sm">
+                    Generate signing secret
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Recommended for security
+                  </p>
+                </div>
+                <Switch
+                  id="generate-secret"
+                  checked={generateSecret}
+                  onCheckedChange={setGenerateSecret}
+                />
               </div>
-              <Switch
-                id="generate-secret"
-                checked={generateSecret}
-                onCheckedChange={setGenerateSecret}
-              />
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSaveWebhook}
+                disabled={!webhookName.trim() || !webhookUrl.trim() || !webhookEvent || isSaving}
+              >
+                {isSaving
+                  ? 'Saving...'
+                  : editingWebhook
+                    ? 'Save changes'
+                    : 'Create webhook'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={closeWebhookSheet}
+              >
+                Cancel
+              </Button>
             </div>
           </div>
-
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setShowCreateDialog(false);
-                resetCreateForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateWebhook}
-              disabled={!newWebhookName.trim() || !newWebhookUrl.trim() || newWebhookEvents.size === 0 || isCreating}
-            >
-              {isCreating ? 'Creating...' : 'Create webhook'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Secret Display Dialog */}
       <Dialog
@@ -680,82 +777,6 @@ export default function WebhooksPage() {
               }}
             >
               Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Webhook Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit webhook</DialogTitle>
-            <DialogDescription>
-              Update webhook configuration.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-6">
-            <Field>
-              <FieldLabel htmlFor="edit-name">Name</FieldLabel>
-              <Input
-                id="edit-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="edit-url">URL</FieldLabel>
-              <Input
-                id="edit-url"
-                type="url"
-                value={editUrl}
-                onChange={(e) => setEditUrl(e.target.value)}
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel>Events</FieldLabel>
-              <div className="border rounded-lg p-3 space-y-2 max-h-[200px] overflow-y-auto mt-2">
-                {EVENT_TYPES.map((event) => (
-                  <div key={event.value} className="flex items-start gap-2">
-                    <Checkbox
-                      id={`edit-event-${event.value}`}
-                      checked={editEvents.has(event.value)}
-                      onCheckedChange={(checked) => {
-                        setEditEvents((prev) => {
-                          const next = new Set(prev);
-                          if (checked) {
-                            next.add(event.value);
-                          } else {
-                            next.delete(event.value);
-                          }
-                          return next;
-                        });
-                      }}
-                    />
-                    <label
-                      htmlFor={`edit-event-${event.value}`}
-                      className="text-sm cursor-pointer leading-tight"
-                    >
-                      <div className="font-medium">{event.label}</div>
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </Field>
-          </div>
-
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowEditDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateWebhook}
-              disabled={!editName.trim() || !editUrl.trim() || editEvents.size === 0 || isSaving}
-            >
-              {isSaving ? 'Saving...' : 'Save changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

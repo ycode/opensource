@@ -33,7 +33,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, url, events, secret, generateSecret } = body;
+    const { name, url, events, secret, generateSecret, filters } = body;
 
     // Validation
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       url: url.trim(),
       events: events as WebhookEventType[],
       secret: webhookSecret,
+      filters: filters || null,
     };
 
     const webhook = await createWebhook(webhookData);

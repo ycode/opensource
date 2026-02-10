@@ -68,6 +68,7 @@ export async function PUT(
     if (body.name !== undefined) updates.name = body.name;
     if (body.url !== undefined) updates.url = body.url;
     if (body.events !== undefined) updates.events = body.events;
+    if (body.filters !== undefined) updates.filters = body.filters;
     if (body.enabled !== undefined) updates.enabled = body.enabled;
     if (body.secret !== undefined) updates.secret = body.secret;
 

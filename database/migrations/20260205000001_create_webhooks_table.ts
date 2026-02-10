@@ -28,6 +28,7 @@ export async function up(knex: Knex): Promise<void> {
     table.string('url', 2048).notNullable();
     table.string('secret', 64).nullable(); // HMAC signing secret
     table.jsonb('events').notNullable().defaultTo('[]'); // Array of event types
+    table.jsonb('filters').nullable().defaultTo(null); // Optional resource filters (e.g., { form_id, collection_id })
     table.boolean('enabled').defaultTo(true);
     table.timestamp('last_triggered_at', { useTz: true }).nullable();
     table.integer('failure_count').defaultTo(0);
