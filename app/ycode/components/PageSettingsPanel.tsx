@@ -1236,14 +1236,25 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
               onClick={handleClose} size="sm"
               variant="secondary"
             >Close</Button>
-            <Button
-              onClick={handleSave}
-              disabled={isSaving || !hasUnsavedChanges}
-              size="sm"
-            >
-              {isSaving && <Spinner />}
-              Save
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving || !hasUnsavedChanges}
+                    size="sm"
+                  >
+                    {isSaving && <Spinner />}
+                    Save
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!hasUnsavedChanges && !isSaving && (
+                <TooltipContent>
+                  <p>Saved</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </div>
 

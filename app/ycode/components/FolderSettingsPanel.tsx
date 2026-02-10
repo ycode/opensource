@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Icon from '@/components/ui/icon';
 import { buildFolderPath, isDescendantFolder, generateUniqueFolderSlug, generateSlug, sanitizeSlug, isReservedRootSlug } from '@/lib/page-utils';
 
@@ -481,14 +482,25 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
               onClick={handleClose} size="sm"
               variant="secondary"
             >Close</Button>
-            <Button
-              onClick={handleSave}
-              disabled={isSaving || !hasUnsavedChanges}
-              size="sm"
-            >
-              {isSaving && <Spinner />}
-              Save
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving || !hasUnsavedChanges}
+                    size="sm"
+                  >
+                    {isSaving && <Spinner />}
+                    Save
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!hasUnsavedChanges && !isSaving && (
+                <TooltipContent>
+                  <p>Saved</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </div>
 
