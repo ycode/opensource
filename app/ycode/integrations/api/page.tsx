@@ -204,10 +204,291 @@ export default function ApiPage() {
           </div>
         )}
 
-        {/* TODO: Uncomment when API Documentation is ready for release */}
-        {/* <header className="pt-10 pb-3">
+        <header className="pt-10 pb-3">
           <span className="text-base font-medium">API Documentation</span>
-        </header> */}
+        </header>
+
+        <div className="flex flex-col gap-8 bg-secondary/20 p-8 rounded-lg text-sm">
+
+          {/* Authentication */}
+          <section>
+            <h3 className="font-medium mb-2">Authentication</h3>
+            <p className="text-muted-foreground mb-3">
+              All API requests require a valid API key passed in the <code className="text-xs bg-secondary px-1 py-0.5 rounded">Authorization</code> header:
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`Authorization: Bearer YOUR_API_KEY`}
+            </pre>
+          </section>
+
+          {/* Endpoints */}
+          <section>
+            <h3 className="font-medium mb-2">Endpoints</h3>
+            <div className="space-y-4">
+
+              <div>
+                <h4 className="text-muted-foreground mb-1">Collections</h4>
+                <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
+                  <div><span className="text-green-500">GET</span> /api/v1/collections</div>
+                  <div><span className="text-green-500">GET</span> /api/v1/collections/{'{collection_id}'}</div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-muted-foreground mb-1">Collection Items</h4>
+                <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
+                  <div><span className="text-green-500">GET</span> /api/v1/collections/{'{collection_id}'}/items</div>
+                  <div><span className="text-blue-500">POST</span> /api/v1/collections/{'{collection_id}'}/items</div>
+                  <div><span className="text-green-500">GET</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
+                  <div><span className="text-yellow-500">PUT</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
+                  <div><span className="text-yellow-500">PATCH</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
+                  <div><span className="text-red-500">DELETE</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-muted-foreground mb-1">Forms</h4>
+                <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
+                  <div><span className="text-green-500">GET</span> /api/v1/forms</div>
+                  <div><span className="text-green-500">GET</span> /api/v1/forms/{'{form_id}'}</div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-muted-foreground mb-1">Form Submissions</h4>
+                <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
+                  <div><span className="text-green-500">GET</span> /api/v1/forms/{'{form_id}'}/submissions</div>
+                  <div><span className="text-blue-500">POST</span> /api/v1/forms/{'{form_id}'}/submissions</div>
+                  <div><span className="text-yellow-500">PATCH</span> /api/v1/forms/{'{form_id}'}/submissions/{'{submission_id}'}</div>
+                  <div><span className="text-red-500">DELETE</span> /api/v1/forms/{'{form_id}'}/submissions/{'{submission_id}'}</div>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          {/* Collections API */}
+          <section>
+            <h3 className="font-medium mb-2">Collections API</h3>
+            <p className="text-muted-foreground mb-3">
+              Items are returned with their field values. Reference fields include linked item data.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <div className="font-medium text-xs mb-2">List Items</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Supports pagination with <code className="bg-secondary px-1 py-0.5 rounded">page</code> and <code className="bg-secondary px-1 py-0.5 rounded">per_page</code> (max 100).
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`GET /api/v1/collections/{collection_id}/items?page=1&per_page=50`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Create Item</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Pass field values using <strong>field names</strong> as keys. For reference fields, pass the referenced item&apos;s <code className="bg-secondary px-1 py-0.5 rounded">_id</code> (UUID).
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`POST /api/v1/collections/{collection_id}/items
+Content-Type: application/json
+
+{
+  "Name": "My Blog Post",
+  "Slug": "my-blog-post",
+  "Author": "550e8400-e29b-41d4-a716-446655440000"
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Update Item</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Use <code className="bg-secondary px-1 py-0.5 rounded">PUT</code> for full replacement or <code className="bg-secondary px-1 py-0.5 rounded">PATCH</code> for partial updates.
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`PATCH /api/v1/collections/{collection_id}/items/{item_id}
+Content-Type: application/json
+
+{
+  "Name": "Updated Title"
+}`}
+                </pre>
+              </div>
+            </div>
+          </section>
+
+          {/* Response Format */}
+          <section>
+            <h3 className="font-medium mb-2">Response Format</h3>
+            <p className="text-muted-foreground mb-3">
+              Items include system fields (<code className="text-xs bg-secondary px-1 py-0.5 rounded">_id</code>, <code className="text-xs bg-secondary px-1 py-0.5 rounded">ID</code>, <code className="text-xs bg-secondary px-1 py-0.5 rounded">Created Date</code>, <code className="text-xs bg-secondary px-1 py-0.5 rounded">Updated Date</code>) plus all collection field values:
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`{
+  "_id": "550e8400-e29b-41d4-a716-446655440000",
+  "ID": "1",
+  "Name": "My Blog Post",
+  "Slug": "my-blog-post",
+  "Created Date": "2026-01-05T10:00:00.000Z",
+  "Updated Date": "2026-01-05T12:30:00.000Z",
+  "Author": { "_id": "...", "Name": "John Doe" }
+}`}
+            </pre>
+          </section>
+
+          {/* Protected Fields */}
+          <section>
+            <h3 className="font-medium mb-2">Protected Fields</h3>
+            <p className="text-muted-foreground mb-3">
+              These auto-generated fields cannot be set or modified via the API:
+            </p>
+            <div className="bg-secondary p-3 rounded-lg text-xs space-y-2">
+              <div><code className="text-blue-400">ID</code> - Auto-incrementing number, assigned on creation</div>
+              <div><code className="text-blue-400">Created Date</code> - Set automatically when item is created</div>
+              <div><code className="text-blue-400">Updated Date</code> - Updated automatically on every change</div>
+            </div>
+          </section>
+
+          {/* Forms API */}
+          <section>
+            <h3 className="font-medium mb-2">Forms API</h3>
+            <p className="text-muted-foreground mb-3">
+              Access form submissions programmatically. Forms are identified by their <code className="text-xs bg-secondary px-1 py-0.5 rounded">form_id</code> (set in the form element settings).
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <div className="font-medium text-xs mb-2">List All Forms</div>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`GET /api/v1/forms
+
+// Response:
+{
+  "forms": [
+    {
+      "id": "contact-form",
+      "submissionCount": 42,
+      "newCount": 5,
+      "latestSubmission": "2026-01-29T10:30:00.000Z"
+    }
+  ]
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Get Form Details</div>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`GET /api/v1/forms/{form_id}
+
+// Response:
+{
+  "id": "contact-form",
+  "submissionCount": 42,
+  "statusCounts": {
+    "new": 5,
+    "read": 30,
+    "archived": 7,
+    "spam": 0
+  },
+  "latestSubmission": "2026-01-29T10:30:00.000Z"
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">List Submissions</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Supports pagination and status filtering.
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`GET /api/v1/forms/{form_id}/submissions?page=1&per_page=50&status=new
+
+// Response:
+{
+  "submissions": [
+    {
+      "id": "uuid",
+      "formId": "contact-form",
+      "payload": { "name": "John", "email": "john@example.com" },
+      "metadata": { "user_agent": "...", "referrer": "..." },
+      "status": "new",
+      "createdAt": "2026-01-29T10:30:00.000Z"
+    }
+  ],
+  "pagination": { "page": 1, "perPage": 50, "total": 42 }
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Create Submission</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Submit form data programmatically (e.g., from external frontends or integrations).
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`POST /api/v1/forms/{form_id}/submissions
+Content-Type: application/json
+
+{
+  "payload": {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "message": "Hello!"
+  },
+  "metadata": {
+    "page_url": "/contact"
+  }
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Update Submission Status</div>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`PATCH /api/v1/forms/{form_id}/submissions/{submission_id}
+Content-Type: application/json
+
+{
+  "status": "read"  // new, read, archived, spam
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Delete Submission</div>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`DELETE /api/v1/forms/{form_id}/submissions/{submission_id}
+
+// Returns 204 No Content on success`}
+                </pre>
+              </div>
+            </div>
+          </section>
+
+          {/* Error Responses */}
+          <section>
+            <h3 className="font-medium mb-2">Error Responses</h3>
+            <p className="text-muted-foreground mb-3">
+              Errors return a JSON object with <code className="text-xs bg-secondary px-1 py-0.5 rounded">error</code> and <code className="text-xs bg-secondary px-1 py-0.5 rounded">code</code> fields:
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`{
+  "error": "Collection not found",
+  "code": "NOT_FOUND"
+}`}
+            </pre>
+            <div className="mt-3 text-xs text-muted-foreground space-y-1">
+              <div><code className="text-yellow-400">401</code> - Invalid or missing API key</div>
+              <div><code className="text-yellow-400">404</code> - Collection or item not found</div>
+              <div><code className="text-yellow-400">400</code> - Invalid request body</div>
+              <div><code className="text-yellow-400">500</code> - Internal server error</div>
+            </div>
+          </section>
+
+        </div>
 
       </div>
 
