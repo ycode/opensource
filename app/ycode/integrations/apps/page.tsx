@@ -37,9 +37,11 @@ import {
 } from '@/components/ui/sheet';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import Icon from '@/components/ui/icon';
+import Image from 'next/image';
 import { toast } from 'sonner';
 
 import type { AppCategory } from '@/lib/apps/registry';
+import { APP_CATEGORIES } from '@/lib/apps/registry';
 import { MAILERLITE_SUBSCRIBER_FIELDS } from '@/lib/apps/mailerlite/types';
 import type { MailerLiteConnection, MailerLiteFieldMapping } from '@/lib/apps/mailerlite/types';
 
@@ -51,9 +53,9 @@ interface AppWithStatus {
   id: string;
   name: string;
   description: string;
-  icon: string;
-  category: AppCategory;
-  settingsPath: string;
+  logo: { src: string; width: number; height: number };
+  categories: AppCategory[];
+  implemented: boolean;
   connected: boolean;
 }
 
@@ -69,22 +71,69 @@ interface FormSummary {
   new_count: number;
 }
 
-const CATEGORY_LABELS: Record<AppCategory, string> = {
-  email: 'Email',
-  analytics: 'Analytics',
-  marketing: 'Marketing',
-  automation: 'Automation',
-  other: 'Other',
-};
+// =============================================================================
+// App Card Component
+// =============================================================================
+
+interface AppCardProps {
+  app: AppWithStatus;
+  onOpenSettings: (appId: string) => void;
+}
+
+function AppCard({ app, onOpenSettings }: AppCardProps) {
+  const handleClick = () => {
+    if (app.implemented) {
+      onOpenSettings(app.id);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={!app.implemented}
+      className="flex items-start gap-3 p-4 bg-secondary/20 rounded-lg hover:bg-secondary/40 transition-colors text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-secondary/20"
+    >
+      <div className="flex items-center justify-center size-10 rounded-lg bg-secondary shrink-0 overflow-hidden">
+        <Image
+          src={app.logo}
+          alt={`${app.name} logo`}
+          width={24}
+          height={24}
+          className="object-contain"
+        />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="font-medium text-sm">{app.name}</span>
+          {app.connected && (
+            <Badge variant="default" className="text-[10px]">
+              Connected
+            </Badge>
+          )}
+          {!app.implemented && (
+            <Badge variant="outline" className="text-[10px]">
+              Coming soon
+            </Badge>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground line-clamp-2">
+          {app.description}
+        </p>
+      </div>
+    </button>
+  );
+}
 
 // =============================================================================
-// Component
+// Main Component
 // =============================================================================
 
 export default function AppsPage() {
   // App list state
   const [apps, setApps] = useState<AppWithStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<AppCategory>('popular');
 
   // Sheet state
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
@@ -457,6 +506,13 @@ export default function AppsPage() {
   // Render
   // =========================================================================
 
+  // Derived data
+  const connectedApps = apps.filter((app) => app.connected);
+  const connectedIds = new Set(connectedApps.map((app) => app.id));
+  const filteredApps = apps.filter(
+    (app) => !connectedIds.has(app.id) && app.categories.includes(selectedCategory)
+  );
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-16">
@@ -477,63 +533,66 @@ export default function AppsPage() {
           Connect third-party apps and services to extend your website&apos;s functionality.
         </p>
 
-        {apps.length === 0 ? (
-          <div className="bg-secondary/20 p-8 rounded-lg">
-            <div className="text-center py-16 border border-dashed rounded-lg">
-              <p className="text-muted-foreground text-sm">
-                No apps available yet.
-              </p>
+        {/* Connected Apps Section */}
+        {connectedApps.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Connected
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {connectedApps.map((app) => (
+                <AppCard
+                  key={app.id}
+                  app={app}
+                  onOpenSettings={openAppSettings}
+                />
+              ))}
             </div>
           </div>
-        ) : (
-          <div className="grid gap-3">
-            {apps.map((app) => (
-              <button
-                key={app.id}
-                onClick={() => openAppSettings(app.id)}
-                className="flex items-center gap-4 p-4 bg-secondary/20 rounded-lg hover:bg-secondary/40 transition-colors text-left cursor-pointer"
-              >
-                <div className="flex items-center justify-center size-10 rounded-lg bg-secondary">
-                  <Icon
-                    name={app.icon as 'email'}
-                    className="size-5 text-foreground"
-                  />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-medium text-sm">{app.name}</span>
-                    <Badge
-                      variant="secondary"
-                      className="text-[10px] px-1.5 py-0"
-                    >
-                      {CATEGORY_LABELS[app.category]}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {app.description}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  {app.connected ? (
-                    <Badge variant="default" className="text-[10px]">
-                      Connected
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-[10px]">
-                      Not connected
-                    </Badge>
-                  )}
-                  <Icon
-                    name="chevronRight"
-                    className="size-4 text-muted-foreground"
-                  />
-                </div>
-              </button>
-            ))}
-          </div>
         )}
+
+        {/* All Apps Section */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              All Apps
+            </h3>
+            <Select
+              value={selectedCategory}
+              onValueChange={(value) => setSelectedCategory(value as AppCategory)}
+            >
+              <SelectTrigger className="w-[140px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {APP_CATEGORIES.map((cat) => (
+                  <SelectItem
+                    key={cat.value}
+                    value={cat.value}
+                  >
+                    {cat.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {filteredApps.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm border border-dashed rounded-lg">
+              No apps in this category yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {filteredApps.map((app) => (
+                <AppCard
+                  key={app.id}
+                  app={app}
+                  onOpenSettings={openAppSettings}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* App Settings Sheet */}
