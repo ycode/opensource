@@ -38,41 +38,40 @@ export async function GET(
     // Calculate offset (use explicit offset if provided, otherwise calculate from page)
     const offset = offsetParam ? parseInt(offsetParam, 10) : (page - 1) * limit;
 
+    // When sorting by a field value, we must fetch ALL items first to sort globally,
+    // then paginate the sorted result. Otherwise DB pagination order won't match.
+    const needsGlobalSort = sortBy && sortBy !== 'none' && sortBy !== 'manual';
+
     // Build filters object
     const filters = {
       ...(search ? { search } : {}),
-      limit,
-      offset,
+      // Only apply DB pagination when we don't need global sorting
+      ...(!needsGlobalSort ? { limit, offset } : {}),
     };
 
     // Always get draft items in the builder
-    const { items, total } = await getItemsWithValues(id, false, filters);
+    let { items, total } = await getItemsWithValues(id, false, filters);
 
-    // Apply sorting if specified (client-side for now since repository doesn't support it)
-    let sortedItems = items;
+    // Apply sorting
     if (sortBy && sortBy !== 'none') {
       if (sortBy === 'manual') {
-        // Sort by manual_order
-        sortedItems = [...items].sort((a, b) => {
-          return (a.manual_order || 0) - (b.manual_order || 0);
-        });
+        // manual_order is already the DB default sort — no extra work needed
       } else if (sortBy === 'random') {
-        // Randomize order
-        sortedItems = [...items].sort(() => Math.random() - 0.5);
+        items = [...items].sort(() => Math.random() - 0.5);
       } else {
-        // Sort by field value
-        sortedItems = [...items].sort((a, b) => {
+        // Sort by field value (globally, before pagination)
+        items = [...items].sort((a, b) => {
           const aValue = a.values[sortBy] || '';
           const bValue = b.values[sortBy] || '';
-          
+
           // Try numeric comparison
           const aNum = parseFloat(String(aValue));
           const bNum = parseFloat(String(bValue));
-          
+
           if (!isNaN(aNum) && !isNaN(bNum)) {
             return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
           }
-          
+
           // String comparison
           const comparison = String(aValue).localeCompare(String(bValue));
           return sortOrder === 'asc' ? comparison : -comparison;
@@ -80,9 +79,15 @@ export async function GET(
       }
     }
 
+    // Apply pagination after global sorting (if we fetched all items)
+    if (needsGlobalSort) {
+      total = items.length;
+      items = items.slice(offset, offset + limit);
+    }
+
     return noCache({
       data: {
-        items: sortedItems,
+        items,
         total,
         page,
         limit,

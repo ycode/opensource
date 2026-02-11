@@ -480,8 +480,8 @@ export const collectionsApi = {
   // Items (with values)
   async getTopItemsPerCollection(
     collectionIds: string[],
-    limit: number = 10
-  ): Promise<ApiResponse<Record<string, { items: CollectionItemWithValues[]; total: number }>>> {
+    limit: number = 25
+  ): Promise<ApiResponse<Record<string, { items: CollectionItemWithValues[] }>>> {
     return apiRequest('/ycode/api/collections/items/batch', {
       method: 'POST',
       body: JSON.stringify({ collectionIds, limit }),
@@ -539,12 +539,14 @@ export const collectionsApi = {
   async searchItems(
     collectionId: string,
     query: string,
-    options?: { page?: number; limit?: number }
+    options?: { page?: number; limit?: number; sortBy?: string; sortOrder?: string }
   ): Promise<ApiResponse<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>> {
     const params = new URLSearchParams();
     params.append('search', query);
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.sortBy) params.append('sortBy', options.sortBy);
+    if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
     const url = `/ycode/api/collections/${collectionId}/items?${params.toString()}`;
     return apiRequest<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>(url);
   },
