@@ -38,7 +38,7 @@ import FormSettings from './FormSettings';
 import AlertSettings from './AlertSettings';
 import HTMLEmbedSettings from './HTMLEmbedSettings';
 import InputSettings from './InputSettings';
-import LinkSettings from './LinkSettings';
+import LinkSettings, { type LinkSettingsValue } from './LinkSettings';
 import RichTextEditor from './RichTextEditor';
 import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
@@ -1605,10 +1605,12 @@ const RightSidebar = React.memo(function RightSidebar({
     };
 
     const allVariables = component.variables || [];
-    const textVariables = allVariables.filter(v => v.type !== 'image');
+    const textVariables = allVariables.filter(v => v.type === 'text');
     const imageVariables = allVariables.filter(v => v.type === 'image');
+    const linkVariables = allVariables.filter(v => v.type === 'link');
     const currentTextOverrides = selectedLayer.componentOverrides?.text || {};
     const currentImageOverrides = selectedLayer.componentOverrides?.image || {};
+    const currentLinkOverrides = selectedLayer.componentOverrides?.link || {};
 
     // Extract Tiptap content from text ComponentVariableValue
     // Falls back to variable's default_value if no override is set
@@ -1660,6 +1662,28 @@ const RightSidebar = React.memo(function RightSidebar({
       });
     };
 
+    // Get link override value (LinkSettingsValue)
+    const getLinkOverrideValue = (variableId: string) => {
+      const overrideValue = currentLinkOverrides[variableId];
+      const variableDef = linkVariables.find(v => v.id === variableId);
+
+      // Use override if set, otherwise fall back to default value
+      return (overrideValue ?? variableDef?.default_value) as LinkSettingsValue | undefined;
+    };
+
+    // Store link override as LinkSettingsValue
+    const handleLinkVariableOverrideChange = (variableId: string, value: LinkSettingsValue) => {
+      onLayerUpdate(selectedLayerId!, {
+        componentOverrides: {
+          ...selectedLayer.componentOverrides,
+          link: {
+            ...currentLinkOverrides,
+            [variableId]: value,
+          },
+        },
+      });
+    };
+
     // Handle detaching from component (converts instance to regular layers)
     const handleDetachFromComponent = () => {
       if (!selectedLayer.componentId) return;
@@ -1683,12 +1707,13 @@ const RightSidebar = React.memo(function RightSidebar({
     const handleResetAllOverrides = () => {
       if (!selectedLayerId) return;
 
-      // Clear all text and image overrides - values will fall back to defaults
+      // Clear all text, image, and link overrides - values will fall back to defaults
       onLayerUpdate(selectedLayerId, {
         componentOverrides: {
           ...selectedLayer.componentOverrides,
           text: {},
           image: {},
+          link: {},
         },
       });
     };
@@ -1723,7 +1748,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         onClick={handleResetAllOverrides}
-                        disabled={Object.keys(currentTextOverrides).length === 0 && Object.keys(currentImageOverrides).length === 0}
+                        disabled={Object.keys(currentTextOverrides).length === 0 && Object.keys(currentImageOverrides).length === 0 && Object.keys(currentLinkOverrides).length === 0}
                       >
                         <Icon name="undo" />
                         Reset all overrides
@@ -1742,7 +1767,7 @@ const RightSidebar = React.memo(function RightSidebar({
                   <Icon name="component" className="size-3" />
                 </div>
                 <span>{component.name}</span>
-                {(Object.keys(currentTextOverrides).length > 0 || Object.keys(currentImageOverrides).length > 0) && (
+                {(Object.keys(currentTextOverrides).length > 0 || Object.keys(currentImageOverrides).length > 0 || Object.keys(currentLinkOverrides).length > 0) && (
                     <span className="ml-auto text-[10px] italic text-orange-600 dark:text-orange-200">Overridden</span>
                 )}
               </div>
@@ -1801,6 +1826,28 @@ const RightSidebar = React.memo(function RightSidebar({
                           value={getImageOverrideValue(variable.id)}
                           onChange={(val) => handleImageVariableOverrideChange(variable.id, val)}
                           fieldGroups={fieldGroups}
+                          allFields={fields}
+                          collections={collections}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Link variable overrides */}
+              {linkVariables.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {linkVariables.map((variable) => (
+                    <div key={variable.id} className="grid grid-cols-3 gap-2 items-start">
+                      <Label variant="muted" className="truncate pt-2">
+                        {variable.name}
+                      </Label>
+                      <div className="col-span-2">
+                        <LinkSettings
+                          mode="standalone"
+                          value={getLinkOverrideValue(variable.id)}
+                          onChange={(val) => handleLinkVariableOverrideChange(variable.id, val)}
                           allFields={fields}
                           collections={collections}
                         />
@@ -2241,6 +2288,7 @@ const RightSidebar = React.memo(function RightSidebar({
                 collections={collections}
                 isLockedByOther={isLockedByOther}
                 isInsideCollectionLayer={!!parentCollectionLayer}
+                onOpenVariablesDialog={() => setVariablesDialogOpen(true)}
               />
             )}
 
