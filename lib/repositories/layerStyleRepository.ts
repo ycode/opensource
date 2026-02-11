@@ -5,7 +5,7 @@
  * Supports draft/published workflow with content hash-based change detection
  */
 
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { LayerStyle, Layer } from '@/types';
 import { generateLayerStyleContentHash } from '../hash-utils';
 

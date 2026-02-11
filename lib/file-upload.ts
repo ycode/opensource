@@ -3,7 +3,7 @@
  * Creates Asset records in database for uploaded files
  */
 
-import { getSupabaseAdmin } from './supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createAsset } from './repositories/assetRepository';
 import { isAssetOfType, ASSET_CATEGORIES } from './asset-utils';
 import sharp from 'sharp';

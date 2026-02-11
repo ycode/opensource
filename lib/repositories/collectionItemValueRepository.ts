@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { CollectionItemValue, CollectionFieldType } from '@/types';
 import { castValue, valueToString } from '../collection-utils';
 import { randomUUID } from 'crypto';

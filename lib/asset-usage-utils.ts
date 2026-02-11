@@ -4,7 +4,7 @@
  * Functions to find and count asset usage across pages, components, and CMS items
  */
 
-import { getSupabaseAdmin } from './supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { Layer } from '@/types';
 import { findDisplayField } from './collection-field-utils';
 

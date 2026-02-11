@@ -422,10 +422,12 @@ export async function GET(request: NextRequest, { params }) {
 
 ### Create Repositories for All Data Entities
 
+**IMPORTANT**: Always use alias imports (`@/lib/...`) for `supabase-server` and other lib modules. Never use relative imports like `../supabase-server`. This ensures consistent behavior and allows overlays to work correctly.
+
 Example structure in `/lib/repositories/pageRepository.ts`:
 
 ```typescript
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { Page } from '@/types';
 
 export async function getAllPages(): Promise<Page[]> {

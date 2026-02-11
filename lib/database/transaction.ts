@@ -9,7 +9,7 @@
  * by tracking operations and their inverse operations.
  */
 
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
@@ -55,16 +55,10 @@ export async function withTransaction<T>(
     throw new Error('Supabase client not configured');
   }
   
-  try {
-    // Execute the function
-    const result = await fn();
-    
-    return result;
-  } catch (error) {
-    // If error occurs, the function should handle its own cleanup
-    // or we can implement specific rollback logic in the service layer
-    throw error;
-  }
+  // Execute the function
+  // If error occurs, the function should handle its own cleanup
+  // or we can implement specific rollback logic in the service layer
+  return fn();
 }
 
 /**

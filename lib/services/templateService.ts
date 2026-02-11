@@ -1,5 +1,5 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { migrations } from '../migrations-loader';
 import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
 

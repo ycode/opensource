@@ -4,7 +4,7 @@
  * Data access layer for application settings stored in the database
  */
 
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { Setting } from '@/types';
 
 /**

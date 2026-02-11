@@ -4,7 +4,7 @@
  * Business logic for page folder operations
  */
 
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { PageFolder } from '@/types';
 
 /**

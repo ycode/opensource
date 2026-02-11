@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { Version, CreateVersionData, VersionEntityType, VersionHistoryItem } from '@/types';
 
 /**
@@ -23,9 +23,7 @@ export async function createVersion(data: CreateVersionData): Promise<Version> {
   }
 
   // Enforce version limit (keep only MAX_VERSIONS_PER_ENTITY - 1 to make room for new version)
-  const deleted = await enforceVersionLimit(data.entity_type, data.entity_id, MAX_VERSIONS_PER_ENTITY - 1);
-  if (deleted > 0) {
-  }
+  await enforceVersionLimit(data.entity_type, data.entity_id, MAX_VERSIONS_PER_ENTITY - 1);
 
   // Insert new version
   const { data: result, error } = await client

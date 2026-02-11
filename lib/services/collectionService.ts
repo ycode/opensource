@@ -12,7 +12,7 @@
  */
 
 import { withTransaction } from '../database/transaction';
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { getCollectionById, hardDeleteCollection } from '../repositories/collectionRepository';
 import { getFieldsByCollectionId } from '../repositories/collectionFieldRepository';
 import { getItemsByCollectionId, getAllItemsByCollectionId, getItemById, getItemsByIds } from '../repositories/collectionItemRepository';

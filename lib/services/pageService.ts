@@ -10,7 +10,7 @@
 import { getKnexClient } from '../knex-client';
 import { getPublishedPagesByIds } from '../repositories/pageRepository';
 import { batchPublishPageLayers } from '../repositories/pageLayersRepository';
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 
 /**
  * Helper: Generate a unique slug from a page name

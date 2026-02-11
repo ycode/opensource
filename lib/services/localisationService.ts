@@ -3,7 +3,7 @@
  * Handles publishing of locales and translations
  */
 
-import { getSupabaseAdmin } from '../supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { Locale, Translation } from '@/types';
 
 export interface PublishLocalisationResult {
