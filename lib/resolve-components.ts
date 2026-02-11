@@ -199,6 +199,14 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
           component.variables
         );
 
+        // Also apply overrides to the root layer itself (for root-level link/text/image variables)
+        // Process without children since they're already handled above
+        const [overriddenRoot] = applyComponentOverrides(
+          [{ ...componentContent, children: undefined }],
+          layer.componentOverrides,
+          component.variables
+        );
+
         // Tag with master component ID for translation lookups
         const taggedChildren = overriddenChildren.length
           ? tagLayersWithComponentId(overriddenChildren, component.id)
@@ -214,7 +222,7 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
         // IMPORTANT: Keep componentId so LayerRenderer knows this is a component instance
         return {
           ...layer,
-          ...componentContent,
+          ...overriddenRoot,
           id: layer.id,
           componentId: layer.componentId, // Keep the original componentId
           _masterComponentId: component.id,

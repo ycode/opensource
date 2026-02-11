@@ -936,23 +936,26 @@ export default function LinkSettings(props: LinkSettingsProps) {
     </>
   );
 
-  // Behavior options content (for layer mode only)
-  const behaviorContent = !isStandaloneMode && linkType !== 'none' && (
+  // Behavior options content (anchor, target, download, nofollow)
+  const behaviorContent = linkType !== 'none' && (
     <>
       {/* Anchor (for page and URL types) */}
       {(linkType === 'page' || linkType === 'url') && (
-        <div className="grid grid-cols-3 items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Label className="text-xs text-muted-foreground">Anchor</Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Icon name="info" className="size-3 text-foreground/80" />
-              </TooltipTrigger>
-              <TooltipContent>Layers with ID attributes are used as anchors</TooltipContent>
-            </Tooltip>
-          </div>
+        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!isStandaloneMode && (
+            <div className="flex items-center gap-1">
+              <Label className="text-xs text-muted-foreground">Anchor</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Icon name="info" className="size-3 text-foreground/80" />
+                </TooltipTrigger>
+                <TooltipContent>Layers with ID attributes are used as anchors</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Anchor</Label>}
 
-          <div className="col-span-2">
+          <div className={isStandaloneMode ? '' : 'col-span-2'}>
             <Select
               value={anchorLayerId || 'none'}
               onValueChange={handleAnchorLayerIdChange}
@@ -984,11 +987,14 @@ export default function LinkSettings(props: LinkSettingsProps) {
       )}
 
       {/* Link Behavior (when link is set) */}
-      <div className="grid grid-cols-3 gap-2 py-1">
-        <div>
-          <Label variant="muted">Behavior</Label>
-        </div>
-        <div className="col-span-2 flex flex-col gap-3">
+      <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 gap-2 py-1'}>
+        {!isStandaloneMode && (
+          <div>
+            <Label variant="muted">Behavior</Label>
+          </div>
+        )}
+        {isStandaloneMode && <Label variant="muted" className="mb-1.5">Behavior</Label>}
+        <div className={`${isStandaloneMode ? '' : 'col-span-2'} flex flex-col gap-3`}>
           <div className="flex items-center gap-2">
             <Switch
               id="newTab"
@@ -1047,6 +1053,7 @@ export default function LinkSettings(props: LinkSettingsProps) {
       <div className="space-y-2">
         {linkTypeContent}
         {typeSpecificContent}
+        {behaviorContent}
       </div>
     );
   }

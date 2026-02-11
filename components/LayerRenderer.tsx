@@ -2041,7 +2041,7 @@ const LayerItem: React.FC<{
   // Wrap with link if layer has link settings (published mode only)
   // In edit mode, links are not interactive to allow layer selection
   const linkSettings = layer.variables?.link;
-  const shouldWrapWithLink = !isEditMode && isValidLinkSettings(linkSettings) && !layer.componentId;
+  const shouldWrapWithLink = !isEditMode && isValidLinkSettings(linkSettings);
 
   if (shouldWrapWithLink && linkSettings) {
     // Build link context for layer-level link resolution
