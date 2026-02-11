@@ -80,6 +80,7 @@ export default function WelcomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isVercel, setIsVercel] = useState<boolean | null>(null); // null = loading
   const [envVarsConfigured, setEnvVarsConfigured] = useState(false);
+  const [statusChecked, setStatusChecked] = useState(false);
 
   // Admin account fields
   const [email, setEmail] = useState('');
@@ -109,20 +110,42 @@ export default function WelcomePage() {
   };
 
   // Check if running on Vercel and if env vars are configured
+  // Redirect unauthenticated users to /ycode if setup is already complete
   useEffect(() => {
     const checkEnvironment = async () => {
       try {
         const response = await fetch('/ycode/api/setup/status');
         const data = await response.json();
+
+        // If setup is complete, redirect unauthenticated users to /ycode (login screen)
+        // Logged-in users can still access this page
+        if (data.is_setup_complete) {
+          const { createBrowserClient } = await import('@/lib/supabase-browser');
+          const client = await createBrowserClient();
+          const session = client ? (await client.auth.getSession()).data.session : null;
+
+          if (!session) {
+            router.push('/ycode');
+            return;
+          }
+        }
+
         setIsVercel(data.is_vercel || false);
         setEnvVarsConfigured(data.is_configured || false);
       } catch (err) {
         console.error('Failed to check environment:', err);
         setIsVercel(false); // Default to local on error
+      } finally {
+        setStatusChecked(true);
       }
     };
     checkEnvironment();
-  }, [currentStep]);
+  }, [currentStep, router]);
+
+  // Block rendering until status check completes (prevents flash before redirect)
+  if (!statusChecked) {
+    return <BuilderLoading message="Checking setup status..." />;
+  }
 
   // Step 1: Welcome
   if (currentStep === 'welcome') {
