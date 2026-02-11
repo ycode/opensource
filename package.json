@@ -15,6 +15,7 @@
     "migrate:latest": "NODE_NO_WARNINGS=1 knex migrate:latest --knexfile knexfile.ts",
     "migrate:rollback": "NODE_NO_WARNINGS=1 knex migrate:rollback --knexfile knexfile.ts",
     "migrate:status": "NODE_NO_WARNINGS=1 knex migrate:status --knexfile knexfile.ts",
+    "migrate:credentials": "npx ts-node scripts/migrate-credentials.ts",
     "prepare": "husky"
   },
   "dependencies": {

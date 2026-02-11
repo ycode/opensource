@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useCollaborationPresenceStore, getResourceLockKey } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase-browser';
 
 export interface UseResourceLockOptions {
   resourceType: string; // e.g., 'layer', 'collection_item'

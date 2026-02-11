@@ -5,7 +5,7 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '../supabase/constants';
+import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import type { AssetFolder, CreateAssetFolderData, UpdateAssetFolderData } from '../../types';
 
 /**

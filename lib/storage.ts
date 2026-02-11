@@ -1,7 +1,10 @@
 /**
  * Storage for Supabase credentials.
- * Uses environment variables on Vercel, file-based storage locally.
- * 
+ *
+ * Always reads from process.env (environment variables).
+ * On local dev, writes to .env.local + sets process.env in-memory.
+ * On Vercel, env vars are set via the dashboard — writes are not supported.
+ *
  * SERVER-ONLY: This module uses Node.js fs module and should never be imported in client code.
  */
 
@@ -11,129 +14,153 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { SupabaseConfig } from '@/types';
 
-const STORAGE_FILE = path.join(process.cwd(), '.credentials.json');
+const ENV_FILE = path.join(process.cwd(), '.env');
 const IS_VERCEL = process.env.VERCEL === '1';
 
-interface StorageData {
-  [key: string]: unknown;
-}
-
 /**
- * Get Supabase config from environment variables
+ * Read Supabase config from environment variables.
  * Supports both new (SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY) and legacy
  * (SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY) variable names.
  */
 function getSupabaseConfigFromEnv(): SupabaseConfig | null {
-  const {
-    SUPABASE_PUBLISHABLE_KEY,
-    SUPABASE_ANON_KEY,
-    SUPABASE_SECRET_KEY,
-    SUPABASE_SERVICE_ROLE_KEY,
-    SUPABASE_CONNECTION_URL,
-    SUPABASE_DB_PASSWORD,
-  } = process.env;
+  const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+  const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const connectionUrl = process.env.SUPABASE_CONNECTION_URL;
+  const dbPassword = process.env.SUPABASE_DB_PASSWORD;
 
-  const publishableKey = SUPABASE_PUBLISHABLE_KEY || SUPABASE_ANON_KEY;
-  const secretKey = SUPABASE_SECRET_KEY || SUPABASE_SERVICE_ROLE_KEY;
-
-  if (publishableKey && secretKey && SUPABASE_CONNECTION_URL && SUPABASE_DB_PASSWORD) {
-    return {
-      anonKey: publishableKey,
-      serviceRoleKey: secretKey,
-      connectionUrl: SUPABASE_CONNECTION_URL,
-      dbPassword: SUPABASE_DB_PASSWORD,
-    };
+  if (anonKey && secretKey && connectionUrl && dbPassword) {
+    return { anonKey, serviceRoleKey: secretKey, connectionUrl, dbPassword };
   }
 
-  console.error('[Storage] ✗ Missing required environment variables');
   return null;
 }
 
 /**
- * Get a value from storage
- * Uses environment variables on Vercel, file-based storage locally
+ * Get a value from storage (reads from environment variables).
  */
 export async function get<T = unknown>(key: string): Promise<T | null> {
-  try {
-    // On Vercel, use environment variables for Supabase config
-    if (IS_VERCEL && key === 'supabase_config') {
-      return getSupabaseConfigFromEnv() as T;
-    }
-
-    // Locally, use file-based storage
-    const data = await readStorage();
-    const value = data[key];
-
-    return (value as T) || null;
-  } catch (error) {
-    console.error(`[Storage] Error getting key "${key}":`, error);
-    return null;
+  if (key === 'supabase_config') {
+    return getSupabaseConfigFromEnv() as T;
   }
+  return null;
 }
 
 /**
- * Set a value in storage
- * On Vercel, throws error directing users to set environment variables
+ * Set a value in storage.
+ * Writes to .env.local and sets process.env in-memory for immediate availability.
+ * On Vercel, throws — env vars must be set via the dashboard.
  */
 export async function set(key: string, value: unknown): Promise<void> {
-  // On Vercel, we can't write to filesystem
   if (IS_VERCEL) {
     throw new Error(
       'Cannot write to file system on Vercel. Please set environment variables instead:\n' +
       '1. Go to Vercel Dashboard → Project Settings → Environment Variables\n' +
-      '2. Add: SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY), SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY), SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD\n' +
+      '2. Add: SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD\n' +
       '3. Redeploy your application'
     );
   }
 
-  const data = await readStorage();
-  data[key] = value;
-  await writeStorage(data);
+  if (key === 'supabase_config') {
+    const config = value as SupabaseConfig;
+
+    // Set process.env in-memory so credentials are available immediately
+    // (without waiting for a dev server restart)
+    process.env.SUPABASE_PUBLISHABLE_KEY = config.anonKey;
+    process.env.SUPABASE_SECRET_KEY = config.serviceRoleKey;
+    process.env.SUPABASE_CONNECTION_URL = config.connectionUrl;
+    process.env.SUPABASE_DB_PASSWORD = config.dbPassword;
+
+    // Persist to .env so credentials survive a dev server restart
+    await writeEnvFile(config);
+  }
 }
 
 /**
- * Delete a value from storage
+ * Delete a value from storage.
  */
 export async function del(key: string): Promise<void> {
-  const data = await readStorage();
-  delete data[key];
-  await writeStorage(data);
+  if (key === 'supabase_config') {
+    delete process.env.SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.SUPABASE_SECRET_KEY;
+    delete process.env.SUPABASE_CONNECTION_URL;
+    delete process.env.SUPABASE_DB_PASSWORD;
+
+    // Remove Supabase vars from .env
+    try {
+      await removeSupabaseVarsFromEnv();
+    } catch {
+      // File may not exist
+    }
+  }
 }
 
 /**
- * Check if storage file exists
+ * Check if Supabase credentials are configured.
  */
 export async function exists(): Promise<boolean> {
+  return getSupabaseConfigFromEnv() !== null;
+}
+
+const SUPABASE_ENV_KEYS = [
+  'SUPABASE_PUBLISHABLE_KEY',
+  'SUPABASE_SECRET_KEY',
+  'SUPABASE_CONNECTION_URL',
+  'SUPABASE_DB_PASSWORD',
+];
+
+/**
+ * Write Supabase credentials to .env file.
+ * Preserves existing non-Supabase vars, replaces Supabase vars.
+ */
+async function writeEnvFile(config: SupabaseConfig): Promise<void> {
+  let existing = '';
   try {
-    await fs.access(STORAGE_FILE);
-    return true;
+    existing = await fs.readFile(ENV_FILE, 'utf-8');
   } catch {
-    return false;
+    // File doesn't exist yet
   }
+
+  // Filter out old Supabase vars and the auto-generated comment
+  const filtered = existing
+    .split('\n')
+    .filter((line) => {
+      if (line === '# Auto-generated by YCode setup wizard') return false;
+      return !SUPABASE_ENV_KEYS.some((key) => line.startsWith(`${key}=`));
+    })
+    .join('\n')
+    .trimEnd();
+
+  const supabaseBlock = [
+    '# Auto-generated by YCode setup wizard',
+    `SUPABASE_PUBLISHABLE_KEY="${config.anonKey}"`,
+    `SUPABASE_SECRET_KEY="${config.serviceRoleKey}"`,
+    `SUPABASE_CONNECTION_URL="${config.connectionUrl}"`,
+    `SUPABASE_DB_PASSWORD="${config.dbPassword}"`,
+  ].join('\n');
+
+  const content = filtered ? `${filtered}\n${supabaseBlock}\n` : `${supabaseBlock}\n`;
+  await fs.writeFile(ENV_FILE, content, 'utf-8');
 }
 
 /**
- * Read the entire storage file
+ * Remove Supabase vars from .env file, preserving other vars.
  */
-async function readStorage(): Promise<StorageData> {
-  try {
-    const content = await fs.readFile(STORAGE_FILE, 'utf-8');
-    return JSON.parse(content);
-  } catch (error) {
-    // File doesn't exist or is invalid, return empty object
-    return {};
-  }
+async function removeSupabaseVarsFromEnv(): Promise<void> {
+  const existing = await fs.readFile(ENV_FILE, 'utf-8');
+  const filtered = existing
+    .split('\n')
+    .filter((line) => {
+      if (line === '# Auto-generated by YCode setup wizard') return false;
+      return !SUPABASE_ENV_KEYS.some((key) => line.startsWith(`${key}=`));
+    })
+    .join('\n')
+    .trimEnd();
+
+  await fs.writeFile(ENV_FILE, filtered ? `${filtered}\n` : '', 'utf-8');
 }
 
 /**
- * Write to the storage file
- */
-async function writeStorage(data: StorageData): Promise<void> {
-  await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-/**
- * Export a storage object that mimics Vercel KV API
+ * Export a storage object for convenience.
  */
 export const storage = {
   get,

@@ -19,7 +19,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase-browser';
 
 export default function ProfilePage() {
   const user = useAuthStore((state) => state.user);

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useCollectionsStore } from '../stores/useCollectionsStore';
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore';
-import { createClient } from '../lib/supabase/client';
+import { createClient } from '@/lib/supabase-browser';
 import type { Collection, CollectionItemWithValues } from '../types';
 
 // Types for collection updates

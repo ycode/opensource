@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLayerStylesStore } from '../stores/useLayerStylesStore';
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore';
-import { createClient } from '../lib/supabase/client';
+import { createClient } from '@/lib/supabase-browser';
 import { detachStyleAcrossStores, updateStyleAcrossStores } from '../lib/layer-style-store-utils';
 import type { LayerStyle } from '../types';
 

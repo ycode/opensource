@@ -146,7 +146,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const [isHidden, setIsHidden] = useState<boolean>(false);
   const [containerTag, setContainerTag] = useState<string>('div');
   const [textTag, setTextTag] = useState<string>('p');
-  const [customAttributesOpen, setCustomAttributesOpen] = useState(true);
+  const [customAttributesOpen, setCustomAttributesOpen] = useState(false);
   const [showAddAttributePopover, setShowAddAttributePopover] = useState(false);
   const [newAttributeName, setNewAttributeName] = useState('');
   const [newAttributeValue, setNewAttributeValue] = useState('');
@@ -1605,7 +1605,7 @@ const RightSidebar = React.memo(function RightSidebar({
     };
 
     const allVariables = component.variables || [];
-    const textVariables = allVariables.filter(v => v.type === 'text');
+    const textVariables = allVariables.filter(v => v.type !== 'image' && v.type !== 'link');
     const imageVariables = allVariables.filter(v => v.type === 'image');
     const linkVariables = allVariables.filter(v => v.type === 'link');
     const currentTextOverrides = selectedLayer.componentOverrides?.text || {};
@@ -1848,8 +1848,10 @@ const RightSidebar = React.memo(function RightSidebar({
                           mode="standalone"
                           value={getLinkOverrideValue(variable.id)}
                           onChange={(val) => handleLinkVariableOverrideChange(variable.id, val)}
+                          fieldGroups={fieldGroups}
                           allFields={fields}
                           collections={collections}
+                          isInsideCollectionLayer={!!parentCollectionLayer}
                         />
                       </div>
                     </div>
@@ -2715,6 +2717,7 @@ const RightSidebar = React.memo(function RightSidebar({
             {/* Custom Attributes Panel */}
             <SettingsPanel
               title="Custom attributes"
+              collapsible
               isOpen={customAttributesOpen}
               onToggle={() => setCustomAttributesOpen(!customAttributesOpen)}
               action={

@@ -52,7 +52,7 @@ export default function ResetDatabasePage() {
             Reset database
           </div>
           <div className="text-zinc-400">
-            This will delete all tables in the public schema
+            This will delete all tables in the public schema!
           </div>
         </div>
 

@@ -1643,7 +1643,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               onValueChange={handlePageSelect}
               includeErrorPages
               align="start"
-              className="w-40"
+              className="w-40 text-muted-foreground"
               popoverClassName="min-w-60"
             />
 

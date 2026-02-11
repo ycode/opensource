@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSetupStore } from '@/stores/useSetupStore';
+import { useAuthSession } from '@/hooks/use-auth-session';
 import type { SupabaseConfig } from '@/types';
 import {
   connectSupabase,
@@ -75,11 +76,13 @@ function LogoBottomRight() {
 export default function WelcomePage() {
   const router = useRouter();
   const { currentStep, setStep, setSupabaseConfig, markComplete } = useSetupStore();
+  const { session, isLoading: isAuthLoading } = useAuthSession();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isVercel, setIsVercel] = useState<boolean | null>(null); // null = loading
   const [envVarsConfigured, setEnvVarsConfigured] = useState(false);
+  const [statusChecked, setStatusChecked] = useState(false);
 
   // Admin account fields
   const [email, setEmail] = useState('');
@@ -109,20 +112,38 @@ export default function WelcomePage() {
   };
 
   // Check if running on Vercel and if env vars are configured
+  // Redirect unauthenticated users to /ycode if setup is already complete
   useEffect(() => {
+    if (isAuthLoading) return;
+
     const checkEnvironment = async () => {
       try {
         const response = await fetch('/ycode/api/setup/status');
         const data = await response.json();
+
+        // If setup is complete, redirect unauthenticated users to /ycode (login screen)
+        // Logged-in users can still access this page
+        if (data.is_setup_complete && !session) {
+          router.push('/ycode');
+          return; // Keep showing loading screen during redirect
+        }
+
         setIsVercel(data.is_vercel || false);
         setEnvVarsConfigured(data.is_configured || false);
+        setStatusChecked(true);
       } catch (err) {
         console.error('Failed to check environment:', err);
         setIsVercel(false); // Default to local on error
+        setStatusChecked(true);
       }
     };
     checkEnvironment();
-  }, [currentStep]);
+  }, [currentStep, router, isAuthLoading, session]);
+
+  // Block rendering until checks complete (prevents flash before redirect)
+  if (isAuthLoading || !statusChecked) {
+    return <BuilderLoading message="Checking setup" />;
+  }
 
   // Step 1: Welcome
   if (currentStep === 'welcome') {
@@ -240,7 +261,7 @@ export default function WelcomePage() {
 
             <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
-              <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
+              <div className="border-t-2 border-white py-4 flex flex-col gap-0.5">
                 <Label variant="muted">Step 1</Label>
                 <Label size="sm">Vercel + Supabase</Label>
               </div>
@@ -454,7 +475,7 @@ export default function WelcomePage() {
 
             <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
-              <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
+              <div className="border-t-2 border-white py-4 flex flex-col gap-0.5">
                 <Label variant="muted">Step 1</Label>
                 <Label size="sm">Connect Supabase</Label>
               </div>
@@ -604,12 +625,12 @@ export default function WelcomePage() {
 
           <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
-            <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
+            <div className="border-t-2 border-white py-4 flex flex-col gap-0.5">
               <Label variant="muted">Step 1</Label>
               <Label size="sm">Connect Supabase</Label>
             </div>
 
-            <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
+            <div className="border-t-2 border-white py-4 flex flex-col gap-0.5">
               <Label variant="muted">Step 2</Label>
               <Label size="sm">Run migrations</Label>
             </div>
@@ -731,17 +752,17 @@ export default function WelcomePage() {
 
         <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
+          <div className="border-t-2 border-white py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 1</Label>
             <Label size="sm">Connect Supabase</Label>
           </div>
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
+          <div className="border-t-2 border-white py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 2</Label>
             <Label size="sm">Run migrations</Label>
           </div>
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
+          <div className="border-t-2 border-white py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 3</Label>
             <Label size="sm">Create account</Label>
           </div>

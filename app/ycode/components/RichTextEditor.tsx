@@ -535,6 +535,11 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
       }
       editor.commands.setContent(content);
 
+      // Reset internal update flag — setContent triggers onUpdate synchronously
+      // which sets isInternalUpdateRef=true, but this was a programmatic update
+      // (not a user edit), so we must clear it to allow the next useEffect to run
+      isInternalUpdateRef.current = false;
+
       // Only focus if editor was already focused (user was actively editing)
       if (wasFocused) {
         setTimeout(() => { editor.commands.focus('end'); }, 0);
@@ -575,6 +580,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
         const updatedContent = updateNodeLabels(json.content);
         if (updated) {
           editor.commands.setContent({ ...json, content: updatedContent });
+          isInternalUpdateRef.current = false;
         }
       }
     }

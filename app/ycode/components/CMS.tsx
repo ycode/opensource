@@ -521,7 +521,7 @@ const CMS = React.memo(function CMS() {
 
   // Load fields and items when collection changes (not when just navigating within same collection)
   useEffect(() => {
-    if (selectedCollectionId) {
+    if (selectedCollectionId && !selectedCollectionId.startsWith('temp-')) {
       // Only reload if the collection actually changed
       if (prevCollectionIdRef.current !== selectedCollectionId) {
         // Check if items are already preloaded (from YCodeBuilderMain) using store.getState()
@@ -599,7 +599,7 @@ const CMS = React.memo(function CMS() {
 
   // Debounced search - queries backend with pagination (only when user types or changes page, not on collection change)
   useEffect(() => {
-    if (!selectedCollectionId) return;
+    if (!selectedCollectionId || selectedCollectionId.startsWith('temp-')) return;
     // Skip if initial load hasn't completed (first effect handles initial load)
     if (!initialLoadCompleteRef.current) return;
 
@@ -1187,16 +1187,41 @@ const CMS = React.memo(function CMS() {
 
   // Collection sidebar handlers
   const handleCreateCollection = async () => {
+    const baseName = 'Collection';
+    let collectionName = baseName;
+    let counter = 1;
+
+    while (collections.some(c => c.name === collectionName)) {
+      collectionName = `${baseName} ${counter}`;
+      counter++;
+    }
+
+    // Optimistic: add a temporary collection to the sidebar immediately and enter rename mode
+    const tempId = `temp-${Date.now()}`;
+    const optimisticCollection: Collection = {
+      id: tempId,
+      uuid: tempId,
+      name: collectionName,
+      sorting: null,
+      order: collections.length,
+      is_published: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+      draft_items_count: 0,
+    };
+
+    useCollectionsStore.setState(state => ({
+      collections: [...state.collections, optimisticCollection],
+      items: { ...state.items, [tempId]: [] },
+      itemsTotalCount: { ...state.itemsTotalCount, [tempId]: 0 },
+    }));
+    navigateToCollection(tempId);
+    setRenamingCollectionId(tempId);
+    setRenameValue(collectionName);
+
+    // Create the collection in the background
     try {
-      const baseName = 'Collection';
-      let collectionName = baseName;
-      let counter = 1;
-
-      while (collections.some(c => c.name === collectionName)) {
-        collectionName = `${baseName} ${counter}`;
-        counter++;
-      }
-
       const newCollection = await createCollection({
         name: collectionName,
         sorting: null,
@@ -1207,11 +1232,26 @@ const CMS = React.memo(function CMS() {
         liveCollectionUpdates.broadcastCollectionCreate(newCollection);
       }
 
+      // Remove the optimistic temp entry (store already added the real one)
+      useCollectionsStore.setState(state => ({
+        collections: state.collections.filter(c => c.id !== tempId),
+        items: Object.fromEntries(Object.entries(state.items).filter(([k]) => k !== tempId)),
+        itemsTotalCount: Object.fromEntries(Object.entries(state.itemsTotalCount).filter(([k]) => k !== tempId)),
+      }));
+
       navigateToCollection(newCollection.id);
+
+      // Update rename to target real collection ID
       setRenamingCollectionId(newCollection.id);
-      setRenameValue(newCollection.name);
     } catch (error) {
       console.error('Failed to create collection:', error);
+      // Rollback: remove the optimistic entry
+      useCollectionsStore.setState(state => ({
+        collections: state.collections.filter(c => c.id !== tempId),
+      }));
+      setRenamingCollectionId(null);
+      setRenameValue('');
+      toast.error('Failed to create collection');
     }
   };
 

@@ -8,7 +8,8 @@ export const revalidate = 0;
 /**
  * POST /ycode/api/devtools/run-migrations
  *
- * Run all pending database migrations and seed data
+ * Run all pending database migrations and seed data.
+ * Authentication enforced by proxy.
  */
 export async function POST() {
   try {

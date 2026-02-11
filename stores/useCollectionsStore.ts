@@ -206,14 +206,13 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           },
         ];
 
-        // Create all built-in fields
-        const createdFields: CollectionField[] = [];
-        for (const field of builtInFields) {
-          const fieldResponse = await collectionsApi.createField(newCollection.id, field);
-          if (!fieldResponse.error && fieldResponse.data) {
-            createdFields.push(fieldResponse.data);
-          }
-        }
+        // Create all built-in fields in parallel
+        const fieldResponses = await Promise.all(
+          builtInFields.map(field => collectionsApi.createField(newCollection.id, field))
+        );
+        const createdFields: CollectionField[] = fieldResponses
+          .filter(r => !r.error && r.data)
+          .map(r => r.data!);
 
         // Load created fields into store
         if (createdFields.length > 0) {

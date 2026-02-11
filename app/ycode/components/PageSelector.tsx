@@ -265,7 +265,7 @@ export default function PageSelector({
           role="combobox"
           aria-expanded={isOpen}
           disabled={disabled}
-          className={cn('w-full justify-between', className)}
+          className={cn('w-full justify-between', selectedPage && 'text-foreground', className)}
         >
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {selectedPage ? (
@@ -277,7 +277,7 @@ export default function PageSelector({
                 <span className="truncate">{selectedPage.name}</span>
               </>
             ) : (
-              <span className="text-muted-foreground truncate">{placeholder}</span>
+              <span className="truncate">{placeholder}</span>
             )}
           </div>
           <div className="shrink-0">

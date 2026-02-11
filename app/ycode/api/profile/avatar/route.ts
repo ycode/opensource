@@ -1,14 +1,8 @@
 import { NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { storage } from '@/lib/storage';
-import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
 import { noCache } from '@/lib/api-response';
+import { getAuthUser } from '@/lib/supabase-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import sharp from 'sharp';
-
-import type { CookieOptions } from '@supabase/ssr';
-import type { SupabaseConfig } from '@/types';
 
 const STORAGE_BUCKET = 'avatars';
 
@@ -37,38 +31,8 @@ export async function POST(request: NextRequest) {
       return noCache({ error: 'File size must be less than 5MB' }, 400);
     }
 
-    // Get Supabase config
-    const config = await storage.get<SupabaseConfig>('supabase_config');
-
-    if (!config) {
-      return noCache({ error: 'Supabase not configured' }, 500);
-    }
-
-    const credentials = parseSupabaseConfig(config);
-    const cookieStore = await cookies();
-
-    // Create Supabase client to get current user
-    const supabase = createServerClient(credentials.projectUrl, credentials.anonKey, {
-      cookies: {
-        get(cookieName: string) {
-          return cookieStore.get(cookieName)?.value;
-        },
-        set(cookieName: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name: cookieName, value, ...options });
-        },
-        remove(cookieName: string, options: CookieOptions) {
-          cookieStore.set({ name: cookieName, value: '', ...options });
-        },
-      },
-    });
-
-    // Get current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
+    const auth = await getAuthUser();
+    if (!auth) {
       return noCache({ error: 'Not authenticated' }, 401);
     }
 
@@ -90,10 +54,10 @@ export async function POST(request: NextRequest) {
 
     // Create storage path with user ID
     const timestamp = Date.now();
-    const storagePath = `${user.id}/${timestamp}.webp`;
+    const storagePath = `${auth.user.id}/${timestamp}.webp`;
 
     // Delete old avatar if exists
-    const oldAvatarUrl = user.user_metadata?.avatar_url;
+    const oldAvatarUrl = auth.user.user_metadata?.avatar_url;
     if (oldAvatarUrl) {
       try {
         // Extract path from URL
@@ -145,7 +109,7 @@ export async function POST(request: NextRequest) {
       .getPublicUrl(uploadData.path);
 
     // Update user metadata with new avatar URL
-    const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+    const { data: updateData, error: updateError } = await auth.client.auth.updateUser({
       data: {
         avatar_url: urlData.publicUrl,
       },

@@ -1,13 +1,7 @@
 import { NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { storage } from '@/lib/storage';
-import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
 import { noCache } from '@/lib/api-response';
+import { getAuthUser } from '@/lib/supabase-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-
-import type { CookieOptions } from '@supabase/ssr';
-import type { SupabaseConfig } from '@/types';
 
 /**
  * DELETE /ycode/api/profile
@@ -16,38 +10,8 @@ import type { SupabaseConfig } from '@/types';
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // Get Supabase config
-    const config = await storage.get<SupabaseConfig>('supabase_config');
-
-    if (!config) {
-      return noCache({ error: 'Supabase not configured' }, 500);
-    }
-
-    const credentials = parseSupabaseConfig(config);
-    const cookieStore = await cookies();
-
-    // Create Supabase client to get current user
-    const supabase = createServerClient(credentials.projectUrl, credentials.anonKey, {
-      cookies: {
-        get(cookieName: string) {
-          return cookieStore.get(cookieName)?.value;
-        },
-        set(cookieName: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name: cookieName, value, ...options });
-        },
-        remove(cookieName: string, options: CookieOptions) {
-          cookieStore.set({ name: cookieName, value: '', ...options });
-        },
-      },
-    });
-
-    // Get current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
+    const auth = await getAuthUser();
+    if (!auth) {
       return noCache({ error: 'Not authenticated' }, 401);
     }
 
@@ -59,7 +23,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete user using admin client
-    const { error } = await adminClient.auth.admin.deleteUser(user.id);
+    const { error } = await adminClient.auth.admin.deleteUser(auth.user.id);
 
     if (error) {
       console.error('Failed to delete user:', error);
@@ -67,7 +31,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Sign out the user
-    await supabase.auth.signOut();
+    await auth.client.auth.signOut();
 
     return noCache({
       data: {
