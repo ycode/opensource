@@ -146,7 +146,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const [isHidden, setIsHidden] = useState<boolean>(false);
   const [containerTag, setContainerTag] = useState<string>('div');
   const [textTag, setTextTag] = useState<string>('p');
-  const [customAttributesOpen, setCustomAttributesOpen] = useState(true);
+  const [customAttributesOpen, setCustomAttributesOpen] = useState(false);
   const [showAddAttributePopover, setShowAddAttributePopover] = useState(false);
   const [newAttributeName, setNewAttributeName] = useState('');
   const [newAttributeValue, setNewAttributeValue] = useState('');
@@ -2717,6 +2717,7 @@ const RightSidebar = React.memo(function RightSidebar({
             {/* Custom Attributes Panel */}
             <SettingsPanel
               title="Custom attributes"
+              collapsible
               isOpen={customAttributesOpen}
               onToggle={() => setCustomAttributesOpen(!customAttributesOpen)}
               action={

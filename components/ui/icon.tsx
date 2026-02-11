@@ -14,7 +14,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'code' | 'pencil' | 'eye' | 'eye-off' | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea'
     | 'select' | 'checkbox' | 'radio' | 'zap' | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in'
     | 'ease-back-in-out' | 'ease-back-out' | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash'
-    | 'paintbrush' | 'triangle-down' | 'plus-circle' | 'plus-circle-solid' | 'detach' | 'email' | 'phone' | 'paperclip' | 'unlink' | 'map'
+    | 'paintbrush' | 'triangle-down' | 'triangle-right' | 'plus-circle' | 'plus-circle-solid' | 'detach' | 'email' | 'phone' | 'paperclip' | 'unlink' | 'map'
   );
 }
 
@@ -776,6 +776,13 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
     <>
     <g transform="translate(2.500000, 4.000000)">
       <polygon points="0 0 7 -2.8449465e-14 3.5 5" />
+    </g>
+    </>
+  ),
+  'triangle-right': (
+    <>
+    <g transform="translate(4.000000, 2.500000)">
+      <polygon points="0 0 5 3.5 0 7" />
     </g>
     </>
   ),

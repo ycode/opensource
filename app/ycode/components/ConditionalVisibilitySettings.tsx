@@ -205,7 +205,7 @@ export default function ConditionalVisibilitySettings({
   onLayerUpdate,
   fieldGroups,
 }: ConditionalVisibilitySettingsProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   // Derive flat list of fields from fieldGroups
   const allFieldsFromGroups = useMemo(() => flattenFieldGroups(fieldGroups), [fieldGroups]);
@@ -696,6 +696,7 @@ export default function ConditionalVisibilitySettings({
   return (
     <SettingsPanel
       title="Conditional visibility"
+      collapsible
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
       action={
