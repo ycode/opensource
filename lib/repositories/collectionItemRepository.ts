@@ -2,8 +2,8 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { SUPABASE_QUERY_LIMIT } from '@/lib/supabase-constants';
 import type { CollectionItem, CollectionItemWithValues } from '@/types';
 import { randomUUID } from 'crypto';
-import { getFieldsByCollectionId } from './collectionFieldRepository';
-import { getValuesByFieldId, getValuesByItemIds } from './collectionItemValueRepository';
+import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
+import { getValuesByFieldId, getValuesByItemIds } from '@/lib/repositories/collectionItemValueRepository';
 import { castValue } from '../collection-utils';
 
 /**

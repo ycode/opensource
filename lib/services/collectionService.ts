@@ -13,10 +13,10 @@
 
 import { withTransaction } from '../database/transaction';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { getCollectionById, hardDeleteCollection } from '../repositories/collectionRepository';
-import { getFieldsByCollectionId } from '../repositories/collectionFieldRepository';
-import { getItemsByCollectionId, getAllItemsByCollectionId, getItemById, getItemsByIds } from '../repositories/collectionItemRepository';
-import { getValuesByItemId } from '../repositories/collectionItemValueRepository';
+import { getCollectionById, hardDeleteCollection } from '@/lib/repositories/collectionRepository';
+import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
+import { getItemsByCollectionId, getAllItemsByCollectionId, getItemById, getItemsByIds } from '@/lib/repositories/collectionItemRepository';
+import { getValuesByItemId } from '@/lib/repositories/collectionItemValueRepository';
 
 /**
  * Options for publishing a collection

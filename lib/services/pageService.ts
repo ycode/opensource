@@ -8,8 +8,8 @@
  */
 
 import { getKnexClient } from '../knex-client';
-import { getPublishedPagesByIds } from '../repositories/pageRepository';
-import { batchPublishPageLayers } from '../repositories/pageLayersRepository';
+import { getPublishedPagesByIds } from '@/lib/repositories/pageRepository';
+import { batchPublishPageLayers } from '@/lib/repositories/pageLayersRepository';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 
 /**

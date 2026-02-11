@@ -422,7 +422,7 @@ export async function GET(request: NextRequest, { params }) {
 
 ### Create Repositories for All Data Entities
 
-**IMPORTANT**: Always use alias imports (`@/lib/...`) for `supabase-server` and other lib modules. Never use relative imports like `../supabase-server`. This ensures consistent behavior and allows overlays to work correctly.
+**IMPORTANT**: Always use alias imports (`@/lib/...`) for all lib modules including `supabase-server` and repositories. Never use relative imports like `../supabase-server` or `../repositories/settingsRepository`. This ensures consistent behavior and allows overlays to work correctly in multi-tenant deployments.
 
 Example structure in `/lib/repositories/pageRepository.ts`:
 

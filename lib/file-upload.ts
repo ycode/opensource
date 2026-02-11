@@ -4,7 +4,7 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { createAsset } from './repositories/assetRepository';
+import { createAsset } from '@/lib/repositories/assetRepository';
 import { isAssetOfType, ASSET_CATEGORIES } from './asset-utils';
 import sharp from 'sharp';
 import type { Asset } from '@/types';

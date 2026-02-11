@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { PageLayers, Layer } from '../../types';
 import { generatePageLayersHash } from '../hash-utils';
-import { deleteTranslationsInBulk, markTranslationsIncomplete } from './translationRepository';
+import { deleteTranslationsInBulk, markTranslationsIncomplete } from '@/lib/repositories/translationRepository';
 import { extractLayerContentMap } from '../localisation-utils';
 
 /**

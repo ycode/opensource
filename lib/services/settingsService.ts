@@ -4,7 +4,7 @@
  * Business logic for managing application settings
  */
 
-import { getSettingByKey, setSetting } from '../repositories/settingsRepository';
+import { getSettingByKey, setSetting } from '@/lib/repositories/settingsRepository';
 import type { Setting } from '@/types';
 
 /**

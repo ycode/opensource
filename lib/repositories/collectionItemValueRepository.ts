@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { CollectionItemValue, CollectionFieldType } from '@/types';
 import { castValue, valueToString } from '../collection-utils';
 import { randomUUID } from 'crypto';
-import { deleteTranslationsInBulk, markTranslationsIncomplete } from './translationRepository';
+import { deleteTranslationsInBulk, markTranslationsIncomplete } from '@/lib/repositories/translationRepository';
 
 /**
  * Collection Item Value Repository

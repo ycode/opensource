@@ -5,7 +5,7 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { reorderSiblings } from './pageFolderRepository';
+import { reorderSiblings } from '@/lib/repositories/pageFolderRepository';
 import type { Page, PageSettings } from '../../types';
 import { isHomepage } from '../page-utils';
 import { incrementSiblingOrders, fixOrphanedPageSlugs } from '../services/pageService';
