@@ -287,7 +287,7 @@ export default function CollectionFiltersSettings({
       fieldType: field.type,
       referenceCollectionId: field.reference_collection_id || undefined,
       operator: getOperatorsForFieldType(field.type)[0].value,
-      value: (field.type === 'reference' || field.type === 'multi_reference') ? '[]' : '',
+      value: (field.type === 'reference' || field.type === 'multi_reference') ? '[]' : field.type === 'boolean' ? 'true' : '',
     };
 
     const newGroup: VisibilityConditionGroup = {
@@ -309,7 +309,7 @@ export default function CollectionFiltersSettings({
           fieldType: field.type,
           referenceCollectionId: field.reference_collection_id || undefined,
           operator: getOperatorsForFieldType(field.type)[0].value,
-          value: (field.type === 'reference' || field.type === 'multi_reference') ? '[]' : '',
+          value: (field.type === 'reference' || field.type === 'multi_reference') ? '[]' : field.type === 'boolean' ? 'true' : '',
         };
         return {
           ...group,

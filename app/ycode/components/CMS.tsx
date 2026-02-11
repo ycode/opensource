@@ -176,6 +176,7 @@ interface SortableCollectionItemProps {
   openDropdownId: string | null;
   isRenaming: boolean;
   renameValue: string;
+  itemCount?: number;
   onRenameValueChange: (value: string) => void;
   onSelect: () => void;
   onDoubleClick: () => void;
@@ -195,6 +196,7 @@ function SortableCollectionItem({
   openDropdownId,
   isRenaming,
   renameValue,
+  itemCount,
   onRenameValueChange,
   onSelect,
   onDoubleClick,
@@ -297,7 +299,7 @@ function SortableCollectionItem({
           </div>
 
           <span className="group-hover:hidden block text-xs opacity-50">
-            {collection.draft_items_count}
+            {itemCount ?? collection.draft_items_count}
           </span>
         </div>
       </ContextMenuTrigger>
@@ -431,26 +433,27 @@ const CMS = React.memo(function CMS() {
   // Check if we're in manual sort mode
   const isManualMode = selectedCollection?.sorting?.direction === 'manual';
 
-  // Debounced skeleton loading state to prevent flickering
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+  // Extract sorting params for API calls
+  const currentSortBy = selectedCollection?.sorting?.direction === 'manual'
+    ? 'manual'
+    : selectedCollection?.sorting?.field;
+  const currentSortOrder = selectedCollection?.sorting?.direction === 'manual'
+    ? undefined
+    : selectedCollection?.sorting?.direction;
 
-    if (isLoading) {
-      // Only show skeleton after 150ms to avoid flicker on fast loads
-      timeoutId = setTimeout(() => {
-        setShowSkeleton(true);
-      }, 150);
+  // Only show skeleton on initial load when no items are cached for the collection.
+  // For subsequent reloads (page change, sort, search), keep showing current data.
+  useEffect(() => {
+    const hasExistingItems = selectedCollectionId
+      ? (items[selectedCollectionId]?.length ?? 0) > 0
+      : false;
+
+    if (isLoading && !hasExistingItems) {
+      setShowSkeleton(true);
     } else {
-      // Hide skeleton immediately when loading completes
       setShowSkeleton(false);
     }
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [isLoading]);
+  }, [isLoading, selectedCollectionId, items]);
 
   // Sync search and page from URL on collection change or URL change
   useEffect(() => {
@@ -544,7 +547,7 @@ const CMS = React.memo(function CMS() {
           (existingItems.length < totalCount && existingItems.length < initialPageSize);
 
         if (needsLoad) {
-          loadItems(selectedCollectionId, initialPage, initialPageSize);
+          loadItems(selectedCollectionId, initialPage, initialPageSize, currentSortBy, currentSortOrder);
         }
 
         // Mark initial load as complete
@@ -561,7 +564,7 @@ const CMS = React.memo(function CMS() {
       // Reset ref when no collection selected
       prevCollectionIdRef.current = null;
     }
-  }, [selectedCollectionId, urlState.page, urlState.pageSize, loadFields, loadItems]);
+  }, [selectedCollectionId, urlState.page, urlState.pageSize, loadFields, loadItems, currentSortBy, currentSortOrder]);
 
   // Debounced field search - queries backend (only when user types, not on collection change)
   useEffect(() => {
@@ -602,16 +605,16 @@ const CMS = React.memo(function CMS() {
 
     const debounceTimer = setTimeout(() => {
       if (searchQuery.trim()) {
-        searchItems(selectedCollectionId, searchQuery, currentPage, pageSize);
+        searchItems(selectedCollectionId, searchQuery, currentPage, pageSize, currentSortBy, currentSortOrder);
       } else {
         // If search is empty, reload all items
-        loadItems(selectedCollectionId, currentPage, pageSize);
+        loadItems(selectedCollectionId, currentPage, pageSize, currentSortBy, currentSortOrder);
       }
     }, 300); // 300ms debounce
 
     return () => clearTimeout(debounceTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, currentPage, pageSize]); // Only trigger on search/pagination changes, not collection change
+  }, [searchQuery, currentPage, pageSize, currentSortBy, currentSortOrder]); // Trigger on search/pagination/sorting changes
 
   // Reset to page 1 when search query changes (only if user typed, not from URL sync)
   const prevSearchRef = React.useRef<string>('');
@@ -749,43 +752,9 @@ const CMS = React.memo(function CMS() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCollectionId, collectionItems.length]);
 
-  // Sort items (search filtering now happens on backend)
-  const sortedItems = React.useMemo(() => {
-    const items = [...collectionItems];
-
-    // Apply sorting
-    const sorting = selectedCollection?.sorting;
-    if (sorting) {
-      items.sort((a, b) => {
-        if (sorting.direction === 'manual') {
-          // Sort by manual_order
-          return a.manual_order - b.manual_order;
-        }
-
-        // Sort by field value
-        const aValue = a.values[sorting.field] || '';
-        const bValue = b.values[sorting.field] || '';
-
-        // Try to parse as numbers if possible
-        const aNum = parseFloat(String(aValue));
-        const bNum = parseFloat(String(bValue));
-
-        if (!isNaN(aNum) && !isNaN(bNum)) {
-          // Numeric comparison
-          return sorting.direction === 'asc' ? aNum - bNum : bNum - aNum;
-        }
-
-        // String comparison
-        const comparison = String(aValue).localeCompare(String(bValue));
-        return sorting.direction === 'asc' ? comparison : -comparison;
-      });
-    } else {
-      // Default: sort by manual_order
-      items.sort((a, b) => a.manual_order - b.manual_order);
-    }
-
-    return items;
-  }, [collectionItems, selectedCollection?.sorting]);
+  // Items come pre-sorted from the API — no client-side sorting needed.
+  // Manual order is the DB default; field sorting is handled server-side with global pagination.
+  const sortedItems = collectionItems;
 
   // Helper to get lock info for an item
   const getItemLockInfo = (itemId: string): ItemLockInfo => {
@@ -860,6 +829,8 @@ const CMS = React.memo(function CMS() {
         if (liveCollectionUpdates) {
           liveCollectionUpdates.broadcastItemDelete(selectedCollectionId, deleteItemId);
         }
+        // Reload current page to sync pagination and pull remaining items forward
+        loadItems(selectedCollectionId, currentPage, pageSize, currentSortBy, currentSortOrder);
       })
       .catch((error) => {
         console.error('Failed to delete item:', error);
@@ -1060,9 +1031,10 @@ const CMS = React.memo(function CMS() {
           toast.error(`Deleted ${response.data.deleted} of ${count} ${itemText}`, {
             description: 'Some items failed to delete.',
           });
-          // Reload to get accurate state
-          loadItems(selectedCollectionId);
         }
+
+        // Reload current page to sync pagination and pull remaining items forward
+        loadItems(selectedCollectionId, currentPage, pageSize, currentSortBy, currentSortOrder);
       })
       .catch((error) => {
         console.error('Failed to delete items:', error);
@@ -1868,6 +1840,7 @@ const CMS = React.memo(function CMS() {
                   openDropdownId={collectionDropdownId}
                   isRenaming={renamingCollectionId === collection.id}
                   renameValue={renameValue}
+                  itemCount={itemsTotalCount[collection.id]}
                   onRenameValueChange={setRenameValue}
                   onSelect={() => handleCollectionSelect(collection.id)}
                   onDoubleClick={() => handleCollectionDoubleClick(collection)}
@@ -1918,7 +1891,7 @@ const CMS = React.memo(function CMS() {
 
       <div className="p-4 flex items-center justify-between border-b">
 
-        <div className="w-full max-w-72">
+        <div className="relative w-full max-w-72">
           <InputGroup>
             <InputGroupInput
               placeholder="Search..."
@@ -1930,6 +1903,11 @@ const CMS = React.memo(function CMS() {
               <Icon name="search" className="size-3" />
             </InputGroupAddon>
           </InputGroup>
+          {isLoading && !showSkeleton && (
+            <div className="absolute -right-6 top-1/2 -translate-y-1/2">
+              <Spinner className="size-4 opacity-50" />
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2">
@@ -2063,7 +2041,7 @@ const CMS = React.memo(function CMS() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
                         <SelectItem value="100">100</SelectItem>
@@ -2194,7 +2172,7 @@ const CMS = React.memo(function CMS() {
           fields={collectionFields}
           onImportComplete={() => {
             // Refresh collection items after import
-            loadItems(selectedCollectionId, currentPage, pageSize);
+            loadItems(selectedCollectionId, currentPage, pageSize, currentSortBy, currentSortOrder);
           }}
         />
       )}

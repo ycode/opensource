@@ -38,14 +38,14 @@ interface CollectionsActions {
   deleteField: (collectionId: string, fieldId: string) => Promise<void>;
 
   // Items
-  loadItems: (collectionId: string, page?: number, limit?: number) => Promise<void>;
+  loadItems: (collectionId: string, page?: number, limit?: number, sortBy?: string, sortOrder?: string) => Promise<void>;
   loadPublishedItems: (collectionId: string) => Promise<void>;
   getDropdownItems: (collectionId: string) => Promise<Array<{ id: string; label: string }>>;
   createItem: (collectionId: string, values: Record<string, any>) => Promise<CollectionItemWithValues>;
   updateItem: (collectionId: string, itemId: string, values: Record<string, any>) => Promise<void>;
   deleteItem: (collectionId: string, itemId: string) => Promise<void>;
   duplicateItem: (collectionId: string, itemId: string) => Promise<CollectionItemWithValues | undefined>;
-  searchItems: (collectionId: string, query: string, page?: number, limit?: number) => Promise<void>;
+  searchItems: (collectionId: string, query: string, page?: number, limit?: number, sortBy?: string, sortOrder?: string) => Promise<void>;
 
   // Sorting
   updateCollectionSorting: (collectionId: string, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => Promise<void>;
@@ -99,9 +99,9 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       return;
     }
 
-    // Preload 10 items per collection using optimized batch queries (2 queries total)
+    // Preload 25 items per collection using optimized batch queries (2 queries total)
     const collectionIds = collections.map(c => c.id);
-    const response = await collectionsApi.getTopItemsPerCollection(collectionIds, 10);
+    const response = await collectionsApi.getTopItemsPerCollection(collectionIds, 25);
 
     if (response.error) {
       throw new Error(`Failed to preload items: ${response.error}`);
@@ -111,9 +111,30 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     const itemsMap: Record<string, CollectionItemWithValues[]> = {};
     const itemsTotalCountMap: Record<string, number> = {};
 
-    Object.entries(result).forEach(([collectionId, { items, total }]) => {
-      itemsMap[collectionId] = items;
-      itemsTotalCountMap[collectionId] = total;
+    // Use draft_items_count from collections for accurate totals (already fetched)
+    // Sort preloaded items based on each collection's sorting settings
+    collections.forEach(collection => {
+      const batchResult = result[collection.id];
+      let preloadedItems = batchResult?.items || [];
+
+      // Apply collection sorting so items are in the correct order from the start
+      const sorting = collection.sorting;
+      if (sorting && sorting.direction !== 'manual') {
+        preloadedItems = [...preloadedItems].sort((a, b) => {
+          const aValue = a.values[sorting.field] || '';
+          const bValue = b.values[sorting.field] || '';
+          const aNum = parseFloat(String(aValue));
+          const bNum = parseFloat(String(bValue));
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return sorting.direction === 'asc' ? aNum - bNum : bNum - aNum;
+          }
+          const cmp = String(aValue).localeCompare(String(bValue));
+          return sorting.direction === 'asc' ? cmp : -cmp;
+        });
+      }
+
+      itemsMap[collection.id] = preloadedItems;
+      itemsTotalCountMap[collection.id] = collection.draft_items_count ?? 0;
     });
 
     set((state) => ({
@@ -453,7 +474,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
 
   // Items
-  loadItems: async (collectionId: string, page?: number, limit?: number) => {
+  loadItems: async (collectionId: string, page?: number, limit?: number, sortBy?: string, sortOrder?: string) => {
     // Skip virtual collections (multi-asset)
     if (collectionId === MULTI_ASSET_COLLECTION_ID) {
       return;
@@ -462,7 +483,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await collectionsApi.getItems(collectionId, { page, limit });
+      const response = await collectionsApi.getItems(collectionId, { page, limit, sortBy, sortOrder });
 
       if (response.error) {
         throw new Error(response.error);
@@ -786,11 +807,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
 
-  searchItems: async (collectionId: string, query: string, page?: number, limit?: number) => {
+  searchItems: async (collectionId: string, query: string, page?: number, limit?: number, sortBy?: string, sortOrder?: string) => {
     set({ isLoading: true, error: null });
 
     try {
-      const response = await collectionsApi.searchItems(collectionId, query, { page, limit });
+      const response = await collectionsApi.searchItems(collectionId, query, { page, limit, sortBy, sortOrder });
 
       if (response.error) {
         throw new Error(response.error);

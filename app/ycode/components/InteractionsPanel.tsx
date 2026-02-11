@@ -140,7 +140,7 @@ function SortableAnimationItem({
         'px-2 py-1.25 flex items-center gap-1.75 rounded-lg transition-colors',
         isSelected
           ? 'bg-teal-500/50 text-primary-foreground'
-          : 'bg-secondary/50 hover:bg-secondary/100'
+          : 'bg-secondary/50 hover:bg-secondary'
       )}
     >
       <div
@@ -155,7 +155,7 @@ function SortableAnimationItem({
         />
       </div>
 
-      <Label className="flex-1 truncate !cursor-[inherit]">
+      <Label className="flex-1 truncate cursor-[inherit]!">
         {targetLayer ? getLayerName(targetLayer) : `Animation #${index + 1}`}
       </Label>
 
@@ -178,7 +178,7 @@ function SortableAnimationItem({
       <Button
         size="xs"
         variant="ghost"
-        className="-mr-0.5 !cursor-pointer"
+        className="-mr-0.5 cursor-pointer!"
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
@@ -1056,9 +1056,9 @@ export default function InteractionsPanel({
 
         <div
           onClick={() => onSelectLayer?.(triggerLayer.id)}
-          className={cn('flex-1 flex items-center gap-2 px-2 py-1.75 rounded-lg transition-colors cursor-pointer bg-secondary/50 hover:bg-secondary/100')}
+          className={cn('flex-1 flex items-center gap-2 px-2 py-1.75 rounded-lg transition-colors cursor-pointer bg-secondary/50 hover:bg-secondary')}
         >
-          <div className={cn('size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary/100')}>
+          <div className={cn('size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary')}>
             <Icon name={getLayerIcon(triggerLayer)} className="size-2.5" />
           </div>
           <Label variant="muted" className="cursor-pointer">
@@ -1108,7 +1108,7 @@ export default function InteractionsPanel({
                 'flex items-center gap-2 px-2 py-1.75 rounded-lg transition-colors text-left w-full cursor-pointer',
                 selectedInteractionId === interaction.id
                   ? 'bg-teal-500/50 text-primary-foreground'
-                  : 'bg-secondary/50 hover:bg-secondary/100'
+                  : 'bg-secondary/50 hover:bg-secondary'
               )}
             >
               <div
@@ -1158,7 +1158,7 @@ export default function InteractionsPanel({
               <div
                 key={layer.id}
                 onClick={() => onSelectLayer?.(layer.id)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors cursor-pointer bg-secondary/50 hover:bg-secondary/100"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors cursor-pointer bg-secondary/50 hover:bg-secondary"
               >
                 <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary">
                   <Icon name={getLayerIcon(layer)} className="size-2.5" />
@@ -1879,7 +1879,7 @@ export default function InteractionsPanel({
                       <TooltipTrigger asChild>
                         <Icon name="info" className="size-3 opacity-70" />
                       </TooltipTrigger>
-                      <TooltipContent align="start">Total time between each element</TooltipContent>
+                      <TooltipContent align="start">Total time between all elements</TooltipContent>
                     </Tooltip>
                     <Label variant="muted">Stagger</Label>
                   </div>

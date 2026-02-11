@@ -320,6 +320,11 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     return new Set(allCategories.filter(cat => cat !== 'Navigation' && cat !== 'Hero' && cat !== 'Blog header' && cat !== 'Blog posts'));
   });
 
+  // Sync active tab when defaultTab prop changes (e.g., "Add layout" button, keyboard shortcut)
+  React.useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
+
   // Persist active tab to sessionStorage
   React.useEffect(() => {
     if (typeof window !== 'undefined') {

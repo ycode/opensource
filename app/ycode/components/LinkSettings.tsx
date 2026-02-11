@@ -3,7 +3,8 @@
 /**
  * Link Settings Component
  *
- * Settings panel for layer links (URL, email, phone, asset, page, field)
+ * Settings panel for layer links (URL, email, phone, asset, page, field).
+ * Can also be used in standalone mode for component variables.
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
@@ -25,7 +26,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Layer, CollectionField, Collection, Page, LinkSettings as LinkSettingsType, LinkType, CollectionItemWithValues } from '@/types';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import type { Layer, CollectionField, Collection, Page, LinkSettings as LinkSettingsType, LinkType, CollectionItemWithValues, LinkSettingsValue } from '@/types';
 import {
   createDynamicTextVariable,
   getDynamicTextContent,
@@ -34,34 +45,68 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 import { ASSET_CATEGORIES, getAssetIcon } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import { collectionsApi, pagesApi } from '@/lib/api';
 import { getLayerIcon, getLayerName, canLayerHaveLink, getCollectionVariable } from '@/lib/layer-utils';
-import { getPageIcon } from '@/lib/page-utils';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import PageSelector from './PageSelector';
 
-interface LinkSettingsProps {
+// Re-export LinkSettingsValue from types for convenience
+export type { LinkSettingsValue } from '@/types';
+
+// Layer mode props - for editing layer links
+interface LayerModeProps {
+  mode?: 'layer';
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
+  value?: never;
+  onChange?: never;
+}
+
+// Standalone mode props - for component variables
+interface StandaloneModeProps {
+  mode: 'standalone';
+  value: LinkSettingsValue | undefined;
+  onChange: (value: LinkSettingsValue) => void;
+  layer?: never;
+  onLayerUpdate?: never;
+}
+
+// Common props for both modes
+interface CommonProps {
   /** Field groups with labels and sources for inline variable selection */
   fieldGroups?: FieldGroup[];
   allFields?: Record<string, CollectionField[]>;
   collections?: Collection[];
   isLockedByOther?: boolean;
   isInsideCollectionLayer?: boolean; // Whether fields come from a collection layer (vs page fields)
+  onOpenVariablesDialog?: () => void;
 }
 
-export default function LinkSettings({
-  layer,
-  onLayerUpdate,
-  fieldGroups,
-  allFields,
-  collections,
-  isLockedByOther,
-  isInsideCollectionLayer = false,
-}: LinkSettingsProps) {
+type LinkSettingsProps = (LayerModeProps | StandaloneModeProps) & CommonProps;
+
+export default function LinkSettings(props: LinkSettingsProps) {
+  const {
+    fieldGroups,
+    allFields,
+    collections,
+    isLockedByOther,
+    isInsideCollectionLayer = false,
+    onOpenVariablesDialog,
+  } = props;
+
+  // Determine mode
+  const isStandaloneMode = props.mode === 'standalone';
+
+  // Mode-specific props
+  const layer = isStandaloneMode ? null : props.layer;
+  const onLayerUpdate = isStandaloneMode ? undefined : props.onLayerUpdate;
+  const standaloneValue = isStandaloneMode ? props.value : undefined;
+  const standaloneOnChange = isStandaloneMode ? props.onChange : undefined;
+
   const [isOpen, setIsOpen] = useState(true);
   const [collectionItems, setCollectionItems] = useState<CollectionItemWithValues[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -71,12 +116,29 @@ export default function LinkSettings({
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const currentPageId = useEditorStore((state) => state.currentPageId);
   const openFileManager = useEditorStore((state) => state.openFileManager);
+  const editingComponentId = useEditorStore((state) => state.editingComponentId);
   const getAsset = useAssetsStore((state) => state.getAsset);
   const collectionsStoreFields = useCollectionsStore((state) => state.fields);
+  const getComponentById = useComponentsStore((state) => state.getComponentById);
 
-  // Get current link settings
-  const linkSettings = layer?.variables?.link;
+  // Get component variables for link linking (when editing a component in layer mode)
+  const editingComponent = !isStandaloneMode && editingComponentId ? getComponentById(editingComponentId) : undefined;
+  const componentVariables = editingComponent?.variables || [];
+  // Filter to only link-type variables
+  const linkComponentVariables = componentVariables.filter(v => v.type === 'link');
+
+  // Get current link settings (from layer or standalone value)
+  const linkSettings = isStandaloneMode ? standaloneValue : layer?.variables?.link;
   const linkType = linkSettings?.type || 'none';
+
+  // Get linked link variable ID from layer (stored in linkSettings with a variable_id)
+  const linkedLinkVariableId = !isStandaloneMode && linkSettings ? (linkSettings as any).variable_id : undefined;
+  const linkedLinkVariable = linkComponentVariables.find(v => v.id === linkedLinkVariableId);
+
+  // Get effective link settings - use variable's default value when linked
+  const linkedVariableDefaultValue = linkedLinkVariable?.default_value as LinkSettingsValue | undefined;
+  const effectiveLinkSettings = linkedLinkVariable ? linkedVariableDefaultValue : linkSettings;
+  const effectiveLinkType = effectiveLinkSettings?.type || 'none';
 
   // Get current values based on link type
   const urlValue = useMemo(() => {
@@ -110,11 +172,6 @@ export default function LinkSettings({
   const target = linkSettings?.target || '_self';
   const download = linkSettings?.download || false;
   const rel = linkSettings?.rel || '';
-
-  // Filter out error pages from available pages for linking
-  const linkablePages = useMemo(() => {
-    return pages.filter((page) => page.error_page === null);
-  }, [pages]);
 
   // Get the selected page
   const selectedPage = useMemo(() => {
@@ -260,10 +317,17 @@ export default function LinkSettings({
     ];
   }, [linkFieldGroups]);
 
-  // Update link settings helper
+  // Update link settings helper - supports both layer and standalone mode
   const updateLinkSettings = useCallback(
     (newSettings: Partial<LinkSettingsType> | null) => {
-      if (!layer) return;
+      if (isStandaloneMode) {
+        // In standalone mode, call onChange with the new settings
+        standaloneOnChange?.(newSettings as LinkSettingsType);
+        return;
+      }
+
+      // Layer mode - update the layer
+      if (!layer || !onLayerUpdate) return;
 
       onLayerUpdate(layer.id, {
         variables: {
@@ -272,13 +336,48 @@ export default function LinkSettings({
         },
       });
     },
-    [layer, onLayerUpdate]
+    [isStandaloneMode, standaloneOnChange, layer, onLayerUpdate]
   );
+
+  // Handle linking link to a component variable
+  const handleLinkLinkVariable = useCallback((variableId: string) => {
+    if (!layer || !onLayerUpdate) return;
+
+    const currentLink = layer.variables?.link;
+
+    onLayerUpdate(layer.id, {
+      variables: {
+        ...layer.variables,
+        link: currentLink
+          ? { ...currentLink, variable_id: variableId } as any
+          : { type: 'none', variable_id: variableId } as any,
+      },
+    });
+  }, [layer, onLayerUpdate]);
+
+  // Handle unlinking link from a component variable
+  const handleUnlinkLinkVariable = useCallback(() => {
+    if (!layer || !onLayerUpdate) return;
+
+    const currentLink = layer.variables?.link;
+    if (!currentLink) return;
+
+    // Remove variable_id from link settings
+    const { variable_id, ...restLink } = currentLink as any;
+
+    onLayerUpdate(layer.id, {
+      variables: {
+        ...layer.variables,
+        link: restLink,
+      },
+    });
+  }, [layer, onLayerUpdate]);
 
   // Handle link type change
   const handleLinkTypeChange = useCallback(
     (newType: LinkType | 'none') => {
-      if (!layer) return;
+      // In layer mode, require a layer
+      if (!isStandaloneMode && !layer) return;
 
       if (newType === 'none') {
         // Remove link settings
@@ -315,51 +414,51 @@ export default function LinkSettings({
 
       updateLinkSettings(newSettings);
     },
-    [layer, updateLinkSettings]
+    [isStandaloneMode, layer, updateLinkSettings]
   );
 
   // Handle URL change
   const handleUrlChange = useCallback(
     (value: string) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       updateLinkSettings({
         ...linkSettings,
         url: createDynamicTextVariable(value),
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings]
   );
 
   // Handle email change
   const handleEmailChange = useCallback(
     (value: string) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       updateLinkSettings({
         ...linkSettings,
         email: createDynamicTextVariable(value),
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings]
   );
 
   // Handle phone change
   const handlePhoneChange = useCallback(
     (value: string) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       updateLinkSettings({
         ...linkSettings,
         phone: createDynamicTextVariable(value),
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings]
   );
 
   // Handle asset selection
   const handleAssetSelect = useCallback(() => {
-    if (!layer || !linkSettings) return;
+    if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
     openFileManager(
       (asset) => {
@@ -371,12 +470,12 @@ export default function LinkSettings({
       assetId || undefined,
       undefined // All asset types allowed for download
     );
-  }, [layer, linkSettings, assetId, openFileManager, updateLinkSettings]);
+  }, [isStandaloneMode, layer, linkSettings, assetId, openFileManager, updateLinkSettings]);
 
   // Handle page selection
   const handlePageChange = useCallback(
     (newPageId: string) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       updateLinkSettings({
         ...linkSettings,
@@ -387,13 +486,13 @@ export default function LinkSettings({
         anchor_layer_id: null, // Reset anchor when page changes
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings]
   );
 
   // Handle collection item selection
   const handleCollectionItemChange = useCallback(
     (itemId: string) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       // Map the selection values to the stored values
       let storedValue: string;
@@ -413,7 +512,7 @@ export default function LinkSettings({
         },
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings]
   );
 
   // Handle field selection (field type is stored for link resolution)
@@ -424,7 +523,7 @@ export default function LinkSettings({
       source?: FieldSourceType,
       layerId?: string
     ) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       // Find the field type
       const field = linkFields.find(f => f.id === selectedFieldId);
@@ -444,26 +543,26 @@ export default function LinkSettings({
         },
       });
     },
-    [layer, linkSettings, updateLinkSettings, linkFields]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings, linkFields]
   );
 
   // Handle anchor layer ID change
   const handleAnchorLayerIdChange = useCallback(
     (value: string) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       updateLinkSettings({
         ...linkSettings,
         anchor_layer_id: value === 'none' ? null : value,
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings]
   );
 
   // Handle target change
   const handleTargetChange = useCallback(
     (checked: boolean) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       const newTarget = checked ? '_blank' : '_self';
       // Also add rel="noopener noreferrer" for security when opening in new tab
@@ -475,26 +574,26 @@ export default function LinkSettings({
         rel: newRel,
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings]
   );
 
   // Handle download change
   const handleDownloadChange = useCallback(
     (checked: boolean) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       updateLinkSettings({
         ...linkSettings,
         download: checked,
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, updateLinkSettings]
   );
 
   // Handle nofollow change
   const handleNofollowChange = useCallback(
     (checked: boolean) => {
-      if (!layer || !linkSettings) return;
+      if ((!isStandaloneMode && !layer) || !linkSettings) return;
 
       const currentRel = rel || '';
       const hasNofollow = currentRel.includes('nofollow');
@@ -511,7 +610,7 @@ export default function LinkSettings({
         rel: newRel,
       });
     },
-    [layer, linkSettings, rel, updateLinkSettings]
+    [isStandaloneMode, layer, linkSettings, rel, updateLinkSettings]
   );
 
   // Get asset info for display
@@ -540,13 +639,14 @@ export default function LinkSettings({
     [collectionItems, pageCollectionId, collectionsStoreFields]
   );
 
-  if (!layer) return null;
+  // Layer mode requires a layer
+  if (!isStandaloneMode && !layer) return null;
 
-  // Don't show link settings for component layers
-  if (layer.componentId) return null;
+  // Don't show link settings for component layers (layer mode only)
+  if (!isStandaloneMode && layer?.componentId) return null;
 
-  // Show empty state if there's a link nesting issue
-  if (linkNestingIssue) {
+  // Show empty state if there's a link nesting issue (layer mode only)
+  if (!isStandaloneMode && linkNestingIssue) {
     return (
       <SettingsPanel
         title="Link"
@@ -566,6 +666,392 @@ export default function LinkSettings({
     );
   }
 
+  // Standalone mode content (without SettingsPanel wrapper)
+  const linkTypeContent = (
+    <div className={isStandaloneMode ? '' : 'grid grid-cols-3 items-center gap-2'}>
+      {!isStandaloneMode && (
+        <div className="flex items-start gap-1 py-1">
+          {editingComponentId ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="variable"
+                  size="xs"
+                  className="has-[>svg]:px-0"
+                >
+                  <Icon name="plus-circle-solid" />
+                  Type
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {linkComponentVariables.length > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Link to variable</DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent>
+                        {linkComponentVariables.map((variable) => (
+                          <DropdownMenuItem
+                            key={variable.id}
+                            onClick={() => handleLinkLinkVariable(variable.id)}
+                          >
+                            {variable.name}
+                            {linkedLinkVariableId === variable.id && (
+                              <Icon name="check" className="ml-auto size-3" />
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+                )}
+                {onOpenVariablesDialog && (
+                  <DropdownMenuItem onClick={onOpenVariablesDialog}>
+                    Manage variables
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Label className="text-xs text-muted-foreground">Type</Label>
+          )}
+        </div>
+      )}
+      <div className={isStandaloneMode ? '' : 'col-span-2'}>
+        {linkedLinkVariable ? (
+          <Button
+            asChild
+            variant="purple"
+            className="justify-between! w-full"
+            onClick={handleUnlinkLinkVariable}
+          >
+            <div>
+              <span>{linkedLinkVariable.name}</span>
+              <Button
+                className="size-4! p-0!"
+                variant="outline"
+              >
+                <Icon name="x" className="size-2" />
+              </Button>
+            </div>
+          </Button>
+        ) : (
+          <Select
+            value={linkType}
+            onValueChange={(value) => handleLinkTypeChange(value as LinkType | 'none')}
+            disabled={isLockedByOther}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select link type" />
+            </SelectTrigger>
+            <SelectContent>
+              {linkTypeOptions.map((option, index) => {
+                if ('type' in option && option.type === 'separator') {
+                  return <SelectSeparator key={`separator-${index}`} />;
+                }
+                if ('value' in option) {
+                  return (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      disabled={option.disabled || isLockedByOther}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon name={option.icon as any} className="size-3" />
+                        {option.label}
+                      </div>
+                    </SelectItem>
+                  );
+                }
+                return null;
+              })}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+    </div>
+  );
+
+  // Type-specific inputs content
+  const typeSpecificContent = (
+    <>
+      {/* URL Input */}
+      {linkType === 'url' && (
+        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">URL</Label>}
+          {isStandaloneMode && <Label variant="muted" className="mb-1.5">URL</Label>}
+          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+            <RichTextEditor
+              value={urlValue}
+              onChange={handleUrlChange}
+              placeholder="https://example.com"
+              fieldGroups={fieldGroups}
+              allFields={allFields}
+              collections={collections}
+              disabled={isLockedByOther}
+              disableLinks
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Email Input */}
+      {linkType === 'email' && (
+        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Email</Label>}
+          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Email</Label>}
+          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+            <RichTextEditor
+              value={emailValue}
+              onChange={handleEmailChange}
+              placeholder="email@example.com"
+              fieldGroups={fieldGroups}
+              allFields={allFields}
+              collections={collections}
+              disabled={isLockedByOther}
+              disableLinks
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Phone Input */}
+      {linkType === 'phone' && (
+        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Phone</Label>}
+          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Phone</Label>}
+          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+            <RichTextEditor
+              value={phoneValue}
+              onChange={handlePhoneChange}
+              placeholder="+1234567890"
+              fieldGroups={fieldGroups}
+              allFields={allFields}
+              collections={collections}
+              disabled={isLockedByOther}
+              disableLinks
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Asset Selection */}
+      {linkType === 'asset' && (
+        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Asset</Label>}
+          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Asset</Label>}
+          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleAssetSelect}
+              disabled={isLockedByOther}
+              className="w-full justify-start"
+            >
+              <Icon name={(selectedAsset ? getAssetIcon(selectedAsset.mime_type) : 'paperclip') as IconProps['name']} className="size-3 mr-0.5" />
+              {selectedAsset ? selectedAsset.filename : 'Select asset...'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Page Selection */}
+      {linkType === 'page' && (
+        <>
+          <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+            {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Page</Label>}
+            {isStandaloneMode && <Label variant="muted" className="mb-1.5">Page</Label>}
+            <div className={isStandaloneMode ? '' : 'col-span-2'}>
+              <PageSelector
+                value={pageId}
+                onValueChange={handlePageChange}
+                disabled={isLockedByOther}
+              />
+            </div>
+          </div>
+
+          {/* Collection Item Selection (for dynamic pages) */}
+          {isDynamicPage && pageId && (
+            <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+              {!isStandaloneMode && <Label className="text-xs text-muted-foreground">CMS item</Label>}
+              {isStandaloneMode && <Label variant="muted" className="mb-1.5">CMS item</Label>}
+              <div className={isStandaloneMode ? '' : 'col-span-2'}>
+                <Select
+                  value={collectionItemId || ''}
+                  onValueChange={handleCollectionItemChange}
+                  disabled={isLockedByOther || loadingItems}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={loadingItems ? 'Loading...' : 'Select a CMS item'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Current page item option (when on a dynamic page AND linking to a dynamic page) */}
+                    {isDynamicPage && isCurrentPageDynamic && (
+                      <SelectItem value="current-page">
+                        <div className="flex items-center gap-2">
+                          Current page item
+                        </div>
+                      </SelectItem>
+                    )}
+                    {/* Current collection item option (when inside a collection layer OR when the layer IS a collection layer) */}
+                    {canUseCurrentCollectionItem && (
+                      <SelectItem value="current-collection">
+                        <div className="flex items-center gap-2">
+                          Current collection item
+                        </div>
+                      </SelectItem>
+                    )}
+                    {((isDynamicPage && isCurrentPageDynamic) || canUseCurrentCollectionItem) && <SelectSeparator />}
+                    {collectionItems.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {getItemDisplayName(item.id)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Field Selection */}
+      {linkType === 'field' && (
+        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Field</Label>}
+          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Field</Label>}
+          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+            <FieldSelectDropdown
+              fieldGroups={linkFieldGroups}
+              allFields={allFields || {}}
+              collections={collections || []}
+              value={fieldId}
+              onSelect={handleFieldChange}
+              placeholder="Select a field"
+              disabled={isLockedByOther}
+              allowedFieldTypes={LINK_FIELD_TYPES}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  // Behavior options content (for layer mode only)
+  const behaviorContent = !isStandaloneMode && linkType !== 'none' && (
+    <>
+      {/* Anchor (for page and URL types) */}
+      {(linkType === 'page' || linkType === 'url') && (
+        <div className="grid grid-cols-3 items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Label className="text-xs text-muted-foreground">Anchor</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Icon name="info" className="size-3 text-foreground/80" />
+              </TooltipTrigger>
+              <TooltipContent>Layers with ID attributes are used as anchors</TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div className="col-span-2">
+            <Select
+              value={anchorLayerId || 'none'}
+              onValueChange={handleAnchorLayerIdChange}
+              disabled={isLockedByOther}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select anchor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <div className="flex items-center gap-2">
+                    <Icon name="none" className="size-3" />
+                    <span>No anchor</span>
+                  </div>
+                </SelectItem>
+                {anchorLayers.map(({ layer: anchorLayer, id }) => (
+                  <SelectItem key={id} value={id}>
+                    <div className="flex items-center gap-2">
+                      <Icon name={getLayerIcon(anchorLayer)} className="size-3" />
+                      <span>{getLayerName(anchorLayer)}</span>
+                      <span className="text-xs text-muted-foreground">#{id}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      {/* Link Behavior (when link is set) */}
+      <div className="grid grid-cols-3 gap-2 py-1">
+        <div>
+          <Label variant="muted">Behavior</Label>
+        </div>
+        <div className="col-span-2 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="newTab"
+              checked={target === '_blank'}
+              onCheckedChange={handleTargetChange}
+              disabled={isLockedByOther}
+            />
+            <Label
+              variant="muted"
+              htmlFor="newTab"
+              className="cursor-pointer"
+            >
+              Open in new tab
+            </Label>
+          </div>
+          {linkType === 'asset' && (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="download"
+                checked={download}
+                onCheckedChange={handleDownloadChange}
+                disabled={isLockedByOther}
+              />
+              <Label
+                variant="muted"
+                htmlFor="download"
+                className="cursor-pointer"
+              >
+                Force download
+              </Label>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Switch
+              id="nofollow"
+              checked={rel?.includes('nofollow') || false}
+              onCheckedChange={handleNofollowChange}
+              disabled={isLockedByOther}
+            />
+            <Label
+              variant="muted"
+              htmlFor="nofollow"
+              className="cursor-pointer"
+            >
+              No follow
+            </Label>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
+  // Standalone mode: render without SettingsPanel wrapper
+  if (isStandaloneMode) {
+    return (
+      <div className="space-y-2">
+        {linkTypeContent}
+        {typeSpecificContent}
+      </div>
+    );
+  }
+
+  // Layer mode: render with SettingsPanel wrapper
   return (
     <SettingsPanel
       title="Link"
@@ -573,315 +1059,9 @@ export default function LinkSettings({
       onToggle={() => setIsOpen(!isOpen)}
     >
       <div className="space-y-2">
-        {/* Link Type */}
-        <div className="grid grid-cols-3 items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Type</Label>
-          <div className="col-span-2">
-            <Select
-              value={linkType}
-              onValueChange={(value) => handleLinkTypeChange(value as LinkType | 'none')}
-              disabled={isLockedByOther}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select link type" />
-              </SelectTrigger>
-              <SelectContent>
-                {linkTypeOptions.map((option, index) => {
-                  if ('type' in option && option.type === 'separator') {
-                    return <SelectSeparator key={`separator-${index}`} />;
-                  }
-                  if ('value' in option) {
-                    return (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        disabled={option.disabled || isLockedByOther}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Icon name={option.icon as any} className="size-3" />
-                          {option.label}
-                        </div>
-                      </SelectItem>
-                    );
-                  }
-                  return null;
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* URL Input */}
-        {linkType === 'url' && (
-          <div className="grid grid-cols-3 items-center gap-2">
-            <Label className="text-xs text-muted-foreground">URL</Label>
-            <div className="col-span-2">
-              <RichTextEditor
-                value={urlValue}
-                onChange={handleUrlChange}
-                placeholder="https://example.com"
-                fieldGroups={fieldGroups}
-                allFields={allFields}
-                collections={collections}
-                disabled={isLockedByOther}
-                disableLinks
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Email Input */}
-        {linkType === 'email' && (
-          <div className="grid grid-cols-3 items-center gap-2">
-            <Label className="text-xs text-muted-foreground">Email</Label>
-            <div className="col-span-2">
-              <RichTextEditor
-                value={emailValue}
-                onChange={handleEmailChange}
-                placeholder="email@example.com"
-                fieldGroups={fieldGroups}
-                allFields={allFields}
-                collections={collections}
-                disabled={isLockedByOther}
-                disableLinks
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Phone Input */}
-        {linkType === 'phone' && (
-          <div className="grid grid-cols-3 items-center gap-2">
-            <Label className="text-xs text-muted-foreground">Phone</Label>
-            <div className="col-span-2">
-              <RichTextEditor
-                value={phoneValue}
-                onChange={handlePhoneChange}
-                placeholder="+1234567890"
-                fieldGroups={fieldGroups}
-                allFields={allFields}
-                collections={collections}
-                disabled={isLockedByOther}
-                disableLinks
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Asset Selection */}
-        {linkType === 'asset' && (
-          <div className="grid grid-cols-3 items-center gap-2">
-            <Label className="text-xs text-muted-foreground">Asset</Label>
-            <div className="col-span-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleAssetSelect}
-                disabled={isLockedByOther}
-                className="w-full justify-start"
-              >
-                <Icon name={(selectedAsset ? getAssetIcon(selectedAsset.mime_type) : 'paperclip') as IconProps['name']} className="size-3 mr-0.5" />
-                {selectedAsset ? selectedAsset.filename : 'Select asset...'}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Page Selection */}
-        {linkType === 'page' && (
-          <>
-            <div className="grid grid-cols-3 items-center gap-2">
-              <Label className="text-xs text-muted-foreground">Page</Label>
-              <div className="col-span-2">
-                <Select
-                  value={pageId || ''}
-                  onValueChange={handlePageChange}
-                  disabled={isLockedByOther}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select page" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {linkablePages.map((page) => (
-                      <SelectItem key={page.id} value={page.id}>
-                        <div className="flex items-center gap-2">
-                          <Icon
-                            name={getPageIcon(page)}
-                            className="size-3"
-                          />
-                          {page.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Collection Item Selection (for dynamic pages) */}
-            {isDynamicPage && pageId && (
-              <div className="grid grid-cols-3 items-center gap-2">
-                <Label className="text-xs text-muted-foreground">CMS item</Label>
-                <div className="col-span-2">
-                  <Select
-                    value={collectionItemId || ''}
-                    onValueChange={handleCollectionItemChange}
-                    disabled={isLockedByOther || loadingItems}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={loadingItems ? 'Loading...' : 'Select a CMS item'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Current page item option (when on a dynamic page AND linking to a dynamic page) */}
-                      {isDynamicPage && isCurrentPageDynamic && (
-                        <SelectItem value="current-page">
-                          <div className="flex items-center gap-2">
-                            Current page item
-                          </div>
-                        </SelectItem>
-                      )}
-                      {/* Current collection item option (when inside a collection layer OR when the layer IS a collection layer) */}
-                      {canUseCurrentCollectionItem && (
-                        <SelectItem value="current-collection">
-                          <div className="flex items-center gap-2">
-                            Current collection item
-                          </div>
-                        </SelectItem>
-                      )}
-                      {((isDynamicPage && isCurrentPageDynamic) || canUseCurrentCollectionItem) && <SelectSeparator />}
-                      {collectionItems.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {getItemDisplayName(item.id)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Field Selection */}
-        {linkType === 'field' && (
-          <div className="grid grid-cols-3 items-center gap-2">
-            <Label className="text-xs text-muted-foreground">Field</Label>
-            <div className="col-span-2">
-              <FieldSelectDropdown
-                fieldGroups={linkFieldGroups}
-                allFields={allFields || {}}
-                collections={collections || []}
-                value={fieldId}
-                onSelect={handleFieldChange}
-                placeholder="Select a field"
-                disabled={isLockedByOther}
-                allowedFieldTypes={LINK_FIELD_TYPES}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Anchor (for page and URL types) */}
-        {(linkType === 'page' || linkType === 'url') && (
-          <div className="grid grid-cols-3 items-center gap-2">
-            <div className="flex items-center gap-1">
-              <Label className="text-xs text-muted-foreground">Anchor</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Icon name="info" className="size-3 text-foreground/80" />
-                </TooltipTrigger>
-                <TooltipContent>Layers with ID attributes are used as anchors</TooltipContent>
-              </Tooltip>
-            </div>
-
-            <div className="col-span-2">
-              <Select
-                value={anchorLayerId || 'none'}
-                onValueChange={handleAnchorLayerIdChange}
-                disabled={isLockedByOther}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select anchor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <div className="flex items-center gap-2">
-                      <Icon name="none" className="size-3" />
-                      <span>No anchor</span>
-                    </div>
-                  </SelectItem>
-                  {anchorLayers.map(({ layer, id }) => (
-                    <SelectItem key={id} value={id}>
-                      <div className="flex items-center gap-2">
-                        <Icon name={getLayerIcon(layer)} className="size-3" />
-                        <span>{getLayerName(layer)}</span>
-                        <span className="text-xs text-muted-foreground">#{id}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
-
-        {/* Link Behavior (when link is set) */}
-        {linkType !== 'none' && (
-          <div className="grid grid-cols-3 gap-2 py-1">
-            <div>
-              <Label variant="muted">Behavior</Label>
-            </div>
-            <div className="col-span-2 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="newTab"
-                  checked={target === '_blank'}
-                  onCheckedChange={handleTargetChange}
-                  disabled={isLockedByOther}
-                />
-                <Label
-                  variant="muted"
-                  htmlFor="newTab"
-                  className="cursor-pointer"
-                >
-                  Open in new tab
-                </Label>
-              </div>
-              {linkType === 'asset' && (
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="download"
-                    checked={download}
-                    onCheckedChange={handleDownloadChange}
-                    disabled={isLockedByOther}
-                  />
-                  <Label
-                    variant="muted"
-                    htmlFor="download"
-                    className="cursor-pointer"
-                  >
-                    Force download
-                  </Label>
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="nofollow"
-                  checked={rel?.includes('nofollow') || false}
-                  onCheckedChange={handleNofollowChange}
-                  disabled={isLockedByOther}
-                />
-                <Label
-                  variant="muted"
-                  htmlFor="nofollow"
-                  className="cursor-pointer"
-                >
-                  No follow
-                </Label>
-              </div>
-            </div>
-          </div>
-        )}
+        {linkTypeContent}
+        {!linkedLinkVariable && typeSpecificContent}
+        {!linkedLinkVariable && behaviorContent}
       </div>
     </SettingsPanel>
   );

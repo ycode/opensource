@@ -426,16 +426,18 @@ export async function getItemsWithValues(
 
 /**
  * Get top N items with values for multiple collections in 2 queries
- * Uses optimized batch queries with PARTITION BY and WHERE IN
+ * Uses optimized batch queries with PARTITION BY and WHERE IN.
+ * Note: does NOT return accurate totals — callers should use collection.draft_items_count
+ * or getItemsByCollectionId (which returns exact count) for accurate pagination.
  * @param collectionIds - Array of collection UUIDs
  * @param is_published - Filter for draft (false) or published (true). Defaults to false (draft).
- * @param limit - Number of items per collection. Defaults to 10.
+ * @param limit - Number of items per collection. Defaults to 25.
  */
 export async function getTopItemsWithValuesPerCollection(
   collectionIds: string[],
   is_published: boolean = false,
-  limit: number = 10
-): Promise<Record<string, { items: CollectionItemWithValues[]; total: number }>> {
+  limit: number = 25
+): Promise<Record<string, { items: CollectionItemWithValues[] }>> {
   if (collectionIds.length === 0) {
     return {};
   }
@@ -444,10 +446,9 @@ export async function getTopItemsWithValuesPerCollection(
   const items = await getTopItemsPerCollection(collectionIds, is_published, limit);
 
   if (items.length === 0) {
-    // Return empty results for all collections
-    const result: Record<string, { items: CollectionItemWithValues[]; total: number }> = {};
+    const result: Record<string, { items: CollectionItemWithValues[] }> = {};
     collectionIds.forEach(id => {
-      result[id] = { items: [], total: 0 };
+      result[id] = { items: [] };
     });
     return result;
   }
@@ -463,24 +464,17 @@ export async function getTopItemsWithValuesPerCollection(
   }));
 
   // Group by collection_id
-  const result: Record<string, { items: CollectionItemWithValues[]; total: number }> = {};
+  const result: Record<string, { items: CollectionItemWithValues[] }> = {};
 
-  // Initialize all collections
   collectionIds.forEach(id => {
-    result[id] = { items: [], total: 0 };
+    result[id] = { items: [] };
   });
 
-  // Populate with actual data
   itemsWithValues.forEach(item => {
     if (!result[item.collection_id]) {
-      result[item.collection_id] = { items: [], total: 0 };
+      result[item.collection_id] = { items: [] };
     }
     result[item.collection_id].items.push(item);
-  });
-
-  // Set total to the number of items we got (limited by N)
-  Object.keys(result).forEach(collectionId => {
-    result[collectionId].total = result[collectionId].items.length;
   });
 
   return result;

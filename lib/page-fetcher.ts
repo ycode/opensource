@@ -1290,6 +1290,53 @@ function resolveRichTextVariables(
  * @param translations - Optional translations map for CMS field translations
  * @returns Layers with collection data injected
  */
+
+/**
+ * Remaps all layer IDs in a subtree to make them unique per collection item.
+ * Also updates interaction tween layer_id references to match the new IDs.
+ * This prevents animations from targeting only the first collection item
+ * when multiple items share the same child layer IDs in the DOM.
+ */
+function remapLayerIdsForCollectionItem(layer: Layer, suffix: string): Layer {
+  // First pass: collect all original IDs in the subtree
+  const originalIds = new Set<string>();
+  const collectIds = (l: Layer) => {
+    originalIds.add(l.id);
+    l.children?.forEach(collectIds);
+  };
+  collectIds(layer);
+
+  // Second pass: remap IDs and interaction tween references
+  const remapLayer = (l: Layer): Layer => {
+    const remapped: Layer = {
+      ...l,
+      id: `${l.id}${suffix}`,
+    };
+
+    if (l.interactions?.length) {
+      remapped.interactions = l.interactions.map(interaction => ({
+        ...interaction,
+        // Make interaction ID unique so AnimationInitializer caches separate timelines per item
+        id: `${interaction.id}${suffix}`,
+        tweens: interaction.tweens.map(tween => ({
+          ...tween,
+          layer_id: originalIds.has(tween.layer_id)
+            ? `${tween.layer_id}${suffix}`
+            : tween.layer_id,
+        })),
+      }));
+    }
+
+    if (l.children) {
+      remapped.children = l.children.map(remapLayer);
+    }
+
+    return remapped;
+  };
+
+  return remapLayer(layer);
+}
+
 export async function resolveCollectionLayers(
   layers: Layer[],
   isPublished: boolean,
@@ -1362,9 +1409,9 @@ export async function resolveCollectionLayers(
                   )
                 );
 
-                return {
+                // Build the cloned layer with original IDs first
+                const clonedLayer: Layer = {
                   ...layer,
-                  id: `${layer.id}-item-${assetId}`,
                   attributes: {
                     ...layer.attributes,
                     'data-collection-item-id': assetId,
@@ -1377,7 +1424,11 @@ export async function resolveCollectionLayers(
                   _collectionItemValues: virtualValues,
                   _collectionItemId: assetId,
                   _layerDataMap: updatedLayerDataMap,
-                } as Layer;
+                };
+
+                // Remap all layer IDs in the subtree to make them unique per asset
+                // This ensures animations target the correct elements for each item
+                return remapLayerIdsForCollectionItem(clonedLayer, `-item-${assetId}`);
               })
             ).then(results => results.filter((item): item is Layer => item !== null));
 
@@ -1539,9 +1590,9 @@ export async function resolveCollectionLayers(
                 )
               );
 
-              return {
+              // Build the cloned layer with original IDs first
+              const clonedLayer: Layer = {
                 ...layer,  // Clone all properties including classes, design, name, etc.
-                id: `${layer.id}-item-${item.id}`,
                 attributes: {
                   ...layer.attributes,
                   'data-collection-item-id': item.id,
@@ -1558,7 +1609,11 @@ export async function resolveCollectionLayers(
                 _collectionItemSlug: itemSlug,
                 // Store layer data map for layer-specific field resolution
                 _layerDataMap: updatedLayerDataMap,
-              } as Layer;
+              };
+
+              // Remap all layer IDs in the subtree to make them unique per item
+              // This ensures animations target the correct elements for each collection item
+              return remapLayerIdsForCollectionItem(clonedLayer, `-item-${item.id}`);
             })
           );
 

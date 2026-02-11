@@ -64,7 +64,8 @@ function transformLayerIdsForInstance(layers: Layer[], instanceLayerId: string):
 
 /**
  * Apply component variable overrides (or defaults) to layers
- * Recursively finds layers with variables.text.id or variables.image.src.id and applies override or default values
+ * Recursively finds layers with variables.text.id, variables.image.src.id, or variables.link.variable_id
+ * and applies override or default values
  */
 function applyComponentOverrides(
   layers: Layer[],
@@ -123,6 +124,26 @@ function applyComponentOverrides(
             ...(imageValue.width && { width: imageValue.width }),
             ...(imageValue.height && { height: imageValue.height }),
             ...(imageValue.loading && { loading: imageValue.loading }),
+          },
+        };
+      }
+    }
+
+    // Check if this layer has a link variable linked
+    const linkedLinkVariableId = (layer.variables?.link as any)?.variable_id;
+    if (linkedLinkVariableId) {
+      // Check for override first, then fall back to variable's default value
+      const overrideValue = overrides?.link?.[linkedLinkVariableId];
+      const variableDef = componentVariables?.find(v => v.id === linkedLinkVariableId);
+      const linkValue = (overrideValue ?? variableDef?.default_value) as any;
+
+      if (linkValue) {
+        // Apply the value to this layer's link variable, keeping the variable_id for reference
+        updatedLayer = {
+          ...updatedLayer,
+          variables: {
+            ...updatedLayer.variables,
+            link: { ...linkValue, variable_id: linkedLinkVariableId },
           },
         };
       }

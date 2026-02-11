@@ -18,6 +18,7 @@ import { useLivePageUpdates } from '@/hooks/use-live-page-updates';
 import type { Page, PageFolder, PageSettings } from '@/types';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { Separator } from '@/components/ui/separator';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { generateUniqueSlug, generateUniqueFolderSlug, getNextNumberFromNames, getParentContextFromSelection, calculateNextOrder, findNextSelection } from '@/lib/page-utils';
 
 interface LeftSidebarPagesProps {
@@ -46,6 +47,8 @@ export default function LeftSidebarPages({
   const selectedItemIdRef = React.useRef<string | null>(currentPageId);
   const pageSettingsPanelRef = useRef<PageSettingsPanelHandle>(null);
   const folderSettingsPanelRef = useRef<FolderSettingsPanelHandle>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; type: 'folder' | 'page' } | null>(null);
 
   const selectedPage = React.useMemo(() => {
     if (!selectedItemId) return null;
@@ -662,8 +665,14 @@ export default function LeftSidebarPages({
     }
   };
 
-  // Handle page or folder deletion
-  const deletePageOrFolderItem = async (id: string, type: 'folder' | 'page') => {
+  // Prompt confirmation before deleting a page or folder
+  const deletePageOrFolderItem = (id: string, type: 'folder' | 'page') => {
+    setPendingDelete({ id, type });
+    setDeleteConfirmOpen(true);
+  };
+
+  // Execute the actual deletion after confirmation
+  const executeDelete = async (id: string, type: 'folder' | 'page') => {
     const wasSelected = selectedItemId === id;
     const wasCurrentPage = currentPageId === id;
 
@@ -887,6 +896,25 @@ export default function LeftSidebarPages({
           onSave={handleSaveFolder}
         />
       </Suspense>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title={`Delete ${pendingDelete?.type === 'folder' ? 'folder' : 'page'}`}
+        description={
+          pendingDelete?.type === 'folder'
+            ? `Are you sure you want to delete this folder and all pages inside it? This action cannot be undone.`
+            : `Are you sure you want to delete this page? This action cannot be undone.`
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={async () => {
+          if (pendingDelete) {
+            await executeDelete(pendingDelete.id, pendingDelete.type);
+          }
+        }}
+      />
     </>
   );
 }

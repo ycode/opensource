@@ -22,8 +22,8 @@ import type { CollectionLinkValue, CollectionLinkType, CollectionItemWithValues,
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { collectionsApi } from '@/lib/api';
-import { getPageIcon } from '@/lib/page-utils';
 import { getLayerIcon, getLayerName } from '@/lib/layer-utils';
+import PageSelector from './PageSelector';
 
 interface CollectionLinkFieldInputProps {
   value: string | CollectionLinkValue | undefined; // JSON string, parsed object, or empty
@@ -114,11 +114,6 @@ export default function CollectionLinkFieldInput({
 
     return findLayersWithId(draft.layers);
   }, [pageId, draftsByPageId, findLayersWithId]);
-
-  // Filter out error pages from available pages for linking
-  const linkablePages = useMemo(() => {
-    return pages.filter((page) => page.error_page === null);
-  }, [pages]);
 
   // Get the selected page
   const selectedPage = useMemo(() => {
@@ -327,28 +322,11 @@ export default function CollectionLinkFieldInput({
           <div className="flex-1 min-w-0">
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs text-muted-foreground">Page</Label>
-              <Select
+              <PageSelector
                 value={pageId}
                 onValueChange={handlePageChange}
                 disabled={disabled}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select page" />
-                </SelectTrigger>
-                <SelectContent>
-                  {linkablePages.map((page) => (
-                    <SelectItem key={page.id} value={page.id}>
-                      <div className="flex items-center gap-2">
-                        <Icon
-                          name={getPageIcon(page)}
-                          className="size-3"
-                        />
-                        {page.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
           </div>
 

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import RichTextEditor from './RichTextEditor';
 import ImageSettings, { type ImageSettingsValue } from './ImageSettings';
+import LinkSettings, { type LinkSettingsValue } from './LinkSettings';
 
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
@@ -44,6 +45,7 @@ export default function ComponentVariablesDialog({
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const addTextVariable = useComponentsStore((state) => state.addTextVariable);
   const addImageVariable = useComponentsStore((state) => state.addImageVariable);
+  const addLinkVariable = useComponentsStore((state) => state.addLinkVariable);
   const updateTextVariable = useComponentsStore((state) => state.updateTextVariable);
   const deleteTextVariable = useComponentsStore((state) => state.deleteTextVariable);
   const fields = useCollectionsStore((state) => state.fields);
@@ -111,8 +113,25 @@ export default function ComponentVariablesDialog({
     }
   };
 
+  // Handle creating a new link variable
+  const handleAddLinkVariable = async () => {
+    if (!componentId) return;
+
+    const newId = await addLinkVariable(componentId, 'Link');
+    if (newId) {
+      setSelectedVariableId(newId);
+      setEditingName('Link');
+    }
+  };
+
   // Handle image default value change (via ImageSettings standalone mode)
   const handleImageDefaultValueChange = (value: ImageSettingsValue) => {
+    if (!componentId || !selectedVariableId) return;
+    updateTextVariable(componentId, selectedVariableId, { default_value: value });
+  };
+
+  // Handle link default value change (via LinkSettings standalone mode)
+  const handleLinkDefaultValueChange = (value: LinkSettingsValue) => {
     if (!componentId || !selectedVariableId) return;
     updateTextVariable(componentId, selectedVariableId, { default_value: value });
   };
@@ -194,6 +213,10 @@ export default function ComponentVariablesDialog({
                       <Icon name="image" className="size-3" />
                       Image
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleAddLinkVariable}>
+                      <Icon name="link" className="size-3" />
+                      Link
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -208,7 +231,7 @@ export default function ComponentVariablesDialog({
                   className="justify-start"
                   onClick={() => setSelectedVariableId(variable.id)}
                 >
-                  <Icon name={variable.type === 'image' ? 'image' : 'text'} className="size-3" />
+                  <Icon name={variable.type === 'image' ? 'image' : variable.type === 'link' ? 'link' : 'text'} className="size-3" />
                   {variable.name}
                 </Button>
               ))}
@@ -241,7 +264,16 @@ export default function ComponentVariablesDialog({
                 <div className="grid grid-cols-3">
                   <Label variant="muted">Default</Label>
                   <div className="col-span-2 *:w-full">
-                    {selectedVariable.type === 'image' ? (
+                    {selectedVariable.type === 'link' ? (
+                      // Link variable - use LinkSettings in standalone mode
+                      <LinkSettings
+                        mode="standalone"
+                        value={selectedVariable.default_value as LinkSettingsValue}
+                        onChange={handleLinkDefaultValueChange}
+                        allFields={fields}
+                        collections={collections}
+                      />
+                    ) : selectedVariable.type === 'image' ? (
                       // Image variable - use ImageSettings in standalone mode
                       <ImageSettings
                         mode="standalone"
