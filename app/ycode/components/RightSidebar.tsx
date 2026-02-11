@@ -1605,7 +1605,7 @@ const RightSidebar = React.memo(function RightSidebar({
     };
 
     const allVariables = component.variables || [];
-    const textVariables = allVariables.filter(v => v.type === 'text');
+    const textVariables = allVariables.filter(v => v.type !== 'image' && v.type !== 'link');
     const imageVariables = allVariables.filter(v => v.type === 'image');
     const linkVariables = allVariables.filter(v => v.type === 'link');
     const currentTextOverrides = selectedLayer.componentOverrides?.text || {};
