@@ -3,6 +3,8 @@
  */
 
 import { BlockTemplate } from '@/types';
+import { getTemplateRef } from '@/lib/templates/blocks';
+import { getTiptapTextContent } from '@/lib/text-format-utils';
 
 export const formTemplates: Record<string, BlockTemplate> = {
   form: {
@@ -23,18 +25,21 @@ export const formTemplates: Record<string, BlockTemplate> = {
           hiddenGenerated: true,
           classes: ['bg-[#fee2e2]', 'text-[#991b1b]', 'text-[1rem]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
           children: [
-            {
-              name: 'span',
+            getTemplateRef('text', {
               customName: 'Message',
+              settings: { tag: 'span' },
+              classes: [],
+              design: {},
+              restrictions: { editText: true },
               variables: {
                 text: {
-                  type: 'dynamic_text',
+                  type: 'dynamic_rich_text',
                   data: {
-                    content: 'Something went wrong! Try submitting form once again.'
+                    content: getTiptapTextContent('Something went wrong! Try submitting form once again.')
                   }
                 }
               }
-            }
+            }),
           ],
           design: {
             spacing: {
@@ -68,18 +73,21 @@ export const formTemplates: Record<string, BlockTemplate> = {
           hiddenGenerated: true,
           classes: ['bg-[#d1fae5]', 'text-[#065f46]', 'text-[1rem]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
           children: [
-            {
-              name: 'span',
+            getTemplateRef('text', {
               customName: 'Message',
+              settings: { tag: 'span' },
+              classes: [],
+              design: {},
+              restrictions: { editText: true },
               variables: {
                 text: {
-                  type: 'dynamic_text',
+                  type: 'dynamic_rich_text',
                   data: {
-                    content: 'Successfully submitted.'
+                    content: getTiptapTextContent('Successfully submitted.')
                   }
                 }
               }
-            }
+            }),
           ],
           design: {
             spacing: {
@@ -110,21 +118,29 @@ export const formTemplates: Record<string, BlockTemplate> = {
           name: 'div',
           classes: ['flex', 'flex-col', 'gap-1'],
           children: [
-            {
-              name: 'label',
+            getTemplateRef('text', {
+              customName: 'Label',
+              settings: { tag: 'label' },
+              attributes: { for: 'name' },
               classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
-              attributes: {
-                for: 'name'
+              restrictions: { editText: true },
+              design: {
+                typography: {
+                  isActive: true,
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  color: '#111827'
+                }
               },
               variables: {
                 text: {
-                  type: 'dynamic_text',
+                  type: 'dynamic_rich_text',
                   data: {
-                    content: 'Full name'
+                    content: getTiptapTextContent('Full name')
                   }
                 }
               }
-            },
+            }),
             {
               name: 'input',
               classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
@@ -153,21 +169,29 @@ export const formTemplates: Record<string, BlockTemplate> = {
           name: 'div',
           classes: ['flex', 'flex-col', 'gap-1'],
           children: [
-            {
-              name: 'label',
+            getTemplateRef('text', {
+              customName: 'Label',
+              settings: { tag: 'label' },
+              attributes: { for: 'email' },
               classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
-              attributes: {
-                for: 'email'
+              restrictions: { editText: true },
+              design: {
+                typography: {
+                  isActive: true,
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  color: '#111827'
+                }
               },
               variables: {
                 text: {
-                  type: 'dynamic_text',
+                  type: 'dynamic_rich_text',
                   data: {
-                    content: 'Email'
+                    content: getTiptapTextContent('Email')
                   }
                 }
               }
-            },
+            }),
             {
               name: 'input',
               classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
@@ -196,21 +220,29 @@ export const formTemplates: Record<string, BlockTemplate> = {
           name: 'div',
           classes: ['flex', 'flex-col', 'gap-1'],
           children: [
-            {
-              name: 'label',
+            getTemplateRef('text', {
+              customName: 'Label',
+              settings: { tag: 'label' },
+              attributes: { for: 'message' },
               classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
-              attributes: {
-                for: 'message'
+              restrictions: { editText: true },
+              design: {
+                typography: {
+                  isActive: true,
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  color: '#111827'
+                }
               },
               variables: {
                 text: {
-                  type: 'dynamic_text',
+                  type: 'dynamic_rich_text',
                   data: {
-                    content: 'Message'
+                    content: getTiptapTextContent('Message')
                   }
                 }
               }
-            },
+            }),
             {
               name: 'textarea',
               classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
@@ -241,14 +273,22 @@ export const formTemplates: Record<string, BlockTemplate> = {
           attributes: {
             type: 'button'
           },
-          variables: {
-            text: {
-              type: 'dynamic_text',
-              data: {
-                content: 'Submit'
+          children: [
+            getTemplateRef('text', {
+              settings: { tag: 'span' },
+              classes: [],
+              design: {},
+              restrictions: { editText: true },
+              variables: {
+                text: {
+                  type: 'dynamic_rich_text',
+                  data: {
+                    content: getTiptapTextContent('Submit')
+                  }
+                }
               }
-            }
-          },
+            }),
+          ],
           design: {
             spacing: {
               isActive: true,
@@ -433,22 +473,28 @@ export const formTemplates: Record<string, BlockTemplate> = {
           },
           classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'rounded-[0.25rem]', 'focus:ring-[#3b82f6]', 'cursor-pointer']
         },
-        {
-          name: 'label',
-          children: [], // Labels can contain elements
-          attributes: {
-            for: 'checkbox'
-          },
+        getTemplateRef('text', {
+          customName: 'Label',
+          settings: { tag: 'label' },
+          attributes: { for: 'checkbox' },
           classes: ['text-[0.875rem]', 'text-[#111827]', 'cursor-pointer'],
+          restrictions: { editText: true },
+          design: {
+            typography: {
+              isActive: true,
+              fontSize: '0.875rem',
+              color: '#111827'
+            }
+          },
           variables: {
             text: {
-              type: 'dynamic_text',
+              type: 'dynamic_rich_text',
               data: {
-                content: 'Checkbox label'
+                content: getTiptapTextContent('Checkbox label')
               }
             }
           }
-        }
+        })
       ] as any[],
       design: {
         layout: {
@@ -477,22 +523,28 @@ export const formTemplates: Record<string, BlockTemplate> = {
           },
           classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'focus:ring-[#3b82f6]', 'cursor-pointer']
         },
-        {
-          name: 'label',
-          children: [], // Labels can contain elements
-          attributes: {
-            for: 'radio'
-          },
+        getTemplateRef('text', {
+          customName: 'Label',
+          settings: { tag: 'label' },
+          attributes: { for: 'radio' },
           classes: ['text-[0.875rem]', 'text-[#111827]', 'cursor-pointer'],
+          restrictions: { editText: true },
+          design: {
+            typography: {
+              isActive: true,
+              fontSize: '0.875rem',
+              color: '#111827'
+            }
+          },
           variables: {
             text: {
-              type: 'dynamic_text',
+              type: 'dynamic_rich_text',
               data: {
-                content: 'Radio label'
+                content: getTiptapTextContent('Radio label')
               }
             }
           }
-        }
+        })
       ] as any[],
       design: {
         layout: {
@@ -509,9 +561,12 @@ export const formTemplates: Record<string, BlockTemplate> = {
     icon: 'text',
     name: 'Label',
     template: {
-      name: 'label',
+      name: 'text',
+      settings: {
+        tag: 'label',
+      },
       classes: ['block', 'text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'mb-[0.25rem]', 'cursor-pointer'],
-      children: [], // Labels can wrap inputs
+      restrictions: { editText: true },
       design: {
         typography: {
           isActive: true,
@@ -522,9 +577,9 @@ export const formTemplates: Record<string, BlockTemplate> = {
       },
       variables: {
         text: {
-          type: 'dynamic_text',
+          type: 'dynamic_rich_text',
           data: {
-            content: 'Label'
+            content: getTiptapTextContent('Label')
           }
         }
       }
