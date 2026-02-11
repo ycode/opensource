@@ -2459,7 +2459,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
                                   </EmptyDescription>
                                 </EmptyHeader>
                                 <Button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    // Stop propagation to prevent canvas click handler from
+                                    // dispatching closeElementLibrary and immediately closing the panel
+                                    e.stopPropagation();
                                     // Open ElementLibrary with layouts tab active
                                     window.dispatchEvent(new CustomEvent('toggleElementLibrary', {
                                       detail: { tab: 'layouts' }

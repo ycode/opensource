@@ -113,6 +113,9 @@ const LeftSidebar = React.memo(function LeftSidebar({
       if (tab) {
         setElementLibraryTab(tab);
         setShowElementLibrary(true);
+        // Switch to Layers tab so the element library context is correct
+        setLocalActiveTab('layers');
+        setActiveSidebarTab('layers');
       } else {
         setShowElementLibrary((prev) => !prev);
       }
