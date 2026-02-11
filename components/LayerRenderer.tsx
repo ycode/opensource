@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Breakpoint } from '@/types';
+import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Breakpoint, CollectionItemWithValues } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -747,6 +747,8 @@ const LayerItem: React.FC<{
   // Multi-reference: filter to items in the array (loops through all)
   // Multi-asset: build virtual items from asset IDs
   const collectionItems = React.useMemo(() => {
+    let items: CollectionItemWithValues[];
+
     // Handle multi-asset: build virtual items from assets
     if (sourceFieldType === 'multi_asset' && sourceFieldId) {
       // Get the field value from the correct source (page or collection)
@@ -758,7 +760,7 @@ const LayerItem: React.FC<{
       if (assetIds.length === 0) return [];
 
       // Build virtual collection items from assets
-      return assetIds.map(assetId => {
+      items = assetIds.map(assetId => {
         const asset = getAsset(assetId);
         // Check if it's a full Asset object or just a URL placeholder
         const isFullAsset = asset && 'filename' in asset;
@@ -774,27 +776,39 @@ const LayerItem: React.FC<{
           values: virtualValues,
         };
       });
+    } else if (!sourceFieldId) {
+      items = allCollectionItems;
+    } else {
+      // Get the reference field value using source-aware resolution
+      const refValue = resolveFieldFromSources(sourceFieldId, undefined, collectionLayerData, pageCollectionItemData);
+      if (!refValue) return [];
+
+      // Handle single reference: value is just an item ID string
+      if (sourceFieldType === 'reference') {
+        // Find the single referenced item by ID
+        const singleItem = allCollectionItems.find(item => item.id === refValue);
+        items = singleItem ? [singleItem] : [];
+      } else {
+        // Handle multi-reference: filter to items whose IDs are in the multi-reference array
+        const allowedIds = parseMultiReferenceValue(refValue);
+        items = allCollectionItems.filter(item => allowedIds.includes(item.id));
+      }
     }
 
-    if (!sourceFieldId) {
-      return allCollectionItems;
+    // Apply collection filters (evaluate against each item's own values)
+    const collectionFilters = collectionVariable?.filters;
+    if (collectionFilters?.groups?.length) {
+      items = items.filter(item =>
+        evaluateVisibility(collectionFilters, {
+          collectionLayerData: item.values,
+          pageCollectionData: null,
+          pageCollectionCounts: {},
+        })
+      );
     }
 
-    // Get the reference field value using source-aware resolution
-    const refValue = resolveFieldFromSources(sourceFieldId, undefined, collectionLayerData, pageCollectionItemData);
-    if (!refValue) return [];
-
-    // Handle single reference: value is just an item ID string
-    if (sourceFieldType === 'reference') {
-      // Find the single referenced item by ID
-      const singleItem = allCollectionItems.find(item => item.id === refValue);
-      return singleItem ? [singleItem] : [];
-    }
-
-    // Handle multi-reference: filter to items whose IDs are in the multi-reference array
-    const allowedIds = parseMultiReferenceValue(refValue);
-    return allCollectionItems.filter(item => allowedIds.includes(item.id));
-  }, [allCollectionItems, sourceFieldId, sourceFieldType, sourceFieldSource, collectionLayerData, pageCollectionItemData, getAsset]);
+    return items;
+  }, [allCollectionItems, sourceFieldId, sourceFieldType, sourceFieldSource, collectionLayerData, pageCollectionItemData, getAsset, collectionVariable?.filters]);
 
   useEffect(() => {
     if (!isEditMode) return;

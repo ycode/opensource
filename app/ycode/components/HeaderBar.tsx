@@ -381,7 +381,7 @@ export default function HeaderBar({
           <DropdownMenuTrigger asChild>
             <Button
               variant="secondary" size="sm"
-              className="!size-8"
+              className="size-8!"
             >
               <div className="dark:text-white text-secondary-foreground">
                 <svg
@@ -599,7 +599,7 @@ export default function HeaderBar({
         <InviteUserButton />
 
         {/* Save Status Indicator */}
-        <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
+        <div className="flex items-center justify-end w-16 text-xs text-white/50">
           {isSaving ? (
             <>
               <span>Saving</span>
