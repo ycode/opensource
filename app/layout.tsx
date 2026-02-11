@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { headers } from 'next/headers';
 import './globals.css';
 import AuthProvider from '@/components/AuthProvider';
+import DarkModeProvider from '@/components/DarkModeProvider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -15,24 +15,20 @@ export const metadata: Metadata = {
   description: 'Self-hosted visual website builder',
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Get the current pathname to determine if we're in the editor
-  const headersList = await headers();
-  const pathname = headersList.get('x-pathname') || '';
-  const isPreviewRoute = pathname.startsWith('/ycode/preview');
-
-  // Apply dark mode for editor routes (/ycode)
-  const isDarkMode = !isPreviewRoute && pathname.startsWith('/ycode');
-
+  // Dark mode is handled client-side by DarkModeProvider
+  // This avoids using headers() which would force all pages to be dynamic
   return (
-    <html lang="en" className={isDarkMode ? 'dark' : ''}>
+    <html lang="en">
       <body className={`${inter.variable} font-sans antialiased text-xs`}>
         <AuthProvider>
-          {children}
+          <DarkModeProvider>
+            {children}
+          </DarkModeProvider>
         </AuthProvider>
       </body>
     </html>
