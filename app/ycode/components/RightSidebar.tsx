@@ -1848,8 +1848,10 @@ const RightSidebar = React.memo(function RightSidebar({
                           mode="standalone"
                           value={getLinkOverrideValue(variable.id)}
                           onChange={(val) => handleLinkVariableOverrideChange(variable.id, val)}
+                          fieldGroups={fieldGroups}
                           allFields={fields}
                           collections={collections}
+                          isInsideCollectionLayer={!!parentCollectionLayer}
                         />
                       </div>
                     </div>
