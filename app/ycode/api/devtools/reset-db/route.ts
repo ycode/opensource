@@ -9,8 +9,8 @@ export const revalidate = 0;
 /**
  * POST /ycode/api/devtools/reset-db
  *
- * DANGEROUS: Deletes all tables in the public schema and empties storage buckets
- * Only for development use
+ * DANGEROUS: Deletes all tables in the public schema and empties storage buckets.
+ * Authentication enforced by proxy.
  */
 export async function POST() {
   try {

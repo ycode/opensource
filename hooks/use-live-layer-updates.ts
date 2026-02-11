@@ -9,7 +9,7 @@ import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenc
 import { useAuthStore } from '../stores/useAuthStore';
 import { usePagesStore } from '../stores/usePagesStore';
 import { useEditorStore } from '../stores/useEditorStore';
-import { createClient } from '../lib/supabase/client';
+import { createClient } from '@/lib/supabase-browser';
 import { debounce } from '../lib/collaboration-utils';
 import type { Layer, LayerUpdate } from '../types';
 

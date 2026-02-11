@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { usePagesStore } from '../stores/usePagesStore';
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore';
-import { createClient } from '../lib/supabase/client';
+import { createClient } from '@/lib/supabase-browser';
 import { debounce } from '../lib/collaboration-utils';
 import type { Page } from '../types';
 

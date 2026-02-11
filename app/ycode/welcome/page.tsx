@@ -125,15 +125,15 @@ export default function WelcomePage() {
         // Logged-in users can still access this page
         if (data.is_setup_complete && !session) {
           router.push('/ycode');
-          return;
+          return; // Keep showing loading screen during redirect
         }
 
         setIsVercel(data.is_vercel || false);
         setEnvVarsConfigured(data.is_configured || false);
+        setStatusChecked(true);
       } catch (err) {
         console.error('Failed to check environment:', err);
         setIsVercel(false); // Default to local on error
-      } finally {
         setStatusChecked(true);
       }
     };

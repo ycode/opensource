@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useComponentsStore } from '../stores/useComponentsStore';
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore';
 import { usePagesStore } from '../stores/usePagesStore';
-import { createClient } from '../lib/supabase/client';
+import { createClient } from '@/lib/supabase-browser';
 import type { Component, Layer } from '../types';
 
 // Types for component updates

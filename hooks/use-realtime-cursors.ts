@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase-browser'
 import { RealtimeChannel, REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCollaborationPresenceStore } from '../stores/useCollaborationPresenceStore'
@@ -45,7 +45,7 @@ let supabase: any = null;
 // Initialize supabase client
 const getSupabaseClient = async () => {
   if (!supabase) {
-    const { createClient } = await import('@/lib/supabase/client');
+    const { createClient } = await import('@/lib/supabase-browser');
     supabase = await createClient();
   }
   return supabase;
