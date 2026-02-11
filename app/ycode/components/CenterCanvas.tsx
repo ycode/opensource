@@ -20,7 +20,6 @@ import { ArrowLeft } from 'lucide-react';
 // 3. ShadCN UI
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -52,11 +51,11 @@ import Canvas from './Canvas';
 import { CollectionFieldSelector } from './CollectionFieldSelector';
 import SelectionOverlay from '@/components/SelectionOverlay';
 import RichTextLinkPopover from './RichTextLinkPopover';
+import PageSelector from './PageSelector';
 
 // 6. Utils
-import { buildPageTree, getNodeIcon, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
+import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
-import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer, findAllParentCollectionLayers, canLayerHaveLink } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
@@ -66,17 +65,12 @@ import { DragCaptureOverlay } from '@/components/DragCaptureOverlay';
 import { setDragCursor, clearDragCursor } from '@/lib/drag-cursor';
 
 // 7. Types
-import type { Layer, Page, PageFolder, CollectionField, Asset } from '@/types';
+import type { Layer, Page, CollectionField, Asset } from '@/types';
 import {
   DropdownMenu,
   DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -500,8 +494,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
   liveComponentUpdates,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
-  const [pagePopoverOpen, setPagePopoverOpen] = useState(false);
-  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -882,64 +874,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
     };
   }, [collectionLayersKey, fetchLayerData, layers]);
 
-  // Separate regular pages from error pages
-  const { regularPages, errorPages } = useMemo(() => {
-    const regular = pages.filter(page => page.error_page === null);
-    const errors = pages
-      .filter(page => page.error_page !== null)
-      .sort((a, b) => (a.error_page || 0) - (b.error_page || 0));
-    return { regularPages: regular, errorPages: errors };
-  }, [pages]);
-
-  // Build page tree for navigation (only with regular pages)
-  const pageTree = useMemo(() => buildPageTree(regularPages, folders), [regularPages, folders]);
-
-  // Create virtual "Error pages" folder node
-  const errorPagesNode: PageTreeNode | null = useMemo(() => {
-    if (errorPages.length === 0) return null;
-
-    const virtualFolder: PageFolder = {
-      id: 'virtual-error-pages-folder',
-      name: 'Error pages',
-      slug: 'error-pages',
-      page_folder_id: null,
-      depth: 0,
-      order: 999999,
-      settings: {},
-      is_published: false,
-      deleted_at: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    const errorPageNodes: PageTreeNode[] = errorPages.map(page => ({
-      id: page.id,
-      type: 'page',
-      data: page,
-      children: [],
-    }));
-
-    return {
-      id: virtualFolder.id,
-      type: 'folder',
-      data: virtualFolder,
-      children: errorPageNodes,
-    };
-  }, [errorPages]);
-
-  // Get current page name and icon
+  // Get current page
   const currentPage = useMemo(() => pages.find(p => p.id === currentPageId), [pages, currentPageId]);
-  const currentPageName = currentPage?.name || 'Loading...';
-  const currentPageIcon = useMemo(() => {
-    if (!currentPage) return 'homepage';
-    const node: PageTreeNode = {
-      id: currentPage.id,
-      type: 'page',
-      data: currentPage,
-      children: []
-    };
-    return getNodeIcon(node);
-  }, [currentPage]);
 
   // Get collection ID from current page if it's dynamic
   const collectionId = useMemo(() => {
@@ -1436,27 +1372,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return returnToPageId ? pages.find(p => p.id === returnToPageId) : null;
   }, [returnToPageId, pages]);
 
-  // Initialize all folders as collapsed on mount (including virtual error pages folder)
-  useEffect(() => {
-    const allFolderIds = new Set(folders.map(f => f.id));
-    // Also collapse the virtual error pages folder by default
-    allFolderIds.add('virtual-error-pages-folder');
-    setCollapsedFolderIds(allFolderIds);
-  }, [folders]);
-
-  // Toggle folder collapse state
-  const toggleFolder = useCallback((folderId: string) => {
-    setCollapsedFolderIds(prev => {
-      const next = new Set(prev);
-      if (next.has(folderId)) {
-        next.delete(folderId);
-      } else {
-        next.add(folderId);
-      }
-      return next;
-    });
-  }, []);
-
   // Handle page selection
   const handlePageSelect = useCallback((pageId: string) => {
     // Clear selection FIRST to release locks on the current page's channel
@@ -1467,8 +1382,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
     // The URL effect in YCodeBuilderMain uses a ref to track when we're navigating
     // to prevent reverting to the old page before the URL updates
     setCurrentPageId(pageId);
-
-    setPagePopoverOpen(false);
 
     // Navigate to the same route type but with the new page ID
     // IMPORTANT: Explicitly pass 'body' as the layer to avoid carrying over invalid layer IDs from the old page
@@ -1483,79 +1396,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
       navigateToLayers(pageId, undefined, undefined, 'body');
     }
   }, [setSelectedLayerId, setCurrentPageId, routeType, urlState.isEditing, navigateToLayers, navigateToPage, navigateToPageEdit]);
-
-  // Render page tree recursively
-  const renderPageTreeNode = useCallback((node: PageTreeNode, depth: number = 0) => {
-    const isFolder = node.type === 'folder';
-    const isCollapsed = isFolder && collapsedFolderIds.has(node.id);
-    const isCurrentPage = !isFolder && node.id === currentPageId;
-    const hasChildren = node.children && node.children.length > 0;
-
-    return (
-      <div key={node.id}>
-        <div
-          onClick={() => {
-            if (isFolder) {
-              toggleFolder(node.id);
-            } else {
-              handlePageSelect(node.id);
-            }
-          }}
-          className={cn(
-            "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-pointer items-center gap-1.25 rounded-sm py-1.5 pr-8 pl-2 text-xs outline-hidden select-none data-disabled:opacity-50 data-disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
-            isCurrentPage && 'bg-secondary/50'
-          )}
-          style={{ paddingLeft: `${depth * 14 + 8}px` }}
-        >
-          {/* Expand/Collapse Button */}
-          {hasChildren ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isFolder) {
-                  toggleFolder(node.id);
-                }
-              }}
-              className={cn(
-                'size-3 flex items-center justify-center shrink-0',
-                isCollapsed ? '' : 'rotate-90'
-              )}
-            >
-              <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isCurrentPage && 'opacity-80')} />
-            </button>
-          ) : (
-            <div className="size-3 shrink-0 flex items-center justify-center">
-              <div className={cn('ml-px w-1.5 h-px bg-white opacity-0', isCurrentPage && 'opacity-0')} />
-            </div>
-          )}
-
-          {/* Icon */}
-          <Icon
-            name={getNodeIcon(node)}
-            className={cn('size-3 mr-0.5', isCurrentPage ? 'opacity-90' : 'opacity-50')}
-          />
-
-          {/* Label */}
-          <span className="grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-            {isFolder ? (node.data as PageFolder).name : (node.data as Page).name}
-          </span>
-
-          {/* Check indicator */}
-          {isCurrentPage && (
-            <span className="absolute right-2 flex size-3 items-center justify-center">
-              <Icon name="check" className="size-3 opacity-50" />
-            </span>
-          )}
-
-        </div>
-        {isFolder && !isCollapsed && node.children && (
-          <div>
-            {node.children.map(child => renderPageTreeNode(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
-  }, [collapsedFolderIds, currentPageId, toggleFolder, handlePageSelect]);
 
   // Fetch referenced collection items recursively when layers with reference fields are detected
   useEffect(() => {
@@ -1798,47 +1638,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
           </Button>
         ) : (
           <div className="flex items-center gap-1.5">
-            <Popover open={pagePopoverOpen} onOpenChange={setPagePopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="input"
-                  size="sm"
-                  role="combobox"
-                  aria-expanded={pagePopoverOpen}
-                  className="w-40 justify-between"
-                >
-                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                    <Icon name={currentPageIcon} className="size-3 opacity-50 shrink-0" />
-                    <span className="truncate">
-                      {currentPageName}
-                    </span>
-                  </div>
-                  <div className="shrink-0">
-                    <Icon name="chevronCombo" className="size-2.5! shrink-0 opacity-50" />
-                  </div>
-                </Button>
-              </PopoverTrigger>
-
-              <PopoverContent className="w-auto min-w-60 max-w-96 p-1" align="start">
-                <div className="max-h-100 overflow-y-auto">
-                  {/* Regular pages tree */}
-                  {pageTree.length > 0 && pageTree.map(node => renderPageTreeNode(node, 0))}
-
-                  {/* Separator before error pages */}
-                  <Separator className="my-1" />
-
-                  {/* Virtual "Error pages" folder */}
-                  {errorPagesNode && renderPageTreeNode(errorPagesNode, 0)}
-
-                  {/* Empty state - only show if no pages at all */}
-                  {pageTree.length === 0 && !errorPagesNode && (
-                    <div className="text-sm text-muted-foreground text-center py-4">
-                      No pages found
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <PageSelector
+              value={currentPageId}
+              onValueChange={handlePageSelect}
+              includeErrorPages
+              align="start"
+              className="w-40"
+              popoverClassName="min-w-60"
+            />
 
             {/* Collection item selector for dynamic pages */}
             {currentPage?.is_dynamic && collectionId && (

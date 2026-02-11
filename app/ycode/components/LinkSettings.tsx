@@ -50,9 +50,9 @@ import { ASSET_CATEGORIES, getAssetIcon } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import { collectionsApi, pagesApi } from '@/lib/api';
 import { getLayerIcon, getLayerName, canLayerHaveLink, getCollectionVariable } from '@/lib/layer-utils';
-import { getPageIcon } from '@/lib/page-utils';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import PageSelector from './PageSelector';
 
 // Re-export LinkSettingsValue from types for convenience
 export type { LinkSettingsValue } from '@/types';
@@ -172,11 +172,6 @@ export default function LinkSettings(props: LinkSettingsProps) {
   const target = linkSettings?.target || '_self';
   const download = linkSettings?.download || false;
   const rel = linkSettings?.rel || '';
-
-  // Filter out error pages from available pages for linking
-  const linkablePages = useMemo(() => {
-    return pages.filter((page) => page.error_page === null);
-  }, [pages]);
 
   // Get the selected page
   const selectedPage = useMemo(() => {
@@ -866,28 +861,11 @@ export default function LinkSettings(props: LinkSettingsProps) {
             {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Page</Label>}
             {isStandaloneMode && <Label variant="muted" className="mb-1.5">Page</Label>}
             <div className={isStandaloneMode ? '' : 'col-span-2'}>
-              <Select
-                value={pageId || ''}
+              <PageSelector
+                value={pageId}
                 onValueChange={handlePageChange}
                 disabled={isLockedByOther}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select page" />
-                </SelectTrigger>
-                <SelectContent>
-                  {linkablePages.map((page) => (
-                    <SelectItem key={page.id} value={page.id}>
-                      <div className="flex items-center gap-2">
-                        <Icon
-                          name={getPageIcon(page)}
-                          className="size-3"
-                        />
-                        {page.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
           </div>
 

@@ -36,8 +36,8 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { getAssetIcon } from '@/lib/asset-utils';
 import { collectionsApi } from '@/lib/api';
 import { getLayerIcon, getLayerName, getCollectionVariable } from '@/lib/layer-utils';
-import { getPageIcon } from '@/lib/page-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import PageSelector from './PageSelector';
 import { filterFieldGroupsByType, flattenFieldGroups, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
 
 export interface RichTextLinkSettingsProps {
@@ -119,11 +119,6 @@ export default function RichTextLinkSettings({
   const target = linkSettings?.target || '_self';
   const download = linkSettings?.download || false;
   const rel = linkSettings?.rel || '';
-
-  // Filter out error pages from available pages for linking
-  const linkablePages = useMemo(() => {
-    return pages.filter((page) => page.error_page === null);
-  }, [pages]);
 
   // Get the selected page
   const selectedPage = useMemo(() => {
@@ -635,27 +630,10 @@ export default function RichTextLinkSettings({
           <div className="grid grid-cols-3 items-center gap-2">
             <Label className="text-xs text-muted-foreground">Page</Label>
             <div className="col-span-2">
-              <Select
-                value={pageId || ''}
+              <PageSelector
+                value={pageId}
                 onValueChange={handlePageChange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select page" />
-                </SelectTrigger>
-                <SelectContent>
-                  {linkablePages.map((page) => (
-                    <SelectItem key={page.id} value={page.id}>
-                      <div className="flex items-center gap-2">
-                        <Icon
-                          name={getPageIcon(page)}
-                          className="size-3"
-                        />
-                        {page.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
           </div>
 
