@@ -48,7 +48,10 @@ export default function SettingsPanel({
           )}
           <Label className={collapsible ? 'cursor-pointer' : undefined}>{title}</Label>
         </div>
-        <div className="flex items-center gap-2 -my-2">
+        <div
+          className="flex items-center gap-2 -my-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           {action}
         </div>
       </header>

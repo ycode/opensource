@@ -1190,8 +1190,11 @@ const LayerItem: React.FC<{
         // Only handle if not a context menu trigger
         if (e.button !== 2) {
           e.stopPropagation();
-          // Prevent default behavior for labels (which would focus the associated input)
-          if (htmlTag === 'label') {
+          // Prevent default behavior for form elements in edit mode
+          // - labels: would focus the associated input
+          // - inputs (checkbox, radio): would toggle checked state
+          // - select: would open the dropdown
+          if (htmlTag === 'label' || htmlTag === 'input' || htmlTag === 'select') {
             e.preventDefault();
           }
           // If this layer is inside a component, select the component layer instead
@@ -1297,6 +1300,12 @@ const LayerItem: React.FC<{
       if (isInsideForm && !elementProps.name) {
         elementProps.name = layer.settings?.id || layer.id;
       }
+      // Checkbox/radio: set value="true" so FormData gets name=true when checked
+      if (isInsideForm && (normalizedAttributes.type === 'checkbox' || normalizedAttributes.type === 'radio')) {
+        if (!elementProps.value) {
+          elementProps.value = 'true';
+        }
+      }
       return <Tag {...elementProps} />;
     }
 
@@ -1353,6 +1362,16 @@ const LayerItem: React.FC<{
             }
           } else {
             payload[key] = value;
+          }
+        });
+
+        // Handle unchecked checkboxes - they aren't included in FormData
+        // Set them to "false" so the submission shows name = false
+        const checkboxes = form.querySelectorAll('input[type="checkbox"][name]');
+        checkboxes.forEach((cb) => {
+          const checkbox = cb as HTMLInputElement;
+          if (checkbox.name && !(checkbox.name in payload)) {
+            payload[checkbox.name] = 'false';
           }
         });
 

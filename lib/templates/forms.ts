@@ -147,7 +147,6 @@ export const formTemplates: Record<string, BlockTemplate> = {
               attributes: {
                 type: 'text',
                 name: 'name',
-                id: 'name',
                 placeholder: 'Full Name'
               },
               settings: {
@@ -198,7 +197,6 @@ export const formTemplates: Record<string, BlockTemplate> = {
               attributes: {
                 type: 'email',
                 name: 'email',
-                id: 'email',
                 placeholder: 'Email'
               },
               settings: {
@@ -248,7 +246,6 @@ export const formTemplates: Record<string, BlockTemplate> = {
               classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
               attributes: {
                 name: 'message',
-                id: 'message',
                 placeholder: 'Message',
                 rows: 4
               },
@@ -329,104 +326,64 @@ export const formTemplates: Record<string, BlockTemplate> = {
     icon: 'input',
     name: 'Input',
     template: {
-      name: 'input',
-      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text', 'text-[0.875rem]', 'text-[#111827]'],
-      attributes: {
-        type: 'text',
-        placeholder: 'Enter text...'
-      },
-      design: {
-        sizing: {
-          isActive: true,
-          width: '100%'
-        },
-        spacing: {
-          isActive: true,
-          paddingLeft: '1rem',
-          paddingRight: '1rem',
-          paddingTop: '0.5rem',
-          paddingBottom: '0.5rem'
-        },
-        borders: {
-          isActive: true,
-          borderWidth: '1px',
-          borderColor: '#d1d5db',
-          borderRadius: '0.5rem'
-        },
-        typography: {
-          isActive: true,
-          fontSize: '0.875rem',
-          color: '#111827'
-        }
-      }
-    }
-  },
-
-  textarea: {
-    icon: 'textarea',
-    name: 'Textarea',
-    template: {
-      name: 'textarea',
-      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text', 'text-[0.875rem]', 'text-[#111827]'],
-      attributes: {
-        placeholder: 'Enter text...',
-        rows: 4
-      },
-      design: {
-        sizing: {
-          isActive: true,
-          width: '100%'
-        },
-        spacing: {
-          isActive: true,
-          paddingLeft: '1rem',
-          paddingRight: '1rem',
-          paddingTop: '0.5rem',
-          paddingBottom: '0.5rem'
-        },
-        borders: {
-          isActive: true,
-          borderWidth: '1px',
-          borderColor: '#d1d5db',
-          borderRadius: '0.5rem'
-        },
-        typography: {
-          isActive: true,
-          fontSize: '0.875rem',
-          color: '#111827'
-        }
-      }
-    }
-  },
-
-  select: {
-    icon: 'select',
-    name: 'Select',
-    template: {
-      name: 'select',
-      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-[#d1d5db]', 'rounded-lg', 'focus:ring-2', 'focus:ring-[#3b82f6]', 'bg-white', 'cursor-pointer', 'text-[0.875rem]', 'text-[#111827]'],
+      name: 'div',
+      classes: ['w-full', 'flex', 'flex-col', 'gap-1'],
       children: [
-        {
-          name: 'option',
-          attributes: { value: 'option1' },
+        getTemplateRef('text', {
+          customName: 'Label',
+          settings: { tag: 'label' },
+          attributes: { for: 'input' },
+          classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+          restrictions: { editText: true },
+          design: {
+            typography: {
+              isActive: true,
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              color: '#111827'
+            }
+          },
           variables: {
             text: {
-              type: 'dynamic_text',
+              type: 'dynamic_rich_text',
               data: {
-                content: 'Option 1'
+                content: getTiptapTextContent('Label')
               }
             }
           }
-        },
+        }),
         {
-          name: 'option',
-          attributes: { value: 'option2' },
-          variables: {
-            text: {
-              type: 'dynamic_text',
-              data: {
-                content: 'Option 2'
-              }
+          name: 'input',
+          classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text', 'text-[0.875rem]', 'text-[#111827]'],
+          settings: {
+            id: 'input'
+          },
+          attributes: {
+            type: 'text',
+            placeholder: 'Enter text...'
+          },
+          design: {
+            sizing: {
+              isActive: true,
+              width: '100%'
+            },
+            spacing: {
+              isActive: true,
+              paddingLeft: '1rem',
+              paddingRight: '1rem',
+              paddingTop: '0.5rem',
+              paddingBottom: '0.5rem'
+            },
+            borders: {
+              isActive: true,
+              borderWidth: '1px',
+              borderColor: '#d1d5db',
+              borderRadius: '0.5rem'
+            },
+            typography: {
+              isActive: true,
+              fontSize: '0.875rem',
+              color: '#111827'
             }
           }
         }
@@ -436,23 +393,195 @@ export const formTemplates: Record<string, BlockTemplate> = {
           isActive: true,
           width: '100%'
         },
-        spacing: {
+        layout: {
           isActive: true,
-          paddingLeft: '1rem',
-          paddingRight: '1rem',
-          paddingTop: '0.5rem',
-          paddingBottom: '0.5rem'
+          display: 'Flex',
+          flexDirection: 'column',
+          gap: '0.25rem'
+        }
+      }
+    }
+  },
+
+  textarea: {
+    icon: 'textarea',
+    name: 'Textarea',
+    template: {
+      name: 'div',
+      classes: ['w-full', 'flex', 'flex-col', 'gap-1'],
+      children: [
+        getTemplateRef('text', {
+          customName: 'Label',
+          settings: { tag: 'label' },
+          attributes: { for: 'textarea' },
+          classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+          restrictions: { editText: true },
+          design: {
+            typography: {
+              isActive: true,
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              color: '#111827'
+            }
+          },
+          variables: {
+            text: {
+              type: 'dynamic_rich_text',
+              data: {
+                content: getTiptapTextContent('Label')
+              }
+            }
+          }
+        }),
+        {
+          name: 'textarea',
+          classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text', 'text-[0.875rem]', 'text-[#111827]'],
+          settings: {
+            id: 'textarea'
+          },
+          attributes: {
+            placeholder: 'Enter text...',
+            rows: 4
+          },
+          design: {
+            sizing: {
+              isActive: true,
+              width: '100%'
+            },
+            spacing: {
+              isActive: true,
+              paddingLeft: '1rem',
+              paddingRight: '1rem',
+              paddingTop: '0.5rem',
+              paddingBottom: '0.5rem'
+            },
+            borders: {
+              isActive: true,
+              borderWidth: '1px',
+              borderColor: '#d1d5db',
+              borderRadius: '0.5rem'
+            },
+            typography: {
+              isActive: true,
+              fontSize: '0.875rem',
+              color: '#111827'
+            }
+          }
+        }
+      ] as any[],
+      design: {
+        sizing: {
+          isActive: true,
+          width: '100%'
         },
-        borders: {
+        layout: {
           isActive: true,
-          borderWidth: '1px',
-          borderColor: '#d1d5db',
-          borderRadius: '0.5rem'
+          display: 'Flex',
+          flexDirection: 'column',
+          gap: '0.25rem'
+        }
+      }
+    }
+  },
+
+  select: {
+    icon: 'select',
+    name: 'Select',
+    template: {
+      name: 'div',
+      classes: ['w-full', 'flex', 'flex-col', 'gap-1'],
+      children: [
+        getTemplateRef('text', {
+          customName: 'Label',
+          settings: { tag: 'label' },
+          attributes: { for: 'select' },
+          classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+          restrictions: { editText: true },
+          design: {
+            typography: {
+              isActive: true,
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              color: '#111827'
+            }
+          },
+          variables: {
+            text: {
+              type: 'dynamic_rich_text',
+              data: {
+                content: getTiptapTextContent('Label')
+              }
+            }
+          }
+        }),
+        {
+          name: 'select',
+          classes: ['w-full', 'px-4', 'py-2', 'border', 'border-[#d1d5db]', 'rounded-lg', 'focus:ring-2', 'focus:ring-[#3b82f6]', 'bg-white', 'cursor-pointer', 'text-[0.875rem]', 'text-[#111827]'],
+          settings: {
+            id: 'select'
+          },
+          children: [
+            {
+              name: 'option',
+              attributes: { value: 'option1' },
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: {
+                    content: 'Option 1'
+                  }
+                }
+              }
+            },
+            {
+              name: 'option',
+              attributes: { value: 'option2' },
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: {
+                    content: 'Option 2'
+                  }
+                }
+              }
+            }
+          ],
+          design: {
+            sizing: {
+              isActive: true,
+              width: '100%'
+            },
+            spacing: {
+              isActive: true,
+              paddingLeft: '1rem',
+              paddingRight: '1rem',
+              paddingTop: '0.5rem',
+              paddingBottom: '0.5rem'
+            },
+            borders: {
+              isActive: true,
+              borderWidth: '1px',
+              borderColor: '#d1d5db',
+              borderRadius: '0.5rem'
+            },
+            typography: {
+              isActive: true,
+              fontSize: '0.875rem',
+              color: '#111827'
+            }
+          }
+        }
+      ] as any[],
+      design: {
+        sizing: {
+          isActive: true,
+          width: '100%'
         },
-        typography: {
+        layout: {
           isActive: true,
-          fontSize: '0.875rem',
-          color: '#111827'
+          display: 'Flex',
+          flexDirection: 'column',
+          gap: '0.25rem'
         }
       }
     }
@@ -463,13 +592,15 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Checkbox',
     template: {
       name: 'div',
-      classes: ['flex', 'items-center', 'gap-2'],
+      classes: ['w-full', 'flex', 'items-center', 'gap-2'],
       children: [
         {
           name: 'input',
-          attributes: {
-            type: 'checkbox',
+          settings: {
             id: 'checkbox'
+          },
+          attributes: {
+            type: 'checkbox'
           },
           classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'rounded-[0.25rem]', 'focus:ring-[#3b82f6]', 'cursor-pointer']
         },
@@ -497,6 +628,10 @@ export const formTemplates: Record<string, BlockTemplate> = {
         })
       ] as any[],
       design: {
+        sizing: {
+          isActive: true,
+          width: '100%'
+        },
         layout: {
           isActive: true,
           display: 'Flex',
@@ -512,13 +647,15 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Radio',
     template: {
       name: 'div',
-      classes: ['flex', 'items-center', 'gap-2'],
+      classes: ['w-full', 'flex', 'items-center', 'gap-2'],
       children: [
         {
           name: 'input',
+          settings: {
+            id: 'radio'
+          },
           attributes: {
             type: 'radio',
-            id: 'radio',
             name: 'radio-group'
           },
           classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'focus:ring-[#3b82f6]', 'cursor-pointer']
@@ -547,6 +684,10 @@ export const formTemplates: Record<string, BlockTemplate> = {
         })
       ] as any[],
       design: {
+        sizing: {
+          isActive: true,
+          width: '100%'
+        },
         layout: {
           isActive: true,
           display: 'Flex',

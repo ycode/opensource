@@ -50,11 +50,17 @@ export default function InputSettings({ layer, onLayerUpdate }: InputSettingsPro
   const isSelectLayer = layer?.name === 'select';
   const isFormInputElement = isInputLayer || isTextareaLayer || isSelectLayer;
 
+  // Check if this is a checkbox or radio input
+  const isCheckboxInput = isInputLayer && layer?.attributes?.type === 'checkbox';
+  const isRadioInput = isInputLayer && layer?.attributes?.type === 'radio';
+  const isCheckboxOrRadio = isCheckboxInput || isRadioInput;
+
   // Get current attribute values
   const attributes = layer?.attributes || {};
   const inputType = attributes.type || 'text';
   const placeholder = attributes.placeholder || '';
   const value = attributes.value || '';
+  const name = attributes.name || '';
   const isRequired = attributes.required === true || attributes.required === 'true';
   const isAutofocus = attributes.autofocus === true || attributes.autofocus === 'true';
 
@@ -105,92 +111,177 @@ export default function InputSettings({ layer, onLayerUpdate }: InputSettingsPro
       onToggle={() => setIsOpen(!isOpen)}
     >
       <div className="flex flex-col gap-2">
-        {/* Type selector - only for input elements */}
-        {isInputLayer && (
-          <div className="grid grid-cols-3">
-            <Label variant="muted">Type</Label>
-            <div className="col-span-2 *:w-full">
-              <Select
-                value={inputType}
-                onValueChange={(val) => handleAttributeChange('type', val)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {INPUT_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+        {/* Radio specific settings */}
+        {isRadioInput ? (
+          <>
+            {/* Group - radios with the same name work as a group */}
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Group</Label>
+              <div className="col-span-2 *:w-full">
+                <Input
+                  value={name}
+                  onChange={(e) => handleAttributeChange('name', e.target.value)}
+                  placeholder="e.g., plan"
+                />
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Placeholder - for input and textarea */}
-        {(isInputLayer || isTextareaLayer) && (
-          <div className="grid grid-cols-3">
-            <Label variant="muted">Placeholder</Label>
-            <div className="col-span-2 *:w-full">
-              <Input
-                value={placeholder}
-                onChange={(e) => handleAttributeChange('placeholder', e.target.value)}
-                placeholder="Placeholder text"
-              />
+            {/* Value - the value submitted when this radio is selected */}
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Value</Label>
+              <div className="col-span-2 *:w-full">
+                <Input
+                  value={value}
+                  onChange={(e) => handleAttributeChange('value', e.target.value)}
+                  placeholder="e.g., premium"
+                />
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Value - default value for the input */}
-        {(isInputLayer || isTextareaLayer) && (
-          <div className="grid grid-cols-3">
-            <Label variant="muted">Value</Label>
-            <div className="col-span-2 *:w-full">
-              <Input
-                value={value}
-                onChange={(e) => handleAttributeChange('value', e.target.value)}
-                placeholder="Input value"
-              />
+            {/* Behavior section */}
+            <div className="grid grid-cols-3 items-start">
+              <Label variant="muted" className="pt-0.5">Behavior</Label>
+              <div className="col-span-2 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="required"
+                    checked={isRequired}
+                    onCheckedChange={(checked) => handleAttributeChange('required', checked)}
+                  />
+                  <Label
+                    htmlFor="required"
+                    className="text-xs font-normal cursor-pointer"
+                  >
+                    Required
+                  </Label>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          </>
+        ) : isCheckboxInput ? (
+          <>
+            {/* Name - used as the key in form submission */}
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Name</Label>
+              <div className="col-span-2 *:w-full">
+                <Input
+                  value={name}
+                  onChange={(e) => handleAttributeChange('name', e.target.value)}
+                  placeholder="e.g., agree_terms"
+                />
+              </div>
+            </div>
 
-        {/* Behavior section */}
-        <div className="grid grid-cols-3 items-start">
-          <Label variant="muted" className="pt-0.5">Behavior</Label>
-          <div className="col-span-2 flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="required"
-                checked={isRequired}
-                onCheckedChange={(checked) => handleAttributeChange('required', checked)}
-              />
-              <Label
-                htmlFor="required"
-                className="text-xs font-normal cursor-pointer"
-              >
-                Required
-              </Label>
+            {/* Behavior section */}
+            <div className="grid grid-cols-3 items-start">
+              <Label variant="muted" className="pt-0.5">Behavior</Label>
+              <div className="col-span-2 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="required"
+                    checked={isRequired}
+                    onCheckedChange={(checked) => handleAttributeChange('required', checked)}
+                  />
+                  <Label
+                    htmlFor="required"
+                    className="text-xs font-normal cursor-pointer"
+                  >
+                    Required
+                  </Label>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="autofocus"
-                checked={isAutofocus}
-                onCheckedChange={(checked) => handleAttributeChange('autofocus', checked)}
-              />
-              <Label
-                htmlFor="autofocus"
-                className="text-xs font-normal cursor-pointer"
-              >
-                Autofocus
-              </Label>
+          </>
+        ) : (
+          <>
+            {/* Type selector - only for input elements (not checkbox/radio) */}
+            {isInputLayer && (
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Type</Label>
+                <div className="col-span-2 *:w-full">
+                  <Select
+                    value={inputType}
+                    onValueChange={(val) => handleAttributeChange('type', val)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {INPUT_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Placeholder - for input and textarea */}
+            {(isInputLayer || isTextareaLayer) && (
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Placeholder</Label>
+                <div className="col-span-2 *:w-full">
+                  <Input
+                    value={placeholder}
+                    onChange={(e) => handleAttributeChange('placeholder', e.target.value)}
+                    placeholder="Placeholder text"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Value - default value for the input */}
+            {(isInputLayer || isTextareaLayer) && (
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Value</Label>
+                <div className="col-span-2 *:w-full">
+                  <Input
+                    value={value}
+                    onChange={(e) => handleAttributeChange('value', e.target.value)}
+                    placeholder="Input value"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Behavior section */}
+            <div className="grid grid-cols-3 items-start">
+              <Label variant="muted" className="pt-0.5">Behavior</Label>
+              <div className="col-span-2 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="required"
+                    checked={isRequired}
+                    onCheckedChange={(checked) => handleAttributeChange('required', checked)}
+                  />
+                  <Label
+                    htmlFor="required"
+                    className="text-xs font-normal cursor-pointer"
+                  >
+                    Required
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="autofocus"
+                    checked={isAutofocus}
+                    onCheckedChange={(checked) => handleAttributeChange('autofocus', checked)}
+                  />
+                  <Label
+                    htmlFor="autofocus"
+                    className="text-xs font-normal cursor-pointer"
+                  >
+                    Autofocus
+                  </Label>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </SettingsPanel>
   );

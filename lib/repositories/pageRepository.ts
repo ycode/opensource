@@ -965,14 +965,84 @@ export async function duplicatePage(pageId: string): Promise<Page> {
 }
 
 /**
- * Get count of unpublished pages
- * A page needs publishing if:
- * - It has is_published: false (never published), OR
- * - Its draft layers differ from published layers (needs republishing)
+ * Get count of unpublished pages efficiently.
+ * Uses 2 bulk queries instead of N+1 per-page lookups.
  */
 export async function getUnpublishedPagesCount(): Promise<number> {
-  const pages = await getUnpublishedPages();
-  return pages.length;
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // 2 bulk queries: all draft pages with layers + all published pages with layers
+  const [draftResult, publishedResult] = await Promise.all([
+    client
+      .from('pages')
+      .select('id, content_hash, page_folder_id, page_layers!inner(content_hash)')
+      .eq('is_published', false)
+      .eq('page_layers.is_published', false)
+      .is('deleted_at', null)
+      .is('page_layers.deleted_at', null),
+    client
+      .from('pages')
+      .select('id, content_hash, page_folder_id, page_layers!inner(content_hash)')
+      .eq('is_published', true)
+      .eq('page_layers.is_published', true)
+      .is('deleted_at', null)
+      .is('page_layers.deleted_at', null),
+  ]);
+
+  if (draftResult.error) {
+    throw new Error(`Failed to fetch draft pages: ${draftResult.error.message}`);
+  }
+
+  if (!draftResult.data || draftResult.data.length === 0) {
+    return 0;
+  }
+
+  // Build published lookup: id -> { content_hash, page_folder_id, layerHash }
+  const publishedMap = new Map<string, {
+    content_hash: string | null;
+    page_folder_id: string | null;
+    layerHash: string | null;
+  }>();
+  for (const pub of publishedResult.data || []) {
+    publishedMap.set(pub.id, {
+      content_hash: pub.content_hash,
+      page_folder_id: pub.page_folder_id,
+      layerHash: pub.page_layers[0]?.content_hash ?? null,
+    });
+  }
+
+  // Count pages needing publishing
+  let count = 0;
+  for (const draft of draftResult.data) {
+    const pub = publishedMap.get(draft.id);
+
+    if (!pub) {
+      count++; // Never published
+      continue;
+    }
+
+    const pageMetadataChanged =
+      draft.content_hash && pub.content_hash
+        ? draft.content_hash !== pub.content_hash
+        : false;
+
+    const layersChanged =
+      draft.page_layers[0]?.content_hash && pub.layerHash
+        ? draft.page_layers[0].content_hash !== pub.layerHash
+        : false;
+
+    const folderChanged = draft.page_folder_id !== pub.page_folder_id;
+
+    if (pageMetadataChanged || layersChanged || folderChanged) {
+      count++;
+    }
+  }
+
+  return count;
 }
 
 /**

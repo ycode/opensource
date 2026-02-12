@@ -153,6 +153,9 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   textAlign: /^text-(left|center|right|justify|start|end)$/,
   textTransform: /^(uppercase|lowercase|capitalize|normal-case)$/,
   textDecoration: /^(underline|overline|line-through|no-underline)$/,
+  textDecorationColor: /^decoration-\[.+\](\/\d+)?$/,
+  textDecorationThickness: /^decoration-(\d+|auto|from-font|\[(?!#|rgb|hsl).+\])$/,
+  underlineOffset: /^underline-offset-.+$/,
   // Updated to match partial arbitrary values like text-r, text-re, text-red (not just complete text-[#FF0000])
   // Excludes fontSize named values and text-align values
   // Includes opacity modifier: text-[#cc8d8d]/59
@@ -446,6 +449,20 @@ export function propertyToClass(
       case 'textDecoration':
         if (value === 'none') return 'no-underline';
         return value; // underline, line-through, overline
+      case 'textDecorationColor': {
+        if (value.match(/^#|^rgb|^hsl/)) {
+          const parts = value.split('/');
+          if (parts.length === 2) {
+            return `decoration-[${parts[0]}]/${parts[1]}`;
+          }
+          return `decoration-[${value}]`;
+        }
+        return `decoration-${value}`;
+      }
+      case 'textDecorationThickness':
+        return formatMeasurementClass(value, 'decoration');
+      case 'underlineOffset':
+        return formatMeasurementClass(value, 'underline-offset');
       case 'color':
         // Check if value is a gradient (linear-gradient or radial-gradient)
         if (value.includes('gradient(')) {
@@ -628,12 +645,13 @@ export function propertyToClass(
   // Effects conversions
   if (category === 'effects') {
     switch (property) {
-      case 'opacity':
+      case 'opacity': {
         // Convert 0-100 to 0-100 or decimal to percentage
         const opacityValue = value.includes('.')
           ? Math.round(parseFloat(value) * 100).toString()
           : value;
         return `opacity-[${opacityValue}%]`;
+      }
       case 'boxShadow':
         if (value === 'none') return 'shadow-none';
         if (['sm', 'md', 'lg', 'xl', '2xl', 'inner'].includes(value)) {
@@ -1017,6 +1035,28 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls === 'underline') design.typography!.textDecoration = 'underline';
     if (cls === 'line-through') design.typography!.textDecoration = 'line-through';
     if (cls === 'no-underline') design.typography!.textDecoration = 'none';
+
+    // Text Decoration Color (decoration-[#color] or decoration-[rgb(...)])
+    if (cls.startsWith('decoration-[')) {
+      const value = extractArbitraryValueWithOpacity(cls);
+      if (value && isColorValue(value.split('/')[0])) {
+        design.typography!.textDecorationColor = value;
+      }
+    }
+
+    // Text Decoration Thickness (decoration-[size] where value is not a color)
+    if (cls.startsWith('decoration-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value && !isColorValue(value)) {
+        design.typography!.textDecorationThickness = value;
+      }
+    }
+
+    // Underline Offset
+    if (cls.startsWith('underline-offset-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.typography!.underlineOffset = value;
+    }
 
     // Line Height
     if (cls.startsWith('leading-[')) {
