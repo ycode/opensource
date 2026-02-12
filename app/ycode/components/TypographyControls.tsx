@@ -1,7 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,7 +28,7 @@ interface TypographyControlsProps {
 export default function TypographyControls({ layer, onLayerUpdate, activeTextStyleKey }: TypographyControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
   const showTextStyleControls = useEditorStore((state) => state.showTextStyleControls());
-  const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, updateDesignProperties, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -42,6 +46,12 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
   const color = getDesignProperty('typography', 'color') || '';
   const textTransform = getDesignProperty('typography', 'textTransform') || 'none';
   const textDecoration = getDesignProperty('typography', 'textDecoration') || 'none';
+  const textDecorationColor = getDesignProperty('typography', 'textDecorationColor') || '';
+  const textDecorationThickness = getDesignProperty('typography', 'textDecorationThickness') || '';
+  const underlineOffset = getDesignProperty('typography', 'underlineOffset') || '';
+
+  // Detect if underline is active
+  const hasUnderline = textDecoration === 'underline';
 
   // Custom extractor for letter spacing (strips 'em' as default unit, like fontSize strips 'px')
   const extractLetterSpacingValue = (value: string): string => {
@@ -64,6 +74,8 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
   const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractMeasurementValue);
   const [letterSpacingInput, setLetterSpacingInput] = useControlledInput(letterSpacing, extractLetterSpacingValue);
   const [lineHeightInput, setLineHeightInput] = useControlledInput(lineHeight);
+  const [decorationThicknessInput, setDecorationThicknessInput] = useControlledInput(textDecorationThickness, extractMeasurementValue);
+  const [underlineOffsetInput, setUnderlineOffsetInput] = useControlledInput(underlineOffset, extractMeasurementValue);
 
   // Map numeric font weights to named values
   const fontWeightMap: Record<string, string> = {
@@ -137,6 +149,46 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
     debouncedUpdateDesignProperty('typography', 'color', sanitized || null);
   };
 
+  // Add underline with defaults
+  const handleAddUnderline = () => {
+    updateDesignProperties([
+      { category: 'typography', property: 'textDecoration', value: 'underline' },
+      { category: 'typography', property: 'textDecorationThickness', value: '1px' },
+      { category: 'typography', property: 'textDecorationColor', value: '#000000' },
+      { category: 'typography', property: 'underlineOffset', value: '2px' },
+    ]);
+  };
+
+  // Remove underline and all related properties
+  const handleRemoveUnderline = () => {
+    updateDesignProperties([
+      { category: 'typography', property: 'textDecoration', value: null },
+      { category: 'typography', property: 'textDecorationThickness', value: null },
+      { category: 'typography', property: 'textDecorationColor', value: null },
+      { category: 'typography', property: 'underlineOffset', value: null },
+    ]);
+  };
+
+  // Handle decoration color change (debounced)
+  const handleDecorationColorChange = (value: string) => {
+    const sanitized = removeSpaces(value);
+    debouncedUpdateDesignProperty('typography', 'textDecorationColor', sanitized || null);
+  };
+
+  // Handle decoration thickness change (debounced for text input)
+  const handleDecorationThicknessChange = (value: string) => {
+    setDecorationThicknessInput(value);
+    const sanitized = removeSpaces(value);
+    debouncedUpdateDesignProperty('typography', 'textDecorationThickness', sanitized || null);
+  };
+
+  // Handle underline offset change (debounced for text input)
+  const handleUnderlineOffsetChange = (value: string) => {
+    setUnderlineOffsetInput(value);
+    const sanitized = removeSpaces(value);
+    debouncedUpdateDesignProperty('typography', 'underlineOffset', sanitized || null);
+  };
+
   // Check if the layer is an icon
   const isIcon = layer?.name === 'icon';
 
@@ -153,8 +205,25 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
 
   return (
     <div className="py-5">
-      <header className="py-4 -mt-4">
+      <header className="py-4 -mt-4 flex items-center justify-between">
         <Label>{isIcon ? 'Fill' : 'Typography'}</Label>
+        {!isIcon && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="xs">
+                <Icon name="plus" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={handleAddUnderline}
+                disabled={hasUnderline}
+              >
+                Underline
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </header>
 
       <div className="flex flex-col gap-2">
@@ -303,6 +372,79 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
                   min="0"
                 />
               </InputGroup>
+            </div>
+          </div>
+        )}
+
+        {!isIcon && hasUnderline && (
+          <div className="grid grid-cols-3 items-start">
+            <Label variant="muted" className="h-8">Underline</Label>
+            <div className="col-span-2 flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <InputGroup className="flex-1 cursor-pointer">
+                    <div className="w-full flex items-center gap-2 px-2.5">
+                      <div
+                        className="size-4 rounded shrink-0"
+                        style={{ backgroundColor: textDecorationColor || '#000000' }}
+                      />
+                      <Label variant="muted">Underline</Label>
+                    </div>
+                  </InputGroup>
+                </PopoverTrigger>
+
+                <PopoverContent className="w-[255px] mr-4">
+                  <div className="flex flex-col gap-2">
+
+                    <div className="grid grid-cols-3 items-start">
+                      <Label variant="muted" className="h-8">Offset</Label>
+                      <div className="col-span-2">
+                        <Input
+                          stepper
+                          min="0"
+                          step="1"
+                          value={underlineOffsetInput}
+                          onChange={(e) => handleUnderlineOffsetChange(e.target.value)}
+                          placeholder="2"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 items-start">
+                      <Label variant="muted" className="h-8">Thickness</Label>
+                      <div className="col-span-2">
+                        <Input
+                          stepper
+                          min="0"
+                          step="1"
+                          value={decorationThicknessInput}
+                          onChange={(e) => handleDecorationThicknessChange(e.target.value)}
+                          placeholder="1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3">
+                      <Label variant="muted">Color</Label>
+                      <div className="col-span-2 *:w-full">
+                        <ColorPicker
+                          solidOnly
+                          value={textDecorationColor || '#000000'}
+                          onChange={handleDecorationColorChange}
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={handleRemoveUnderline}
+              >
+                <Icon name="x" />
+              </Button>
             </div>
           </div>
         )}

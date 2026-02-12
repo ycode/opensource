@@ -3,15 +3,7 @@
 import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-
-const SETTINGS_ITEMS = [
-  { id: 'general', label: 'General', path: '/ycode/settings/general' },
-  { id: 'users', label: 'Users', path: '/ycode/settings/users' },
-  { id: 'redirects', label: 'Redirects', path: '/ycode/settings/redirects' },
-  { id: 'email', label: 'Email', path: '/ycode/settings/email' },
-  { id: 'templates', label: 'Templates', path: '/ycode/settings/templates' },
-  { id: 'updates', label: 'Updates', path: '/ycode/settings/updates' },
-];
+import { SETTINGS_NAV_ITEMS } from '@/lib/settings-nav-items';
 
 interface SettingsContentProps {
   children: React.ReactNode;
@@ -31,7 +23,7 @@ export default function SettingsContent({ children }: SettingsContentProps) {
 
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-0">
-            {SETTINGS_ITEMS.map((item) => {
+            {SETTINGS_NAV_ITEMS.map((item) => {
               const isActive = pathname === item.path;
 
               return (

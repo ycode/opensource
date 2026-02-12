@@ -326,6 +326,8 @@ export default function CollectionLinkFieldInput({
                 value={pageId}
                 onValueChange={handlePageChange}
                 disabled={disabled}
+                align="start"
+                popoverClassName="w-[var(--radix-popover-trigger-width)]"
               />
             </div>
           </div>

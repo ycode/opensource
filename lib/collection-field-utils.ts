@@ -7,37 +7,62 @@
 
 import type { IconProps } from '@/components/ui/icon';
 import type {
+  Asset,
+  AssetCategory,
+  AssetCategoryFilter,
   CollectionField,
   CollectionFieldType,
   CollectionItemWithValues,
   VisibilityOperator,
 } from '@/types';
+import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 
 // =============================================================================
 // Field Types Configuration
 // =============================================================================
 
+/** Field type category for grouping in the type selector */
+export type FieldTypeCategory = 'basic' | 'contact' | 'asset' | 'relation';
+
+export const FIELD_TYPE_CATEGORIES: { id: FieldTypeCategory; label: string }[] = [
+  { id: 'basic', label: 'Basic' },
+  { id: 'contact', label: 'Contact' },
+  { id: 'asset', label: 'Assets' },
+  { id: 'relation', label: 'Relations' },
+];
+
 export const FIELD_TYPES = [
-  { value: 'text', label: 'Text', icon: 'text' },
-  { value: 'rich_text', label: 'Rich Text', icon: 'rich-text' },
-  { value: 'number', label: 'Number', icon: 'hash' },
-  { value: 'boolean', label: 'Boolean', icon: 'check' },
-  { value: 'date', label: 'Date', icon: 'calendar' },
-  { value: 'link', label: 'Link', icon: 'link' },
-  { value: 'email', label: 'Email', icon: 'email' },
-  { value: 'phone', label: 'Phone', icon: 'phone' },
-  { value: 'image', label: 'Image', icon: 'image' },
-  { value: 'audio', label: 'Audio', icon: 'audio' },
-  { value: 'video', label: 'Video', icon: 'video' },
-  { value: 'document', label: 'Document', icon: 'file-text' },
-  { value: 'reference', label: 'Reference', icon: 'database' },
-  { value: 'multi_reference', label: 'Multi-Reference', icon: 'database' },
-] as const;
+  { value: 'text', label: 'Text', icon: 'text', category: 'basic', hasDefault: true },
+  { value: 'rich_text', label: 'Rich Text', icon: 'rich-text', category: 'basic', hasDefault: true },
+  { value: 'number', label: 'Number', icon: 'hash', category: 'basic', hasDefault: true },
+  { value: 'boolean', label: 'Boolean', icon: 'check', category: 'basic', hasDefault: true },
+  { value: 'date', label: 'Date', icon: 'calendar', category: 'basic', hasDefault: true },
+  { value: 'email', label: 'Email', icon: 'email', category: 'contact', hasDefault: true },
+  { value: 'phone', label: 'Phone', icon: 'phone', category: 'contact', hasDefault: true },
+  { value: 'link', label: 'Link', icon: 'link', category: 'contact', hasDefault: true },
+  { value: 'image', label: 'Image', icon: 'image', category: 'asset', hasDefault: true },
+  { value: 'audio', label: 'Audio', icon: 'audio', category: 'asset', hasDefault: true },
+  { value: 'video', label: 'Video', icon: 'video', category: 'asset', hasDefault: true },
+  { value: 'document', label: 'Document', icon: 'file-text', category: 'asset', hasDefault: true },
+  { value: 'reference', label: 'Reference', icon: 'database', category: 'relation', hasDefault: false },
+  { value: 'multi_reference', label: 'Multi-Reference', icon: 'database', category: 'relation', hasDefault: false },
+] as const satisfies readonly { value: string; label: string; icon: string; category: FieldTypeCategory; hasDefault: boolean }[];
 
 export type FieldType = (typeof FIELD_TYPES)[number]['value'];
 
+/** Field types grouped by category (preserves order from FIELD_TYPE_CATEGORIES) */
+export const FIELD_TYPES_BY_CATEGORY = FIELD_TYPE_CATEGORIES.map(cat => ({
+  ...cat,
+  types: FIELD_TYPES.filter(t => t.category === cat.id),
+}));
+
 /** Valid field type values for API validation */
 export const VALID_FIELD_TYPES: readonly string[] = FIELD_TYPES.map((t) => t.value);
+
+/** Check if a field type supports setting a default value */
+export function supportsDefaultValue(fieldType: CollectionFieldType | undefined): boolean {
+  return FIELD_TYPES.some(t => t.value === fieldType && t.hasDefault);
+}
 
 /** Field types that can be displayed in variable selectors (excludes multi_reference) */
 export const DISPLAYABLE_FIELD_TYPES: CollectionFieldType[] = FIELD_TYPES
@@ -411,6 +436,55 @@ export function isMediaFieldType(fieldType: CollectionFieldType | undefined | nu
 /** Check if a field allows multiple assets */
 export function isMultipleAssetField(field: CollectionField): boolean {
   return isAssetFieldType(field.type) && field.data?.multiple === true;
+}
+
+// -- Asset field category / label / validation helpers --
+
+/** Map an asset field type to a single ASSET_CATEGORIES value */
+export function getAssetCategoryForField(fieldType: CollectionFieldType): AssetCategory {
+  switch (fieldType) {
+    case 'image': return ASSET_CATEGORIES.IMAGES;
+    case 'audio': return ASSET_CATEGORIES.AUDIO;
+    case 'video': return ASSET_CATEGORIES.VIDEOS;
+    default: return ASSET_CATEGORIES.DOCUMENTS;
+  }
+}
+
+/** Get file-manager category filter (images include icons) */
+export function getFileManagerCategory(fieldType: CollectionFieldType): AssetCategoryFilter {
+  if (fieldType === 'image') return [ASSET_CATEGORIES.IMAGES, ASSET_CATEGORIES.ICONS];
+  return getAssetCategoryForField(fieldType);
+}
+
+/** Validate that an asset matches the expected field type */
+export function isValidAssetForField(asset: Asset, fieldType: CollectionFieldType): boolean {
+  if (fieldType === 'image') {
+    return !!(asset.mime_type && (isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) || isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS)));
+  }
+  const category = getAssetCategoryForField(fieldType);
+  return !!(asset.mime_type && isAssetOfType(asset.mime_type, category));
+}
+
+/** Get human-readable label for asset field add buttons (e.g. "an image") */
+export function getAssetFieldLabel(fieldType: CollectionFieldType): string {
+  switch (fieldType) {
+    case 'image': return 'an image';
+    case 'audio': return 'an audio';
+    case 'video': return 'a video';
+    case 'document': return 'a document';
+    default: return 'a file';
+  }
+}
+
+/** Get short label for asset field types (e.g. "image") */
+export function getAssetFieldTypeLabel(fieldType: CollectionFieldType): string {
+  switch (fieldType) {
+    case 'image': return 'image';
+    case 'audio': return 'audio';
+    case 'video': return 'video';
+    case 'document': return 'document';
+    default: return 'file';
+  }
 }
 
 // =============================================================================

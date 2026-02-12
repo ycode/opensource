@@ -13,7 +13,7 @@ import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectGroup } from '@/components/ui/select';
@@ -33,14 +33,16 @@ import { formatDateInTimezone } from '@/lib/date-format-utils';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { slugify, isTruthyBooleanValue, parseMultiReferenceValue } from '@/lib/collection-utils';
+import { getSampleCollectionOptions } from '@/lib/sample-collections';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
-import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
+import { type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
-import FieldFormPopover from './FieldFormPopover';
+import FieldFormDialog from './FieldFormDialog';
+import type { FieldFormData } from './FieldFormDialog';
 import CollectionItemSheet from './CollectionItemSheet';
 import CSVImportDialog from './CSVImportDialog';
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
@@ -177,6 +179,7 @@ interface SortableCollectionItemProps {
   isRenaming: boolean;
   renameValue: string;
   itemCount?: number;
+  isItemCountLoading?: boolean;
   onRenameValueChange: (value: string) => void;
   onSelect: () => void;
   onDoubleClick: () => void;
@@ -197,6 +200,7 @@ function SortableCollectionItem({
   isRenaming,
   renameValue,
   itemCount,
+  isItemCountLoading,
   onRenameValueChange,
   onSelect,
   onDoubleClick,
@@ -299,7 +303,7 @@ function SortableCollectionItem({
           </div>
 
           <span className="group-hover:hidden block text-xs opacity-50">
-            {itemCount ?? collection.draft_items_count}
+            {isItemCountLoading ? <Spinner className="size-3" /> : (itemCount ?? collection.draft_items_count)}
           </span>
         </div>
       </ContextMenuTrigger>
@@ -337,6 +341,7 @@ const CMS = React.memo(function CMS() {
     reorderItems,
     searchItems,
     createCollection,
+    createSampleCollection,
     updateCollection,
     deleteCollection,
     reorderCollections,
@@ -373,8 +378,7 @@ const CMS = React.memo(function CMS() {
   const [showItemSheet, setShowItemSheet] = useState(false);
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
-  const [createFieldPopoverOpen, setCreateFieldPopoverOpen] = useState(false);
-  const [editFieldDialogOpen, setEditFieldDialogOpen] = useState(false);
+  const [fieldDialogOpen, setFieldDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<CollectionField | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(false);
@@ -386,6 +390,7 @@ const CMS = React.memo(function CMS() {
   const [renameValue, setRenameValue] = useState('');
   const [hoveredCollectionId, setHoveredCollectionId] = useState<string | null>(null);
   const [collectionDropdownId, setCollectionDropdownId] = useState<string | null>(null);
+  const [loadingSampleCollectionId, setLoadingSampleCollectionId] = useState<string | null>(null);
 
   // Confirm dialog state
   const [deleteItemDialogOpen, setDeleteItemDialogOpen] = useState(false);
@@ -1151,37 +1156,42 @@ const CMS = React.memo(function CMS() {
     }
   };
 
-  const handleCreateFieldFromPopover = async (data: {
-    name: string;
-    type: FieldType;
-    default: string;
-    reference_collection_id?: string | null;
-    data?: CollectionFieldData;
-  }) => {
+  const handleFieldDialogSubmit = async (data: FieldFormData) => {
     if (!selectedCollectionId) return;
 
     try {
-      const newOrder = collectionFields.length;
+      if (editingField) {
+        // Update existing field
+        const mergedData = data.data
+          ? { ...editingField.data, ...data.data }
+          : editingField.data;
 
-      // Store adds field to local state optimistically
-      await createField(selectedCollectionId, {
-        name: data.name,
-        type: data.type,
-        default: data.default || null,
-        order: newOrder,
-        fillable: true,
-        key: null,
-        hidden: false,
-        reference_collection_id: data.reference_collection_id || null,
-        data: data.data,
-      });
+        await updateField(selectedCollectionId, editingField.id, {
+          name: data.name,
+          default: data.default || null,
+          reference_collection_id: data.reference_collection_id,
+          data: mergedData,
+        });
+      } else {
+        // Create new field
+        await createField(selectedCollectionId, {
+          name: data.name,
+          type: data.type,
+          default: data.default || null,
+          order: collectionFields.length,
+          fillable: true,
+          key: null,
+          hidden: false,
+          reference_collection_id: data.reference_collection_id || null,
+          data: data.data,
+        });
+      }
 
-      // No reload needed - store already updated local state optimistically
-
-      // Close popover
-      setCreateFieldPopoverOpen(false);
+      // Close dialog and reset
+      setFieldDialogOpen(false);
+      setEditingField(null);
     } catch (error) {
-      console.error('Failed to create field:', error);
+      console.error('Failed to save field:', error);
     }
   };
 
@@ -1203,7 +1213,7 @@ const CMS = React.memo(function CMS() {
       uuid: tempId,
       name: collectionName,
       sorting: null,
-      order: collections.length,
+      order: Number.MAX_SAFE_INTEGER,
       is_published: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -1252,6 +1262,56 @@ const CMS = React.memo(function CMS() {
       setRenamingCollectionId(null);
       setRenameValue('');
       toast.error('Failed to create collection');
+    }
+  };
+
+  const handleCreateSampleCollection = async (sampleId: string) => {
+    // Optimistic: add a temporary collection to the sidebar immediately
+    const sample = getSampleCollectionOptions().find(s => s.id === sampleId);
+    const tempId = `temp-sample-${Date.now()}`;
+    const optimisticCollection: Collection = {
+      id: tempId,
+      uuid: tempId,
+      name: sample?.name || 'Sample Collection',
+      sorting: null,
+      order: Number.MAX_SAFE_INTEGER,
+      is_published: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+      draft_items_count: 0,
+    };
+
+    useCollectionsStore.setState(state => ({
+      collections: [...state.collections, optimisticCollection],
+    }));
+    setSelectedCollectionId(tempId);
+    navigateToCollection(tempId);
+    setLoadingSampleCollectionId(tempId);
+
+    try {
+      const collection = await createSampleCollection(sampleId);
+
+      // Remove the optimistic entry (store already added the real one)
+      useCollectionsStore.setState(state => ({
+        collections: state.collections.filter(c => c.id !== tempId),
+      }));
+
+      setSelectedCollectionId(collection.id);
+      navigateToCollection(collection.id);
+
+      if (liveCollectionUpdates) {
+        liveCollectionUpdates.broadcastCollectionCreate(collection);
+      }
+    } catch (error) {
+      console.error('Failed to create sample collection:', error);
+      // Rollback: remove the optimistic entry
+      useCollectionsStore.setState(state => ({
+        collections: state.collections.filter(c => c.id !== tempId),
+      }));
+      toast.error('Failed to create sample collection');
+    } finally {
+      setLoadingSampleCollectionId(null);
     }
   };
 
@@ -1351,45 +1411,9 @@ const CMS = React.memo(function CMS() {
   };
 
   const handleEditFieldClick = (field: CollectionField) => {
-    // Close the dropdown
     setOpenDropdownId(null);
-
-    // Set the editing field and open dialog
     setEditingField(field);
-    setEditFieldDialogOpen(true);
-  };
-
-  const handleUpdateFieldFromDialog = async (data: {
-    name: string;
-    type: FieldType;
-    default: string;
-    reference_collection_id?: string | null;
-    data?: CollectionFieldData;
-  }) => {
-    if (!selectedCollectionId || !editingField) return;
-
-    try {
-      // Merge new data with existing data to preserve other settings
-      const mergedData = data.data
-        ? { ...editingField.data, ...data.data }
-        : editingField.data;
-
-      // Store updates local state optimistically
-      await updateField(selectedCollectionId, editingField.id, {
-        name: data.name,
-        default: data.default || null,
-        reference_collection_id: data.reference_collection_id,
-        data: mergedData,
-      });
-
-      // No reload needed - store already updated local state optimistically
-
-      // Close dialog and reset
-      setEditFieldDialogOpen(false);
-      setEditingField(null);
-    } catch (error) {
-      console.error('Failed to update field:', error);
-    }
+    setFieldDialogOpen(true);
   };
 
   // Memoize table to prevent unnecessary re-renders during navigation
@@ -1404,115 +1428,109 @@ const CMS = React.memo(function CMS() {
           items={sortedItems.map(item => item.id)}
           strategy={verticalListSortingStrategy}
         >
-          <table className="w-full">
-            <thead className="border-b">
-              <tr>
-                <th className="pl-5 pr-3 py-5 text-left font-normal w-12">
-                  <div className="flex">
-                  <Checkbox
-                    checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
-                    onCheckedChange={handleSelectAll}
-                    disabled={showSkeleton}
-                  />
-                  </div>
-                </th>
+          <div className="flex flex-col">
+            <table className="border-0 whitespace-nowrap text-xs min-w-full align-top border-separate border-spacing-[0px] [&>tbody>tr>td]:border-b [&>tbody>tr>td]:max-w-56">
+              <thead className="">
+                <tr className="">
+                  <th className="pl-5 pr-3 py-5 text-left font-normal w-12 sticky top-0 z-10 bg-background border-b border-border">
+                    <div className="flex">
+                    <Checkbox
+                      checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
+                      onCheckedChange={handleSelectAll}
+                      disabled={showSkeleton}
+                    />
+                    </div>
+                  </th>
 
-                {collectionFields.filter(f => !f.hidden).map((field) => {
-                  const sorting = selectedCollection?.sorting;
-                  const isActiveSort = sorting?.field === field.id;
-                  const sortIcon = isActiveSort && sorting ? (
-                    sorting.direction === 'manual' ? 'M' :
-                      sorting.direction === 'asc' ? '↑' :
-                        '↓'
-                  ) : null;
+                  {collectionFields.filter(f => !f.hidden).map((field) => {
+                    const sorting = selectedCollection?.sorting;
+                    const isActiveSort = sorting?.field === field.id;
+                    const sortIcon = isActiveSort && sorting ? (
+                      sorting.direction === 'manual' ? 'M' :
+                        sorting.direction === 'asc' ? '↑' :
+                          '↓'
+                    ) : null;
 
-                  return (
-                    <th key={field.id} className="px-4 py-5 text-left font-normal">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => !showSkeleton && handleColumnClick(field.id)}
-                          className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
-                          style={{ pointerEvents: showSkeleton ? 'none' : 'auto' }}
-                        >
-                          {field.name}
-                          {sortIcon && (
-                            <span className="text-xs font-mono">
-                              {sortIcon}
-                            </span>
-                          )}
-                        </button>
-                        <DropdownMenu
-                          open={openDropdownId === field.id}
-                          onOpenChange={(open) => !showSkeleton && setOpenDropdownId(open ? field.id : null)}
-                        >
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="xs"
-                              variant="ghost"
-                              className="-my-2"
-                              disabled={showSkeleton}
-                            >
-                              <Icon name="more" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
-                            <DropdownMenuItem
-                              onSelect={() => handleEditFieldClick(field)}
-                              disabled={!!field.key}
-                            >
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDuplicateField(field.id)}
-                              disabled={!!field.key}
-                            >
-                              Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleHideField(field.id)}
-                              disabled={field.name.toLowerCase() === 'name'}
-                            >
-                              {field.hidden ? 'Show' : 'Hide'}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteField(field.id)}
-                              disabled={!!field.key}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </th>
-                  );
-                })}
-                <th className="px-4 py-3 text-left font-medium text-sm w-24">
-                  <FieldFormPopover
-                    trigger={
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={showSkeleton}
-                      >
-                        <Icon name="plus" />
-                        Add field
-                      </Button>
-                    }
-                    mode="create"
-                    currentCollectionId={selectedCollectionId || undefined}
-                    onSubmit={handleCreateFieldFromPopover}
-                    open={createFieldPopoverOpen}
-                    onOpenChange={setCreateFieldPopoverOpen}
-                  />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                    return (
+                      <th key={field.id} className="px-4 py-5 text-left font-normal sticky top-0 z-10 bg-background border-b border-border">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => !showSkeleton && handleColumnClick(field.id)}
+                            className="flex items-center gap-1 hover:opacity-50 cursor-pointer max-w-40"
+                            style={{ pointerEvents: showSkeleton ? 'none' : 'auto' }}
+                          >
+                            <span className="truncate">{field.name}</span>
+                            {sortIcon && (
+                              <span className="text-xs font-mono">
+                                {sortIcon}
+                              </span>
+                            )}
+                          </button>
+                          <DropdownMenu
+                            open={openDropdownId === field.id}
+                            onOpenChange={(open) => !showSkeleton && setOpenDropdownId(open ? field.id : null)}
+                          >
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                className="-my-2"
+                                disabled={showSkeleton}
+                              >
+                                <Icon name="more" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem
+                                onSelect={() => handleEditFieldClick(field)}
+                                disabled={!!field.key}
+                              >
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDuplicateField(field.id)}
+                                disabled={!!field.key}
+                              >
+                                Duplicate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleHideField(field.id)}
+                                disabled={field.name.toLowerCase() === 'name'}
+                              >
+                                {field.hidden ? 'Show' : 'Hide'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteField(field.id)}
+                                disabled={!!field.key}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </th>
+                    );
+                  })}
+                  <th className="px-4 py-3 text-left font-medium text-sm w-24 sticky top-0 z-10 bg-background border-b border-border">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={showSkeleton}
+                      onClick={() => { setEditingField(null); setFieldDialogOpen(true); }}
+                    >
+                      <Icon name="plus" />
+                      Add field
+                    </Button>
+                  </th>
+                  <th className="sticky top-0 z-10 bg-background border-b border-border" />
+                </tr>
+              </thead>
+              <tbody>
               {showSkeleton && totalItems > 0 ? (
                 // Skeleton loading rows - show exact expected number
                 Array.from({ length: Math.min(pageSize, totalItems) }).map((_, index) => (
-                  <tr key={`skeleton-${index}`} className="border-b">
+                  <tr key={`skeleton-${index}`}>
                     <td className="pl-5 pr-3 py-5 w-12">
                       <div className="w-4 h-4 bg-secondary rounded animate-pulse" />
                     </td>
@@ -1521,7 +1539,7 @@ const CMS = React.memo(function CMS() {
                         <div className="h-4 bg-secondary/50 rounded-[6px] animate-pulse w-1/3" />
                       </td>
                     ))}
-                    <td className="px-4 py-3"></td>
+                    <td className="px-4 py-3 "></td>
                   </tr>
                 ))
               ) : showSkeleton ? (
@@ -1539,7 +1557,7 @@ const CMS = React.memo(function CMS() {
                     lockInfo={getItemLockInfo(item.id)}
                   >
                     <td
-                      className="pl-5 pr-3 py-3 w-12"
+                      className="pl-5 pr-3 py-3 w-12 !border-b-0"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!isManualMode) {
@@ -1570,7 +1588,9 @@ const CMS = React.memo(function CMS() {
                             className="px-4 py-5 text-muted-foreground"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
-                            {formatDateInTimezone(value, timezone, 'display')}
+                            <span className="line-clamp-1 truncate">
+                              {formatDateInTimezone(value, timezone, 'display')}
+                            </span>
                           </td>
                         );
                       }
@@ -1647,7 +1667,7 @@ const CMS = React.memo(function CMS() {
                                 );
                               })}
                               {assetIds.length > 3 && (
-                                <span className="text-xs text-muted-foreground">+{assetIds.length - 3}</span>
+                                <span className="text-xs text-muted-foreground line-clamp-1 truncate">+{assetIds.length - 3}</span>
                               )}
                             </div>
                           </td>
@@ -1700,7 +1720,7 @@ const CMS = React.memo(function CMS() {
                                 );
                               })}
                               {assetIds.length > 3 && (
-                                <span className="text-xs text-muted-foreground">+{assetIds.length - 3}</span>
+                                <span className="text-xs text-muted-foreground line-clamp-1 truncate">+{assetIds.length - 3}</span>
                               )}
                             </div>
                           </td>
@@ -1814,7 +1834,9 @@ const CMS = React.memo(function CMS() {
                           className="px-4 py-5 text-muted-foreground"
                           onClick={() => !isManualMode && handleEditItem(item)}
                         >
-                          {value || '-'}
+                          <span className="line-clamp-1 truncate">
+                            {value || '-'}
+                          </span>
                         </td>
                       );
                     })}
@@ -1823,7 +1845,7 @@ const CMS = React.memo(function CMS() {
                 ))
               ) : (
                 <tr className="group">
-                  <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4 ">
+                  <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4">
                     {searchQuery && collectionItems.length > 0 ? (
                       <div className="text-muted-foreground py-32">
                         No items found matching &quot;{searchQuery}&quot;
@@ -1835,15 +1857,16 @@ const CMS = React.memo(function CMS() {
                 </tr>
               )}
             </tbody>
-          </table>
+            </table>
+          </div>
         </SortableContext>
       </DndContext>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, createFieldPopoverOpen, searchQuery,
+    sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, fieldDialogOpen, searchQuery,
     collectionItems.length, showSkeleton, totalItems, pageSize, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField,
-    handleHideField, handleDeleteField, handleCreateFieldFromPopover, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem,
+    handleHideField, handleDeleteField, handleFieldDialogSubmit, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem,
     handleToggleItemSelection, sensors,
   ]);
 
@@ -1852,13 +1875,38 @@ const CMS = React.memo(function CMS() {
     <div className="w-64 shrink-0 bg-background border-r flex flex-col overflow-hidden px-4">
       <header className="py-5 flex items-center justify-between shrink-0">
         <span className="font-medium">Collections</span>
-          <Button
-            size="xs"
-            variant="secondary"
-            onClick={handleCreateCollection}
-          >
-            <Icon name="plus" />
-          </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="xs"
+              variant="secondary"
+            >
+              <Icon name="plus" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleCreateCollection}>
+              New collection
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                Samples
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {getSampleCollectionOptions().map(option => (
+                  <DropdownMenuItem
+                    key={option.id}
+                    onClick={() => handleCreateSampleCollection(option.id)}
+                  >
+                    <Icon name="database" className="size-3 shrink-0" />
+                    {option.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <DndContext
@@ -1881,6 +1929,7 @@ const CMS = React.memo(function CMS() {
                   isRenaming={renamingCollectionId === collection.id}
                   renameValue={renameValue}
                   itemCount={itemsTotalCount[collection.id]}
+                  isItemCountLoading={loadingSampleCollectionId === collection.id}
                   onRenameValueChange={setRenameValue}
                   onSelect={() => handleCollectionSelect(collection.id)}
                   onDoubleClick={() => handleCollectionDoubleClick(collection)}
@@ -1925,9 +1974,9 @@ const CMS = React.memo(function CMS() {
   }
 
   return (
-    <div className="flex-1 bg-background flex">
+    <div className="flex-1 bg-background flex min-w-0">
       {collectionsSidebar}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
 
       <div className="p-4 flex items-center justify-between border-b">
 
@@ -1994,8 +2043,13 @@ const CMS = React.memo(function CMS() {
       </div>
 
       {/* Items Content */}
-      <div className="flex-1 overflow-auto flex flex-col">
-        {collectionFields.length === 0 ? (
+      <div className="flex-1 overflow-auto flex flex-col min-w-0">
+        {loadingSampleCollectionId === selectedCollectionId ? (
+          <div className="flex flex-col items-center justify-center gap-4 p-8 flex-1">
+            <Spinner />
+            <span className="text-sm text-muted-foreground">Creating collection...</span>
+          </div>
+        ) : collectionFields.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 p-8">
             <Empty>
               <EmptyTitle>No Fields Defined</EmptyTitle>
@@ -2003,148 +2057,144 @@ const CMS = React.memo(function CMS() {
                 This collection has no fields. Add fields to start managing items.
               </EmptyDescription>
             </Empty>
-            <FieldFormPopover
-              trigger={
-                <Button>
-                  <Icon name="plus" />
-                  Add Field
-                </Button>
-              }
-              mode="create"
-              currentCollectionId={selectedCollectionId || undefined}
-              onSubmit={handleCreateFieldFromPopover}
-              open={createFieldPopoverOpen}
-              onOpenChange={setCreateFieldPopoverOpen}
-            />
+            <Button onClick={() => { setEditingField(null); setFieldDialogOpen(true); }}>
+              <Icon name="plus" />
+              Add Field
+            </Button>
+          </div>
+        ) : !showSkeleton && sortedItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 p-8 flex-1">
+            <Empty className="max-w-sm">
+              <EmptyTitle>No Items</EmptyTitle>
+              <EmptyDescription>
+                This collection has no items yet. Add your first item to get started.
+              </EmptyDescription>
+              <Button onClick={handleCreateItem} variant="secondary">
+                <Icon name="plus" />
+                New Item
+              </Button>
+            </Empty>
           </div>
         ) : (
           <>
             {tableContent}
-
-            <div>
-              <div>
-                {/* Add Item Button */}
-                {!showSkeleton && (
-                  <div className="group cursor-pointer" onClick={handleCreateItem}>
-                    <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
-                      <div className="px-4 py-4">
-                        <Button size="xs" variant="ghost">
-                          <Icon name="plus" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sheet for Create/Edit Item - only render when open to avoid animation issues */}
-                {showItemSheet && (
-                  <CollectionItemSheet
-                    open={true}
-                    onOpenChange={(open) => {
-                      if (!open) {
-                        setShowItemSheet(false);
-                        setEditingItem(null);
-                        if (selectedCollectionId) {
-                          navigateToCollection(selectedCollectionId);
-                        }
-                      }
-                    }}
-                    collectionId={selectedCollectionId!}
-                    itemId={editingItem?.id || null}
-                    onSuccess={() => {
-                      setShowItemSheet(false);
-                      setEditingItem(null);
-                      if (selectedCollectionId) {
-                        navigateToCollection(selectedCollectionId);
-                      }
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Pagination Controls */}
-            {selectedCollectionId && (showSkeleton || sortedItems.length > 0 || totalItems > 0 || currentPage > 1) && (
-              <div className="flex items-center justify-between px-4 py-4 border-t mt-auto">
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Show:</span>
-                  {showSkeleton ? (
-                    <div className="w-20 h-8 bg-secondary/50 rounded-lg animate-pulse" />
-                  ) : (
-                    <Select
-                      value={pageSize.toString()}
-                      onValueChange={(value) => setPageSize(Number(value))}
-                      disabled={showSkeleton}
-                    >
-                      <SelectTrigger className="w-20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-4">
-                  {showSkeleton ? (
-                    <div className="h-4 w-48 bg-secondary/50 rounded-[6px] animate-pulse" />
-                  ) : totalItems === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      No results
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1 || showSkeleton}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setCurrentPage(p => p + 1)}
-                    disabled={currentPage * pageSize >= totalItems || showSkeleton}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
 
-      {/* Edit Field Dialog using FieldFormPopover */}
-      {editingField && (
-        <FieldFormPopover
-          mode="edit"
-          field={editingField}
-          currentCollectionId={selectedCollectionId || undefined}
-          onSubmit={handleUpdateFieldFromDialog}
-          open={editFieldDialogOpen}
+      {/* Add Item Button - outside scroll container so it's always visible */}
+      {!showSkeleton && collectionFields.length > 0 && sortedItems.length > 1 && (
+        <div className="group cursor-pointer border-t" onClick={handleCreateItem}>
+          <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
+            <div className="px-4 py-4">
+              <Button size="xs" variant="ghost">
+                <Icon name="plus" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sheet for Create/Edit Item - only render when open to avoid animation issues */}
+      {showItemSheet && (
+        <CollectionItemSheet
+          open={true}
           onOpenChange={(open) => {
-            setEditFieldDialogOpen(open);
             if (!open) {
-              setEditingField(null);
+              setShowItemSheet(false);
+              setEditingItem(null);
+              if (selectedCollectionId) {
+                navigateToCollection(selectedCollectionId);
+              }
             }
           }}
-          useDialog={true}
+          collectionId={selectedCollectionId!}
+          itemId={editingItem?.id || null}
+          onSuccess={() => {
+            setShowItemSheet(false);
+            setEditingItem(null);
+            if (selectedCollectionId) {
+              navigateToCollection(selectedCollectionId);
+            }
+          }}
         />
       )}
+
+      {/* Pagination Controls - outside scroll container so it's always visible at bottom */}
+      {selectedCollectionId && (showSkeleton || sortedItems.length > 0 || totalItems > 0 || currentPage > 1) && (
+        <div className="flex items-center justify-between px-4 py-4 border-t">
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Show:</span>
+            {showSkeleton ? (
+              <div className="w-20 h-8 bg-secondary/50 rounded-lg animate-pulse" />
+            ) : (
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(value) => setPageSize(Number(value))}
+                disabled={showSkeleton}
+              >
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
+            {showSkeleton ? (
+              <div className="h-4 w-48 bg-secondary/50 rounded-[6px] animate-pulse" />
+            ) : totalItems === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No results
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1 || showSkeleton}
+            >
+              Previous
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={currentPage * pageSize >= totalItems || showSkeleton}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Field Create/Edit Dialog */}
+      <FieldFormDialog
+        field={editingField}
+        currentCollectionId={selectedCollectionId || undefined}
+        onSubmit={handleFieldDialogSubmit}
+        open={fieldDialogOpen}
+        onOpenChange={(open) => {
+          setFieldDialogOpen(open);
+          if (!open) {
+            setEditingField(null);
+          }
+        }}
+      />
 
       {/* Confirm Dialogs */}
       <ConfirmDialog
@@ -2186,7 +2236,11 @@ const CMS = React.memo(function CMS() {
           if (!open) setDeleteCollectionId(null);
         }}
         title="Delete collection"
-        description="Are you sure you want to delete this collection? This action cannot be undone."
+        description={
+          deleteCollectionId
+            ? `Are you sure you want to delete "${collections.find(c => c.id === deleteCollectionId)?.name ?? 'this collection'}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this collection? This action cannot be undone.'
+        }
         confirmLabel="Delete"
         onConfirm={handleConfirmDeleteCollection}
       />

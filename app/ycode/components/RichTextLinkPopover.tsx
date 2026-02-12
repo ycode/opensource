@@ -255,7 +255,7 @@ export default function RichTextLinkPopover({
       >
         <div className="flex flex-col">
           <div className="px-3 py-3.5 border-b bg-input/50">
-            <h4 className="text-xs font-medium">Link Settings</h4>
+            <h4 className="text-xs font-medium">Link settings</h4>
           </div>
 
           <div className="p-1 py-2">

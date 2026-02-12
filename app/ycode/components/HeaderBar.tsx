@@ -30,7 +30,7 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { pagesApi, collectionsApi, componentsApi, layerStylesApi, publishApi } from '@/lib/api';
+import { publishApi } from '@/lib/api';
 import { buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 
 // 5. Types
@@ -289,41 +289,8 @@ export default function HeaderBar({
   const loadChangesCount = async () => {
     setIsLoadingCount(true);
     try {
-      const [pagesResponse, collectionsResponse, componentsResponse, stylesResponse] = await Promise.all([
-        pagesApi.getUnpublished(),
-        collectionsApi.getAll(),
-        componentsApi.getUnpublished(),
-        layerStylesApi.getUnpublished(),
-      ]);
-
-      let count = 0;
-
-      // Count pages
-      if (pagesResponse.data) {
-        count += pagesResponse.data.length;
-      }
-
-      // Count collection items
-      if (collectionsResponse.data) {
-        for (const collection of collectionsResponse.data) {
-          const itemsResponse = await collectionsApi.getUnpublishedItems(collection.id);
-          if (itemsResponse.data) {
-            count += itemsResponse.data.length;
-          }
-        }
-      }
-
-      // Count components
-      if (componentsResponse.data) {
-        count += componentsResponse.data.length;
-      }
-
-      // Count layer styles
-      if (stylesResponse.data) {
-        count += stylesResponse.data.length;
-      }
-
-      setChangesCount(count);
+      const response = await publishApi.getCount();
+      setChangesCount(response.data?.count ?? 0);
     } catch (error) {
       console.error('Failed to load changes count:', error);
       setChangesCount(0);

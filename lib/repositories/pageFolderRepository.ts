@@ -350,39 +350,30 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
   // Apply updates using batch CASE statements for efficiency (drafts only)
   if (folderUpdates.length > 0) {
     const { getKnexClient } = await import('../knex-client');
+    const { batchUpdateColumn } = await import('../knex-helpers');
     const knex = await getKnexClient();
 
-    const caseStatements = folderUpdates.map(() => 'WHEN id = ? THEN ?::integer').join(' ');
-    const values = folderUpdates.flatMap(u => [u.id, u.order]);
-    const idPlaceholders = folderUpdates.map(() => '?').join(', ');
-
-    await knex.raw(`
-      UPDATE page_folders
-      SET "order" = CASE ${caseStatements} END,
-          updated_at = NOW()
-      WHERE id IN (${idPlaceholders})
-        AND is_published = false
-        AND deleted_at IS NULL
-    `, [...values, ...folderUpdates.map(u => u.id)]);
+    await batchUpdateColumn(knex, 'page_folders', 'order',
+      folderUpdates.map(u => ({ id: u.id, value: u.order })),
+      {
+        extraWhereClause: 'AND is_published = false AND deleted_at IS NULL',
+        castType: 'integer',
+      }
+    );
   }
 
   if (pageUpdates.length > 0) {
     const { getKnexClient } = await import('../knex-client');
+    const { batchUpdateColumn } = await import('../knex-helpers');
     const knex = await getKnexClient();
 
-    const caseStatements = pageUpdates.map(() => 'WHEN id = ? THEN ?::integer').join(' ');
-    const values = pageUpdates.flatMap(u => [u.id, u.order]);
-    const idPlaceholders = pageUpdates.map(() => '?').join(', ');
-
-    await knex.raw(`
-      UPDATE pages
-      SET "order" = CASE ${caseStatements} END,
-          updated_at = NOW()
-      WHERE id IN (${idPlaceholders})
-        AND is_published = false
-        AND deleted_at IS NULL
-        AND error_page IS NULL
-    `, [...values, ...pageUpdates.map(u => u.id)]);
+    await batchUpdateColumn(knex, 'pages', 'order',
+      pageUpdates.map(u => ({ id: u.id, value: u.order })),
+      {
+        extraWhereClause: 'AND is_published = false AND deleted_at IS NULL AND error_page IS NULL',
+        castType: 'integer',
+      }
+    );
   }
 }
 
@@ -713,21 +704,16 @@ export async function reorderFolders(updates: Array<{ id: string; order: number 
   }
 
   const { getKnexClient } = await import('../knex-client');
+  const { batchUpdateColumn } = await import('../knex-helpers');
   const knex = await getKnexClient();
 
-  // Batch update using CASE statement for efficiency (drafts only)
-  const caseStatements = updates.map(() => 'WHEN id = ? THEN ?::integer').join(' ');
-  const values = updates.flatMap(u => [u.id, u.order]);
-  const idPlaceholders = updates.map(() => '?').join(', ');
-
-  await knex.raw(`
-    UPDATE page_folders
-    SET "order" = CASE ${caseStatements} END,
-        updated_at = NOW()
-    WHERE id IN (${idPlaceholders})
-      AND is_published = false
-      AND deleted_at IS NULL
-  `, [...values, ...updates.map(u => u.id)]);
+  await batchUpdateColumn(knex, 'page_folders', 'order',
+    updates.map(u => ({ id: u.id, value: u.order })),
+    {
+      extraWhereClause: 'AND is_published = false AND deleted_at IS NULL',
+      castType: 'integer',
+    }
+  );
 }
 
 /**

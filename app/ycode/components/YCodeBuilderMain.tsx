@@ -78,7 +78,7 @@ import { useVersionsStore } from '@/stores/useVersionsStore';
 import { findHomepage } from '@/lib/page-utils';
 import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping } from '@/lib/layer-utils';
 import { cloneDeep } from 'lodash';
-import { pagesApi, collectionsApi } from '@/lib/api';
+import { publishApi } from '@/lib/api';
 
 // 5. Types
 import type { Layer, Asset } from '@/types';
@@ -521,24 +521,16 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
       loadBuilderData();
 
-      // Load publish counts (non-blocking)
+      // Load publish counts (non-blocking, after UI renders)
       loadPublishCounts();
     }
   }, [migrationsComplete, builderDataPreloaded, setBuilderDataPreloaded]);
 
-  // Load publish counts
+  /** Refresh publish count via optimized single endpoint */
   const loadPublishCounts = async () => {
     try {
-      const [pagesResponse, collectionsResponse] = await Promise.all([
-        pagesApi.getUnpublished(),
-        collectionsApi.getPublishableCounts(),
-      ]);
-
-      const unpublishedPagesCount = pagesResponse.data?.length || 0;
-      const collectionCounts = collectionsResponse.data || {};
-      const collectionItemsCount = Object.values(collectionCounts).reduce((sum, count) => sum + count, 0);
-
-      setPublishCount(unpublishedPagesCount + collectionItemsCount);
+      const response = await publishApi.getCount();
+      setPublishCount(response.data?.count ?? 0);
     } catch (error) {
       console.error('Failed to load publish counts:', error);
     }
@@ -1906,7 +1898,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             )}
 
             {/* CMS View - kept mounted for instant switching */}
-            <div className={activeTab === 'cms' ? 'flex flex-1' : 'hidden'}>
+            <div className={activeTab === 'cms' ? 'flex flex-1 min-w-0 overflow-hidden' : 'hidden'}>
               <Suspense fallback={null}>
                 <CMS />
               </Suspense>
