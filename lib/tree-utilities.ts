@@ -41,14 +41,14 @@ function getOrderValueForBreakpoint(layer: Layer, breakpoint: Breakpoint): numbe
   
   if (breakpoint === 'mobile') {
     // First check for mobile-specific order (max-md:)
-    const mobileRegex = /max-md\:order-(\d+)/;
+    const mobileRegex = /max-md:order-(\d+)/;
     const mobileMatch = classes.match(mobileRegex);
     if (mobileMatch) {
       return parseInt(mobileMatch[1], 10);
     }
     
     // Fall back to tablet order (max-lg:) which also applies to mobile
-    const tabletRegex = /max-lg\:order-(\d+)/;
+    const tabletRegex = /max-lg:order-(\d+)/;
     const tabletMatch = classes.match(tabletRegex);
     if (tabletMatch) {
       return parseInt(tabletMatch[1], 10);
@@ -77,11 +77,11 @@ function hasAnyOrderClassForBreakpoint(layers: Layer[], breakpoint: Breakpoint):
     
     if (breakpoint === 'mobile') {
       // Check both mobile and tablet (tablet cascades to mobile)
-      return /max-md\:order-\d+/.test(classes) || /max-lg\:order-\d+/.test(classes);
+      return /max-md:order-\d+/.test(classes) || /max-lg:order-\d+/.test(classes);
     }
     
     // Tablet - only check max-lg:
-    return /max-lg\:order-\d+/.test(classes);
+    return /max-lg:order-\d+/.test(classes);
   });
 }
 
@@ -153,8 +153,11 @@ export function flattenTree(
       canHaveChildren: canHaveChildren(item),
     });
 
-    // Only flatten children if not collapsed
-    if (item.children && item.children.length > 0 && !isCollapsed) {
+    // Only flatten children if not collapsed and the element can have children
+    // Elements like select, input, textarea etc. may have internal children (e.g., <option>)
+    // but these should not appear in the Layers tree
+    const nodeCanHaveChildren = canHaveChildren(item);
+    if (item.children && item.children.length > 0 && !isCollapsed && nodeCanHaveChildren) {
       flattened.push(
         ...flattenTree(item.children, item.id, depth + 1, collapsedIds, breakpoint)
       );

@@ -38,6 +38,7 @@ import FormSettings from './FormSettings';
 import AlertSettings from './AlertSettings';
 import HTMLEmbedSettings from './HTMLEmbedSettings';
 import InputSettings from './InputSettings';
+import SelectOptionsSettings from './SelectOptionsSettings';
 import LinkSettings, { type LinkSettingsValue } from './LinkSettings';
 import RichTextEditor from './RichTextEditor';
 import InteractionsPanel from './InteractionsPanel';
@@ -2280,8 +2281,8 @@ const RightSidebar = React.memo(function RightSidebar({
               );
             })()}
 
-            {/* Link Settings - hide for form layers */}
-            {selectedLayer?.name !== 'form' && (
+            {/* Link Settings - hide for form-related layers that should not be links */}
+            {selectedLayer && !['form', 'select', 'input', 'textarea', 'checkbox', 'radio', 'label'].includes(selectedLayer.name) && (
               <LinkSettings
                 layer={selectedLayer}
                 onLayerUpdate={handleLayerUpdate}
@@ -2695,6 +2696,11 @@ const RightSidebar = React.memo(function RightSidebar({
             />
 
             <InputSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
+            <SelectOptionsSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
             />
