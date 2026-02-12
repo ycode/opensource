@@ -5,7 +5,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import { findHomepage } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
-import { formatRelativeTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -20,17 +19,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Spinner } from '@/components/ui/spinner';
-import PublishDialog from './PublishDialog';
-
 // 4. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
-import { publishApi } from '@/lib/api';
 import { buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 
 // 5. Types
@@ -38,10 +31,10 @@ import type { Page } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import ActiveUsersInHeader from './ActiveUsersInHeader';
 import InviteUserButton from './InviteUserButton';
+import PublishPopover from './PublishPopover';
 import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
 
 interface HeaderBarProps {
   user: User | null;
@@ -60,7 +53,6 @@ interface HeaderBarProps {
   saveImmediately: (pageId: string) => Promise<void>;
   activeTab: 'pages' | 'layers' | 'cms';
   onExitComponentEditMode?: () => void;
-  publishCount: number;
   onPublishSuccess: () => void;
   isSettingsRoute?: boolean;
 }
@@ -82,7 +74,6 @@ export default function HeaderBar({
   saveImmediately,
   activeTab,
   onExitComponentEditMode,
-  publishCount,
   onPublishSuccess,
   isSettingsRoute = false,
 }: HeaderBarProps) {
@@ -93,12 +84,7 @@ export default function HeaderBar({
   const { folders, pages: storePages } = usePagesStore();
   const { items, fields } = useCollectionsStore();
   const { locales, selectedLocaleId, setSelectedLocaleId, translations } = useLocalisationStore();
-  const { getSettingByKey, updateSetting } = useSettingsStore();
   const { navigateToLayers, navigateToCollections, updateQueryParams, routeType } = useEditorUrl();
-  const [showPublishDialog, setShowPublishDialog] = useState(false);
-  const [showPublishPopover, setShowPublishPopover] = useState(false);
-  const [changesCount, setChangesCount] = useState(0);
-  const [isLoadingCount, setIsLoadingCount] = useState(false);
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'system' | 'light' | 'dark' | null;
@@ -108,10 +94,6 @@ export default function HeaderBar({
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
   const [hasUpdate, setHasUpdate] = useState(false);
-  const [publishSuccess, setPublishSuccess] = useState(false);
-
-  // Get published_at from settings store (loaded on builder init)
-  const publishedAt = getSettingByKey('published_at');
 
   // Get current host after mount
   useEffect(() => {
@@ -278,64 +260,6 @@ export default function HeaderBar({
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showPageDropdown, setShowPageDropdown]);
-
-  // Load changes count when popover opens
-  useEffect(() => {
-    if (showPublishPopover) {
-      loadChangesCount();
-    }
-  }, [showPublishPopover]);
-
-  const loadChangesCount = async () => {
-    setIsLoadingCount(true);
-    try {
-      const response = await publishApi.getCount();
-      setChangesCount(response.data?.count ?? 0);
-    } catch (error) {
-      console.error('Failed to load changes count:', error);
-      setChangesCount(0);
-    } finally {
-      setIsLoadingCount(false);
-    }
-  };
-
-  // Publish all changes directly
-  const handlePublishAll = async () => {
-    try {
-      setIsPublishing(true);
-
-      // Use global publish API to publish all unpublished items
-      const result = await publishApi.publish({ publishAll: true });
-
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
-      // Sync published timestamp to store from response
-      if (result.data?.published_at_setting?.value) {
-        updateSetting('published_at', result.data.published_at_setting.value);
-      }
-
-      // Show success immediately
-      toast.success('Website published successfully', {
-        action: {
-          label: 'Open',
-          onClick: () => window.open(baseUrl + publishedUrl, '_blank'),
-        },
-      });
-
-      setPublishSuccess(true);
-      setTimeout(() => setPublishSuccess(false), 3000);
-
-      // Refresh counts in background (non-blocking)
-      onPublishSuccess();
-      loadChangesCount();
-    } catch (error) {
-      console.error('Failed to publish all:', error);
-    } finally {
-      setIsPublishing(false);
-    }
-  };
 
   return (
     <>
@@ -607,88 +531,14 @@ export default function HeaderBar({
           <Icon name="preview" />
         </Button>
 
-        <Popover open={showPublishPopover} onOpenChange={setShowPublishPopover}>
-          <PopoverTrigger asChild>
-            <Button size="sm" disabled={isSettingsRoute}>Publish</Button>
-          </PopoverTrigger>
-
-          <PopoverContent className="mr-4 mt-0.5">
-            <div>
-              <Label>          <a
-                href={baseUrl + publishedUrl} target="_blank"
-                rel="noopener noreferrer"
-                               >
-            {baseUrl}
-          </a></Label>
-              <span className="text-popover-foreground text-[10px]">{publishedAt ? `Published ${formatRelativeTime(publishedAt, false)}` : 'Never published'}</span>
-            </div>
-
-            <hr className="my-3" />
-
-            <div className="flex items-center justify-between">
-
-              {/* Publish Dialog */}
-              <PublishDialog
-                isOpen={showPublishDialog}
-                onClose={() => setShowPublishDialog(false)}
-                onSuccess={(publishedAtValue) => {
-                  setShowPublishDialog(false);
-                  setShowPublishPopover(false);
-
-                  // Sync published timestamp to store from response
-                  if (publishedAtValue) {
-                    updateSetting('published_at', publishedAtValue);
-                  }
-
-                  onPublishSuccess();
-                  loadChangesCount();
-                }}
-              />
-
-              <Label className="text-popover-foreground">
-                {isLoadingCount ? (
-                  <>
-                    <div className="flex items-center gap-1">
-                      <Spinner className="size-3" />
-                      Loading changes...
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {changesCount} {changesCount === 1 ? 'change' : 'changes'}
-                  </>
-                )}
-              </Label>
-
-              <Button
-                size="xs"
-                variant="ghost"
-                className="-my-1"
-                onClick={() => setShowPublishDialog(true)}
-              >
-                See changes
-              </Button>
-
-            </div>
-
-            <hr className="my-3" />
-
-            <Button
-              size="sm"
-              className="w-full"
-              onClick={handlePublishAll}
-              disabled={isPublishing || publishSuccess}
-            >
-              {isPublishing ? (
-                <Spinner />
-              ) : publishSuccess ? (
-                <Icon name="check" />
-              ) : (
-                publishedAt ? 'Update' : 'Publish'
-              )}
-            </Button>
-          </PopoverContent>
-        </Popover>
+        <PublishPopover
+          isPublishing={isPublishing}
+          setIsPublishing={setIsPublishing}
+          baseUrl={baseUrl}
+          publishedUrl={publishedUrl}
+          isDisabled={isSettingsRoute}
+          onPublishSuccess={onPublishSuccess}
+        />
 
       </div>
     </header>

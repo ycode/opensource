@@ -78,7 +78,6 @@ import { useVersionsStore } from '@/stores/useVersionsStore';
 import { findHomepage } from '@/lib/page-utils';
 import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping } from '@/lib/layer-utils';
 import { cloneDeep } from 'lodash';
-import { publishApi } from '@/lib/api';
 
 // 5. Types
 import type { Layer, Asset } from '@/types';
@@ -161,7 +160,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>(
     urlState.view || 'desktop'
   );
-  const [publishCount, setPublishCount] = useState(0);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
   const previousPageIdRef = useRef<string | null>(null);
@@ -520,21 +518,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       };
 
       loadBuilderData();
-
-      // Load publish counts (non-blocking, after UI renders)
-      loadPublishCounts();
     }
   }, [migrationsComplete, builderDataPreloaded, setBuilderDataPreloaded]);
-
-  /** Refresh publish count via optimized single endpoint */
-  const loadPublishCounts = async () => {
-    try {
-      const response = await publishApi.getCount();
-      setPublishCount(response.data?.count ?? 0);
-    } catch (error) {
-      console.error('Failed to load publish counts:', error);
-    }
-  };
 
   // Handle URL-based navigation after data loads
   useEffect(() => {
@@ -1859,9 +1844,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         saveImmediately={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? async () => {} : saveImmediately}
         activeTab={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? 'pages' : activeTab}
         onExitComponentEditMode={handleExitComponentEditMode}
-        publishCount={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? 0 : publishCount}
         onPublishSuccess={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? () => {} : () => {
-          loadPublishCounts();
           // No need to reload pages - publish already updates store state
         }}
         isSettingsRoute={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations'}

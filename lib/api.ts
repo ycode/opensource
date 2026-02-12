@@ -189,17 +189,15 @@ export const pageLayersApi = {
 
 // Publish API - Global publishing endpoint
 export const publishApi = {
-  /** Get total count of items needing publishing (pages + collection items) */
-  async getCount(): Promise<ApiResponse<{ count: number }>> {
-    return apiRequest<{ count: number }>('/ycode/api/publish-count');
-  },
-
-  /** Get all unpublished items for the publish dialog in a single request */
+  /** Get counts of unpublished items per entity type */
   async getPreview(): Promise<ApiResponse<{
-    pages: Page[];
-    collectionsWithItems: Array<{ collection: Collection; items: CollectionItemWithValues[] }>;
-    components: Component[];
-    layerStyles: LayerStyle[];
+    pages: number;
+    collections: number;
+    collectionItems: number;
+    components: number;
+    layerStyles: number;
+    assets: number;
+    total: number;
   }>> {
     return apiRequest('/ycode/api/publish/preview');
   },
@@ -493,10 +491,6 @@ export const collectionsApi = {
       method: 'PUT',
       body: JSON.stringify({ field_ids: fieldIds }),
     });
-  },
-
-  async getPublishableCounts(): Promise<ApiResponse<Record<string, number>>> {
-    return apiRequest<Record<string, number>>('/ycode/api/collections/publishable-counts');
   },
 
   // Items (with values)
