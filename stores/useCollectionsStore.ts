@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { collectionsApi } from '@/lib/api';
 import { sortCollectionsByOrder } from '@/lib/collection-utils';
 import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
+import { useAssetsStore } from '@/stores/useAssetsStore';
 import type { Collection, CollectionField, CollectionItemWithValues, CreateCollectionData, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
 
 /**
@@ -26,6 +27,7 @@ interface CollectionsActions {
   loadCollections: () => Promise<void>;
   preloadCollectionsAndItems: (collections: Collection[]) => Promise<void>;
   createCollection: (data: CreateCollectionData) => Promise<Collection>;
+  createSampleCollection: (sampleId: string) => Promise<Collection>;
   updateCollection: (id: string, data: UpdateCollectionData) => Promise<void>;
   deleteCollection: (id: string) => Promise<void>;
   reorderCollections: (collectionIds: string[]) => Promise<void>;
@@ -239,6 +241,43 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       return newCollection;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create collection';
+      set({ error: errorMessage, isLoading: false });
+      throw error;
+    }
+  },
+
+  createSampleCollection: async (sampleId) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const response = await collectionsApi.createSample(sampleId);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      const { collection, fields, assets, items } = response.data!;
+
+      // Add created assets to the assets store so images render immediately
+      if (assets.length > 0) {
+        useAssetsStore.getState().addAssetsToCache(assets);
+      }
+
+      set(state => {
+        const updatedCollections = [...state.collections, collection];
+        const sortedCollections = sortCollectionsByOrder(updatedCollections);
+        return {
+          collections: sortedCollections,
+          fields: { ...state.fields, [collection.id]: fields },
+          items: { ...state.items, [collection.id]: items },
+          itemsTotalCount: { ...state.itemsTotalCount, [collection.id]: items.length },
+          isLoading: false,
+        };
+      });
+
+      return collection;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create sample collection';
       set({ error: errorMessage, isLoading: false });
       throw error;
     }

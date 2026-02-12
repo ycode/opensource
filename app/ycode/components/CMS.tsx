@@ -13,7 +13,7 @@ import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectGroup } from '@/components/ui/select';
@@ -33,6 +33,7 @@ import { formatDateInTimezone } from '@/lib/date-format-utils';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { slugify, isTruthyBooleanValue, parseMultiReferenceValue } from '@/lib/collection-utils';
+import { getSampleCollectionOptions } from '@/lib/sample-collections';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
 import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
@@ -177,6 +178,7 @@ interface SortableCollectionItemProps {
   isRenaming: boolean;
   renameValue: string;
   itemCount?: number;
+  isItemCountLoading?: boolean;
   onRenameValueChange: (value: string) => void;
   onSelect: () => void;
   onDoubleClick: () => void;
@@ -197,6 +199,7 @@ function SortableCollectionItem({
   isRenaming,
   renameValue,
   itemCount,
+  isItemCountLoading,
   onRenameValueChange,
   onSelect,
   onDoubleClick,
@@ -299,7 +302,7 @@ function SortableCollectionItem({
           </div>
 
           <span className="group-hover:hidden block text-xs opacity-50">
-            {itemCount ?? collection.draft_items_count}
+            {isItemCountLoading ? <Spinner className="size-3" /> : (itemCount ?? collection.draft_items_count)}
           </span>
         </div>
       </ContextMenuTrigger>
@@ -337,6 +340,7 @@ const CMS = React.memo(function CMS() {
     reorderItems,
     searchItems,
     createCollection,
+    createSampleCollection,
     updateCollection,
     deleteCollection,
     reorderCollections,
@@ -386,6 +390,7 @@ const CMS = React.memo(function CMS() {
   const [renameValue, setRenameValue] = useState('');
   const [hoveredCollectionId, setHoveredCollectionId] = useState<string | null>(null);
   const [collectionDropdownId, setCollectionDropdownId] = useState<string | null>(null);
+  const [loadingSampleCollectionId, setLoadingSampleCollectionId] = useState<string | null>(null);
 
   // Confirm dialog state
   const [deleteItemDialogOpen, setDeleteItemDialogOpen] = useState(false);
@@ -1203,7 +1208,7 @@ const CMS = React.memo(function CMS() {
       uuid: tempId,
       name: collectionName,
       sorting: null,
-      order: collections.length,
+      order: Number.MAX_SAFE_INTEGER,
       is_published: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -1252,6 +1257,56 @@ const CMS = React.memo(function CMS() {
       setRenamingCollectionId(null);
       setRenameValue('');
       toast.error('Failed to create collection');
+    }
+  };
+
+  const handleCreateSampleCollection = async (sampleId: string) => {
+    // Optimistic: add a temporary collection to the sidebar immediately
+    const sample = getSampleCollectionOptions().find(s => s.id === sampleId);
+    const tempId = `temp-sample-${Date.now()}`;
+    const optimisticCollection: Collection = {
+      id: tempId,
+      uuid: tempId,
+      name: sample?.name || 'Sample Collection',
+      sorting: null,
+      order: Number.MAX_SAFE_INTEGER,
+      is_published: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+      draft_items_count: 0,
+    };
+
+    useCollectionsStore.setState(state => ({
+      collections: [...state.collections, optimisticCollection],
+    }));
+    setSelectedCollectionId(tempId);
+    navigateToCollection(tempId);
+    setLoadingSampleCollectionId(tempId);
+
+    try {
+      const collection = await createSampleCollection(sampleId);
+
+      // Remove the optimistic entry (store already added the real one)
+      useCollectionsStore.setState(state => ({
+        collections: state.collections.filter(c => c.id !== tempId),
+      }));
+
+      setSelectedCollectionId(collection.id);
+      navigateToCollection(collection.id);
+
+      if (liveCollectionUpdates) {
+        liveCollectionUpdates.broadcastCollectionCreate(collection);
+      }
+    } catch (error) {
+      console.error('Failed to create sample collection:', error);
+      // Rollback: remove the optimistic entry
+      useCollectionsStore.setState(state => ({
+        collections: state.collections.filter(c => c.id !== tempId),
+      }));
+      toast.error('Failed to create sample collection');
+    } finally {
+      setLoadingSampleCollectionId(null);
     }
   };
 
@@ -1858,13 +1913,38 @@ const CMS = React.memo(function CMS() {
     <div className="w-64 shrink-0 bg-background border-r flex flex-col overflow-hidden px-4">
       <header className="py-5 flex items-center justify-between shrink-0">
         <span className="font-medium">Collections</span>
-          <Button
-            size="xs"
-            variant="secondary"
-            onClick={handleCreateCollection}
-          >
-            <Icon name="plus" />
-          </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="xs"
+              variant="secondary"
+            >
+              <Icon name="plus" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleCreateCollection}>
+              New collection
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                Samples
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {getSampleCollectionOptions().map(option => (
+                  <DropdownMenuItem
+                    key={option.id}
+                    onClick={() => handleCreateSampleCollection(option.id)}
+                  >
+                    <Icon name="database" className="size-3 shrink-0" />
+                    {option.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <DndContext
@@ -1887,6 +1967,7 @@ const CMS = React.memo(function CMS() {
                   isRenaming={renamingCollectionId === collection.id}
                   renameValue={renameValue}
                   itemCount={itemsTotalCount[collection.id]}
+                  isItemCountLoading={loadingSampleCollectionId === collection.id}
                   onRenameValueChange={setRenameValue}
                   onSelect={() => handleCollectionSelect(collection.id)}
                   onDoubleClick={() => handleCollectionDoubleClick(collection)}
@@ -2001,7 +2082,12 @@ const CMS = React.memo(function CMS() {
 
       {/* Items Content */}
       <div className="flex-1 overflow-auto flex flex-col">
-        {collectionFields.length === 0 ? (
+        {loadingSampleCollectionId === selectedCollectionId ? (
+          <div className="flex flex-col items-center justify-center gap-4 p-8 flex-1">
+            <Spinner />
+            <span className="text-sm text-muted-foreground">Creating collection...</span>
+          </div>
+        ) : collectionFields.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 p-8">
             <Empty>
               <EmptyTitle>No Fields Defined</EmptyTitle>
@@ -2192,7 +2278,11 @@ const CMS = React.memo(function CMS() {
           if (!open) setDeleteCollectionId(null);
         }}
         title="Delete collection"
-        description="Are you sure you want to delete this collection? This action cannot be undone."
+        description={
+          deleteCollectionId
+            ? `Are you sure you want to delete "${collections.find(c => c.id === deleteCollectionId)?.name ?? 'this collection'}"? This action cannot be undone.`
+            : 'Are you sure you want to delete this collection? This action cannot be undone.'
+        }
         confirmLabel="Delete"
         onConfirm={handleConfirmDeleteCollection}
       />

@@ -413,6 +413,13 @@ export const collectionsApi = {
     });
   },
 
+  async createSample(sampleId: string): Promise<ApiResponse<{ collection: Collection; fields: CollectionField[]; assets: Asset[]; items: CollectionItemWithValues[] }>> {
+    return apiRequest('/ycode/api/collections/sample', {
+      method: 'POST',
+      body: JSON.stringify({ sampleId }),
+    });
+  },
+
   async update(id: string, data: UpdateCollectionData): Promise<ApiResponse<Collection>> {
     return apiRequest<Collection>(`/ycode/api/collections/${id}`, {
       method: 'PUT',
