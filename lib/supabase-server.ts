@@ -106,6 +106,16 @@ export async function testSupabaseConnection(
 }
 
 /**
+ * Get tenant ID from request headers.
+ *
+ * Opensource: always returns null (single-tenant, no tenant scoping needed).
+ * Cloud overlay: overridden to read x-tenant-id header set by middleware.
+ */
+export async function getTenantIdFromHeaders(): Promise<string | null> {
+  return null;
+}
+
+/**
  * Execute raw SQL query
  */
 export async function executeSql(sql: string): Promise<{ success: boolean; error?: string }> {

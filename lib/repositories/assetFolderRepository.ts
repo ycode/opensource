@@ -261,21 +261,16 @@ export async function reorderFolders(updates: Array<{ id: string; order: number 
   }
 
   const { getKnexClient } = await import('../knex-client');
+  const { batchUpdateColumn } = await import('../knex-helpers');
   const knex = await getKnexClient();
 
-  // Batch update using CASE statement for efficiency (drafts only)
-  const caseStatements = updates.map(() => 'WHEN id = ? THEN ?::integer').join(' ');
-  const values = updates.flatMap(u => [u.id, u.order]);
-  const idPlaceholders = updates.map(() => '?').join(', ');
-
-  await knex.raw(`
-    UPDATE asset_folders
-    SET "order" = CASE ${caseStatements} END,
-        updated_at = NOW()
-    WHERE id IN (${idPlaceholders})
-      AND is_published = false
-      AND deleted_at IS NULL
-  `, [...values, ...updates.map(u => u.id)]);
+  await batchUpdateColumn(knex, 'asset_folders', 'order',
+    updates.map(u => ({ id: u.id, value: u.order })),
+    {
+      extraWhereClause: 'AND is_published = false AND deleted_at IS NULL',
+      castType: 'integer',
+    }
+  );
 }
 
 // =============================================================================

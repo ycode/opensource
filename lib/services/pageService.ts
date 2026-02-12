@@ -57,52 +57,35 @@ export async function incrementSiblingOrders(
   parentFolderId: string | null
 ): Promise<void> {
   const knex = await getKnexClient();
+  const { incrementColumn } = await import('../knex-helpers');
 
   try {
     // Update pages - single query to increment all matching rows
     // Exclude error pages (error_page IS NULL)
-    if (parentFolderId === null) {
-      await knex.raw(`
-        UPDATE pages
-        SET "order" = "order" + 1
-        WHERE "order" >= ?
-          AND depth = ?
-          AND page_folder_id IS NULL
-          AND deleted_at IS NULL
-          AND error_page IS NULL
-      `, [startOrder, depth]);
-    } else {
-      await knex.raw(`
-        UPDATE pages
-        SET "order" = "order" + 1
-        WHERE "order" >= ?
-          AND depth = ?
-          AND page_folder_id = ?
-          AND deleted_at IS NULL
-          AND error_page IS NULL
-      `, [startOrder, depth, parentFolderId]);
-    }
+    const pageParentCondition = parentFolderId === null
+      ? 'AND page_folder_id IS NULL'
+      : 'AND page_folder_id = ?';
+    const pageParams: (string | number)[] = parentFolderId === null
+      ? [startOrder, depth]
+      : [startOrder, depth, parentFolderId];
+
+    await incrementColumn(knex, 'pages', 'order',
+      `"order" >= ? AND depth = ? ${pageParentCondition} AND deleted_at IS NULL AND error_page IS NULL`,
+      pageParams
+    );
 
     // Update folders - single query to increment all matching rows
-    if (parentFolderId === null) {
-      await knex.raw(`
-        UPDATE page_folders
-        SET "order" = "order" + 1
-        WHERE "order" >= ?
-          AND depth = ?
-          AND page_folder_id IS NULL
-          AND deleted_at IS NULL
-      `, [startOrder, depth]);
-    } else {
-      await knex.raw(`
-        UPDATE page_folders
-        SET "order" = "order" + 1
-        WHERE "order" >= ?
-          AND depth = ?
-          AND page_folder_id = ?
-          AND deleted_at IS NULL
-      `, [startOrder, depth, parentFolderId]);
-    }
+    const folderParentCondition = parentFolderId === null
+      ? 'AND page_folder_id IS NULL'
+      : 'AND page_folder_id = ?';
+    const folderParams: (string | number)[] = parentFolderId === null
+      ? [startOrder, depth]
+      : [startOrder, depth, parentFolderId];
+
+    await incrementColumn(knex, 'page_folders', 'order',
+      `"order" >= ? AND depth = ? ${folderParentCondition} AND deleted_at IS NULL`,
+      folderParams
+    );
   } catch (error) {
     throw new Error(`Failed to increment sibling orders: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -127,15 +110,20 @@ export async function fixOrphanedPageSlugs(
   if (orphanedPages.length === 0) return;
 
   const knex = await getKnexClient();
+  const { addTenantFilter, batchUpdateColumn } = await import('../knex-helpers');
 
   try {
     // Fetch all existing slugs once for duplicate checking
-    const existingSlugs = await knex('pages')
+    let slugQuery = knex('pages')
       .select('slug')
       .whereNotNull('slug')
       .whereNot('slug', '')
-      .whereNull('deleted_at')
-      .then(rows => new Set(rows.map(r => r.slug)));
+      .whereNull('deleted_at');
+
+    // Apply tenant scoping (no-op in opensource, active in cloud)
+    slugQuery = await addTenantFilter(knex, slugQuery, 'pages');
+
+    const existingSlugs = await slugQuery.then(rows => new Set(rows.map((r: { slug: string }) => r.slug)));
 
     // Generate unique slugs for all orphaned pages
     const updates: Array<{ id: string; slug: string }> = [];
@@ -157,19 +145,9 @@ export async function fixOrphanedPageSlugs(
 
     // Batch update all orphaned pages using CASE statement for efficiency
     if (updates.length > 0) {
-      const caseStatements = updates.map(() =>
-        `WHEN id = ? THEN ?`
-      ).join(' ');
-
-      const values = updates.flatMap(u => [u.id, u.slug]);
-      const idPlaceholders = updates.map(() => '?').join(', ');
-
-      await knex.raw(`
-        UPDATE pages
-        SET slug = CASE ${caseStatements} END,
-            updated_at = NOW()
-        WHERE id IN (${idPlaceholders})
-      `, [...values, ...updates.map(u => u.id)]);
+      await batchUpdateColumn(knex, 'pages', 'slug',
+        updates.map(u => ({ id: u.id, value: u.slug }))
+      );
     }
   } catch (error) {
     throw new Error(`Failed to fix orphaned page slugs: ${error instanceof Error ? error.message : 'Unknown error'}`);
