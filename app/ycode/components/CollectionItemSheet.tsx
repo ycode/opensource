@@ -46,6 +46,7 @@ import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import CollectionLinkFieldInput from './CollectionLinkFieldInput';
 import AssetFieldCard from './AssetFieldCard';
 import type { Asset, CollectionItemWithValues } from '@/types';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 
@@ -89,6 +90,7 @@ export default function CollectionItemSheet({
   const lockedItemIdRef = useRef<string | null>(null);
 
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const collection = collections.find(c => c.id === collectionId);
@@ -130,6 +132,8 @@ export default function CollectionItemSheet({
   );
 
   const form = useForm();
+  // Subscribe to isDirty at render level so react-hook-form tracks it
+  const { isDirty } = form.formState;
 
   // Helper to detect temporary IDs (from optimistic creates)
   const isTempId = (id: string | null | undefined): boolean => {
@@ -386,14 +390,39 @@ export default function CollectionItemSheet({
     }
   };
 
-  // Handle sheet close - reset form errors
+  // Handle sheet close - check for unsaved changes
   const handleOpenChange = useCallback((isOpen: boolean) => {
+    if (!isOpen && isDirty) {
+      // Show unsaved changes dialog instead of closing
+      setShowUnsavedDialog(true);
+      return;
+    }
     if (!isOpen) {
-      // Reset form errors when closing
       form.clearErrors();
     }
     onOpenChange(isOpen);
-  }, [onOpenChange, form]);
+  }, [onOpenChange, form, isDirty]);
+
+  // Discard unsaved changes and close sheet
+  const handleConfirmDiscard = useCallback(() => {
+    setShowUnsavedDialog(false);
+    form.clearErrors();
+    form.reset();
+    setEditingItem(null);
+    onOpenChange(false);
+  }, [form, onOpenChange]);
+
+  // Cancel discard - keep sheet open
+  const handleCancelDiscard = useCallback(() => {
+    setShowUnsavedDialog(false);
+  }, []);
+
+  // Save changes from dialog, then close
+  const handleSaveFromDialog = useCallback(async () => {
+    setShowUnsavedDialog(false);
+    // Trigger form submission programmatically
+    form.handleSubmit(handleSubmit)();
+  }, [form, handleSubmit]);
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -661,6 +690,20 @@ export default function CollectionItemSheet({
           </form>
         </Form>
       </SheetContent>
+
+      <ConfirmDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        title="Unsaved Changes"
+        description="You have unsaved changes. Are you sure you want to discard them?"
+        confirmLabel="Discard changes"
+        cancelLabel="Cancel"
+        confirmVariant="destructive"
+        onConfirm={handleConfirmDiscard}
+        onCancel={handleCancelDiscard}
+        saveLabel="Save changes"
+        onSave={handleSaveFromDialog}
+      />
     </Sheet>
   );
 }
