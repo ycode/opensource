@@ -2062,116 +2062,125 @@ const CMS = React.memo(function CMS() {
               Add Field
             </Button>
           </div>
+        ) : !showSkeleton && sortedItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 p-8 flex-1">
+            <Empty className="max-w-sm">
+              <EmptyTitle>No Items</EmptyTitle>
+              <EmptyDescription>
+                This collection has no items yet. Add your first item to get started.
+              </EmptyDescription>
+              <Button onClick={handleCreateItem} variant="secondary">
+                <Icon name="plus" />
+                New Item
+              </Button>
+            </Empty>
+          </div>
         ) : (
           <>
             {tableContent}
-
-            <div>
-              <div>
-                {/* Add Item Button */}
-                {!showSkeleton && (
-                  <div className="group cursor-pointer" onClick={handleCreateItem}>
-                    <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
-                      <div className="px-4 py-4">
-                        <Button size="xs" variant="ghost">
-                          <Icon name="plus" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sheet for Create/Edit Item - only render when open to avoid animation issues */}
-                {showItemSheet && (
-                  <CollectionItemSheet
-                    open={true}
-                    onOpenChange={(open) => {
-                      if (!open) {
-                        setShowItemSheet(false);
-                        setEditingItem(null);
-                        if (selectedCollectionId) {
-                          navigateToCollection(selectedCollectionId);
-                        }
-                      }
-                    }}
-                    collectionId={selectedCollectionId!}
-                    itemId={editingItem?.id || null}
-                    onSuccess={() => {
-                      setShowItemSheet(false);
-                      setEditingItem(null);
-                      if (selectedCollectionId) {
-                        navigateToCollection(selectedCollectionId);
-                      }
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Pagination Controls */}
-            {selectedCollectionId && (showSkeleton || sortedItems.length > 0 || totalItems > 0 || currentPage > 1) && (
-              <div className="flex items-center justify-between px-4 py-4 border-t mt-auto">
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Show:</span>
-                  {showSkeleton ? (
-                    <div className="w-20 h-8 bg-secondary/50 rounded-lg animate-pulse" />
-                  ) : (
-                    <Select
-                      value={pageSize.toString()}
-                      onValueChange={(value) => setPageSize(Number(value))}
-                      disabled={showSkeleton}
-                    >
-                      <SelectTrigger className="w-20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-4">
-                  {showSkeleton ? (
-                    <div className="h-4 w-48 bg-secondary/50 rounded-[6px] animate-pulse" />
-                  ) : totalItems === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      No results
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1 || showSkeleton}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setCurrentPage(p => p + 1)}
-                    disabled={currentPage * pageSize >= totalItems || showSkeleton}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
+
+      {/* Add Item Button - outside scroll container so it's always visible */}
+      {!showSkeleton && collectionFields.length > 0 && sortedItems.length > 1 && (
+        <div className="group cursor-pointer border-t" onClick={handleCreateItem}>
+          <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
+            <div className="px-4 py-4">
+              <Button size="xs" variant="ghost">
+                <Icon name="plus" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sheet for Create/Edit Item - only render when open to avoid animation issues */}
+      {showItemSheet && (
+        <CollectionItemSheet
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowItemSheet(false);
+              setEditingItem(null);
+              if (selectedCollectionId) {
+                navigateToCollection(selectedCollectionId);
+              }
+            }
+          }}
+          collectionId={selectedCollectionId!}
+          itemId={editingItem?.id || null}
+          onSuccess={() => {
+            setShowItemSheet(false);
+            setEditingItem(null);
+            if (selectedCollectionId) {
+              navigateToCollection(selectedCollectionId);
+            }
+          }}
+        />
+      )}
+
+      {/* Pagination Controls - outside scroll container so it's always visible at bottom */}
+      {selectedCollectionId && (showSkeleton || sortedItems.length > 0 || totalItems > 0 || currentPage > 1) && (
+        <div className="flex items-center justify-between px-4 py-4 border-t">
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Show:</span>
+            {showSkeleton ? (
+              <div className="w-20 h-8 bg-secondary/50 rounded-lg animate-pulse" />
+            ) : (
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(value) => setPageSize(Number(value))}
+                disabled={showSkeleton}
+              >
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
+            {showSkeleton ? (
+              <div className="h-4 w-48 bg-secondary/50 rounded-[6px] animate-pulse" />
+            ) : totalItems === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No results
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1 || showSkeleton}
+            >
+              Previous
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={currentPage * pageSize >= totalItems || showSkeleton}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Field Create/Edit Dialog */}
       <FieldFormDialog
