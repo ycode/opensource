@@ -936,14 +936,89 @@ export async function publishItem(id: string): Promise<CollectionItem> {
 }
 
 /**
- * Get counts of unpublished items grouped by collection
- * An item is considered unpublished if:
- * - It has no published version (never published), OR
- * - Its draft data differs from published data
- *
- * NOTE: This only checks item metadata, not values. For values, use separate check.
+ * Get counts of unpublished items grouped by collection.
+ * Uses 2 bulk queries instead of previous N+1 pattern.
  */
 export async function getPublishableCountsByCollection(): Promise<Record<string, number>> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  // Get all draft collection IDs
+  const { data: collections, error: collectionsError } = await client
+    .from('collections')
+    .select('id')
+    .eq('is_published', false)
+    .is('deleted_at', null);
+
+  if (collectionsError) {
+    throw new Error(`Failed to fetch collections: ${collectionsError.message}`);
+  }
+
+  if (!collections || collections.length === 0) {
+    return {};
+  }
+
+  const collectionIds = collections.map(c => c.id);
+
+  // 2 bulk queries: all draft items + all published items (replaces N+1)
+  const [draftResult, publishedResult] = await Promise.all([
+    client
+      .from('collection_items')
+      .select('id, collection_id, manual_order')
+      .in('collection_id', collectionIds)
+      .eq('is_published', false)
+      .is('deleted_at', null),
+    client
+      .from('collection_items')
+      .select('id, manual_order')
+      .in('collection_id', collectionIds)
+      .eq('is_published', true),
+  ]);
+
+  if (draftResult.error) {
+    throw new Error(`Failed to fetch draft items: ${draftResult.error.message}`);
+  }
+
+  // Build published lookup: id -> manual_order
+  const publishedMap = new Map<string, number>();
+  for (const pub of publishedResult.data || []) {
+    publishedMap.set(pub.id, pub.manual_order);
+  }
+
+  // Count unpublished per collection
+  const counts: Record<string, number> = {};
+  for (const id of collectionIds) {
+    counts[id] = 0;
+  }
+  for (const draft of draftResult.data || []) {
+    const pubOrder = publishedMap.get(draft.id);
+    if (pubOrder === undefined || draft.manual_order !== pubOrder) {
+      counts[draft.collection_id] = (counts[draft.collection_id] || 0) + 1;
+    }
+  }
+
+  return counts;
+}
+
+/**
+ * Get total count of collection items needing publishing across all collections.
+ */
+export async function getTotalPublishableItemsCount(): Promise<number> {
+  const counts = await getPublishableCountsByCollection();
+  return Object.values(counts).reduce((sum, count) => sum + count, 0);
+}
+
+/**
+ * Get all unpublished collection items with values across all collections.
+ * Uses 4 bulk queries instead of N×M per-item queries.
+ * Returns items grouped by collection, each with a publish_status.
+ */
+export async function getAllUnpublishedItemsWithValues(): Promise<
+  Array<{ collection_id: string; items: CollectionItemWithValues[] }>
+  > {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -961,54 +1036,99 @@ export async function getPublishableCountsByCollection(): Promise<Record<string,
     throw new Error(`Failed to fetch collections: ${collectionsError.message}`);
   }
 
-  const counts: Record<string, number> = {};
-
-  // For each collection, count items that need publishing
-  for (const collection of collections || []) {
-    // Get all draft items for this collection
-    const { data: draftItems, error: itemsError } = await client
-      .from('collection_items')
-      .select('id, manual_order')
-      .eq('collection_id', collection.id)
-      .eq('is_published', false)
-      .is('deleted_at', null);
-
-    if (itemsError) {
-      console.error(`Error fetching items for collection ${collection.id}:`, itemsError);
-      counts[collection.id] = 0;
-      continue;
-    }
-
-    if (!draftItems || draftItems.length === 0) {
-      counts[collection.id] = 0;
-      continue;
-    }
-
-    // Count items that need publishing
-    let unpublishedCount = 0;
-
-    for (const draftItem of draftItems) {
-      // Check if published version exists
-      const publishedItem = await getItemById(draftItem.id, true);
-
-      if (!publishedItem) {
-        // Never published
-        unpublishedCount++;
-        continue;
-      }
-
-      // Check if draft differs from published
-      const hasChanges =
-
-        draftItem.manual_order !== publishedItem.manual_order;
-
-      if (hasChanges) {
-        unpublishedCount++;
-      }
-    }
-
-    counts[collection.id] = unpublishedCount;
+  if (!collections || collections.length === 0) {
+    return [];
   }
 
-  return counts;
+  const collectionIds = collections.map(c => c.id);
+
+  // Query 1: All draft items (including soft-deleted) across all collections
+  const { data: allDraftItems, error: itemsError } = await client
+    .from('collection_items')
+    .select('id, collection_id, manual_order, deleted_at, created_at, updated_at')
+    .in('collection_id', collectionIds)
+    .eq('is_published', false);
+
+  if (itemsError) {
+    throw new Error(`Failed to fetch draft items: ${itemsError.message}`);
+  }
+
+  if (!allDraftItems || allDraftItems.length === 0) {
+    return [];
+  }
+
+  const allItemIds = allDraftItems.map(i => i.id);
+
+  // Queries 2-3: Bulk fetch draft + published values for ALL items
+  const [draftValuesByItem, publishedValuesByItem] = await Promise.all([
+    getValuesByItemIds(allItemIds, false),
+    getValuesByItemIds(allItemIds, true),
+  ]);
+
+  // Determine publish status per item and build results
+  const byCollection = new Map<string, CollectionItemWithValues[]>();
+
+  for (const item of allDraftItems) {
+    const draftValues = draftValuesByItem[item.id] || {};
+    const publishedValues = publishedValuesByItem[item.id] || {};
+    const hasDraftValues = Object.keys(draftValues).length > 0;
+    const hasPublishedValues = Object.keys(publishedValues).length > 0;
+
+    let publishStatus: 'new' | 'updated' | 'deleted' | null = null;
+
+    if (item.deleted_at) {
+      // Soft-deleted: only show if it was previously published
+      if (hasPublishedValues) {
+        publishStatus = 'deleted';
+      }
+    } else if (!hasPublishedValues) {
+      // Never published
+      publishStatus = 'new';
+    } else if (hasDraftValues) {
+      // Compare values
+      if (valuesHaveChanges(draftValues, publishedValues)) {
+        publishStatus = 'updated';
+      }
+    }
+
+    if (publishStatus) {
+      const itemWithValues: CollectionItemWithValues = {
+        id: item.id,
+        collection_id: item.collection_id,
+        manual_order: item.manual_order,
+        is_published: false,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        deleted_at: item.deleted_at,
+        values: draftValues,
+        publish_status: publishStatus,
+      };
+
+      if (!byCollection.has(item.collection_id)) {
+        byCollection.set(item.collection_id, []);
+      }
+      byCollection.get(item.collection_id)!.push(itemWithValues);
+    }
+  }
+
+  return Array.from(byCollection.entries()).map(([collection_id, items]) => ({
+    collection_id,
+    items,
+  }));
+}
+
+/** Compare two value maps (field_id -> value) for changes */
+function valuesHaveChanges(
+  draft: Record<string, string>,
+  published: Record<string, string>
+): boolean {
+  const draftKeys = Object.keys(draft);
+  const publishedKeys = Object.keys(published);
+
+  if (draftKeys.length !== publishedKeys.length) return true;
+
+  for (const key of draftKeys) {
+    if (draft[key] !== published[key]) return true;
+  }
+  return false;
 }

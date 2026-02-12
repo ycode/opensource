@@ -5,17 +5,21 @@
  */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { pagesApi, collectionsApi, componentsApi, layerStylesApi, publishApi } from '@/lib/api';
+import { publishApi } from '@/lib/api';
 import type { Page, Collection, Component, LayerStyle, CollectionItemWithValues } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { usePagesStore } from '@/stores/usePagesStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { buildSlugPath } from '@/lib/page-utils';
+import { findDisplayField, getItemDisplayName } from '@/lib/collection-field-utils';
 
 interface PublishDialogProps {
   isOpen: boolean;
@@ -40,6 +44,10 @@ export default function PublishDialog({
   const [selectedLayerStyleIds, setSelectedLayerStyleIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
+  // Get folders and fields from stores for display
+  const folders = usePagesStore((state) => state.folders);
+  const fields = useCollectionsStore((state) => state.fields);
+
   // Load data when dialog opens
   useEffect(() => {
     if (isOpen) {
@@ -52,73 +60,30 @@ export default function PublishDialog({
     setError(null);
 
     try {
-      // Load unpublished pages
-      const pagesResponse = await pagesApi.getUnpublished();
-      if (pagesResponse.error) {
-        throw new Error(pagesResponse.error);
-      }
-      setUnpublishedPages(pagesResponse.data || []);
-
-      // Load all collections
-      const collectionsResponse = await collectionsApi.getAll();
-      if (collectionsResponse.error) {
-        throw new Error(collectionsResponse.error);
+      // Single request to load all unpublished items
+      const response = await publishApi.getPreview();
+      if (response.error) {
+        throw new Error(response.error);
       }
 
-      const collections = collectionsResponse.data || [];
+      const { pages, collectionsWithItems: collectionsData, components, layerStyles } = response.data!;
 
-      // Load unpublished items for each collection
-      const collectionsWithItemsData: Array<{ collection: Collection; items: CollectionItemWithValues[] }> = [];
-
-      for (const collection of collections) {
-        const itemsResponse = await collectionsApi.getUnpublishedItems(collection.id);
-        if (itemsResponse.error) {
-          console.error(`Failed to load unpublished items for collection ${collection.id}:`, itemsResponse.error);
-          continue;
-        }
-
-        const items = itemsResponse.data || [];
-
-        // Only include collections that have unpublished items
-        if (items.length > 0) {
-          collectionsWithItemsData.push({
-            collection,
-            items,
-          });
-        }
-      }
-
-      setCollectionsWithItems(collectionsWithItemsData);
-
-      // Load unpublished components
-      const componentsResponse = await componentsApi.getUnpublished();
-      if (componentsResponse.error) {
-        throw new Error(componentsResponse.error);
-      }
-      setUnpublishedComponents(componentsResponse.data || []);
-
-      // Load unpublished layer styles
-      const stylesResponse = await layerStylesApi.getUnpublished();
-      if (stylesResponse.error) {
-        throw new Error(stylesResponse.error);
-      }
-      setUnpublishedLayerStyles(stylesResponse.data || []);
+      setUnpublishedPages(pages);
+      setCollectionsWithItems(collectionsData);
+      setUnpublishedComponents(components);
+      setUnpublishedLayerStyles(layerStyles);
 
       // Select all items by default
-      const allPageIds = new Set((pagesResponse.data || []).map(p => p.id));
-      setSelectedPageIds(allPageIds);
+      setSelectedPageIds(new Set(pages.map(p => p.id)));
 
       const allItemIds = new Set<string>();
-      collectionsWithItemsData.forEach(({ items }) => {
+      collectionsData.forEach(({ items }) => {
         items.forEach(item => allItemIds.add(item.id));
       });
       setSelectedItemIds(allItemIds);
 
-      const allComponentIds = new Set((componentsResponse.data || []).map(c => c.id));
-      setSelectedComponentIds(allComponentIds);
-
-      const allStyleIds = new Set((stylesResponse.data || []).map(s => s.id));
-      setSelectedLayerStyleIds(allStyleIds);
+      setSelectedComponentIds(new Set(components.map(c => c.id)));
+      setSelectedLayerStyleIds(new Set(layerStyles.map(s => s.id)));
     } catch (err) {
       console.error('Failed to load publish data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -284,7 +249,7 @@ export default function PublishDialog({
         ) : (
           <>
 
-            <div className="flex-1 flex flex-col gap-2 -my-4">
+            <div className="flex-1 flex flex-col gap-2 -my-4 overflow-y-auto max-h-[60vh] pr-1">
               {/* Pages Section */}
               {unpublishedPages.length > 0 && (
                 <div className="flex flex-col gap-2 bg-secondary/20 px-5 pt-4 pb-2 rounded-lg -mx-4">
@@ -320,7 +285,9 @@ export default function PublishDialog({
                           />
                           <div className="flex-1 flex items-center justify-between text-xs text-muted-foreground">
                             <span>{page.name}</span>
-                            <span className="text-[10px]">/{page.slug}</span>
+                            <span className="text-[10px] text-muted-foreground/60">
+                              {buildSlugPath(page, folders, 'page')}
+                            </span>
                           </div>
                         </div>
                       </label>
@@ -366,32 +333,32 @@ export default function PublishDialog({
 
                           <div className="divide-y divide-secondary">
 
-                            {items.map(item => (
-                              <label
-                                key={item.id}
-                                className="flex-1 flex items-center gap-2 p-3 -mx-3 hover:bg-secondary/50 rounded-lg"
-                              >
+                            {items.map(item => {
+                              const displayField = findDisplayField(fields[collection.id] || []);
+                              return (
+                                <label
+                                  key={item.id}
+                                  className="flex-1 flex items-center gap-2 p-3 -mx-3 hover:bg-secondary/50 rounded-lg"
+                                >
 
-                                <Checkbox
-                                  checked={selectedItemIds.has(item.id)}
-                                  onCheckedChange={() => toggleItem(item.id)}
-                                />
+                                  <Checkbox
+                                    checked={selectedItemIds.has(item.id)}
+                                    onCheckedChange={() => toggleItem(item.id)}
+                                  />
 
-                                <div className="flex-1 flex items-center text-xs text-muted-foreground">
-                                  <span>{item.values.name || 'Untitled'}</span>
-                                  {item.values.slug && (
-                                    <span className="text-xs text-muted-foreground ml-2">/{item.values.slug}</span>
+                                  <div className="flex-1 flex items-center text-xs text-muted-foreground">
+                                    <span>{getItemDisplayName(item, displayField)}</span>
+                                  </div>
+
+                                  {item.publish_status && (
+                                    <Badge className="text-[10px] px-1" variant="secondary">
+                                      {item.publish_status.charAt(0).toUpperCase() + item.publish_status.slice(1)}
+                                    </Badge>
                                   )}
-                                </div>
 
-                                {item.publish_status && (
-                                  <Badge className="text-[10px] px-1" variant="secondary">
-                                    {item.publish_status.charAt(0).toUpperCase() + item.publish_status.slice(1)}
-                                  </Badge>
-                                )}
-
-                              </label>
-                            ))}
+                                </label>
+                              );
+                            })}
 
                           </div>
 

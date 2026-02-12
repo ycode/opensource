@@ -189,6 +189,21 @@ export const pageLayersApi = {
 
 // Publish API - Global publishing endpoint
 export const publishApi = {
+  /** Get total count of items needing publishing (pages + collection items) */
+  async getCount(): Promise<ApiResponse<{ count: number }>> {
+    return apiRequest<{ count: number }>('/ycode/api/publish-count');
+  },
+
+  /** Get all unpublished items for the publish dialog in a single request */
+  async getPreview(): Promise<ApiResponse<{
+    pages: Page[];
+    collectionsWithItems: Array<{ collection: Collection; items: CollectionItemWithValues[] }>;
+    components: Component[];
+    layerStyles: LayerStyle[];
+  }>> {
+    return apiRequest('/ycode/api/publish/preview');
+  },
+
   /**
    * Publish all unpublished items or specific selected items
    * @param options - Publishing options
