@@ -35,13 +35,14 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { slugify, isTruthyBooleanValue, parseMultiReferenceValue } from '@/lib/collection-utils';
 import { getSampleCollectionOptions } from '@/lib/sample-collections';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
-import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
+import { type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
-import FieldFormPopover from './FieldFormPopover';
+import FieldFormDialog from './FieldFormDialog';
+import type { FieldFormData } from './FieldFormDialog';
 import CollectionItemSheet from './CollectionItemSheet';
 import CSVImportDialog from './CSVImportDialog';
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
@@ -377,8 +378,7 @@ const CMS = React.memo(function CMS() {
   const [showItemSheet, setShowItemSheet] = useState(false);
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
-  const [createFieldPopoverOpen, setCreateFieldPopoverOpen] = useState(false);
-  const [editFieldDialogOpen, setEditFieldDialogOpen] = useState(false);
+  const [fieldDialogOpen, setFieldDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<CollectionField | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(false);
@@ -1156,37 +1156,42 @@ const CMS = React.memo(function CMS() {
     }
   };
 
-  const handleCreateFieldFromPopover = async (data: {
-    name: string;
-    type: FieldType;
-    default: string;
-    reference_collection_id?: string | null;
-    data?: CollectionFieldData;
-  }) => {
+  const handleFieldDialogSubmit = async (data: FieldFormData) => {
     if (!selectedCollectionId) return;
 
     try {
-      const newOrder = collectionFields.length;
+      if (editingField) {
+        // Update existing field
+        const mergedData = data.data
+          ? { ...editingField.data, ...data.data }
+          : editingField.data;
 
-      // Store adds field to local state optimistically
-      await createField(selectedCollectionId, {
-        name: data.name,
-        type: data.type,
-        default: data.default || null,
-        order: newOrder,
-        fillable: true,
-        key: null,
-        hidden: false,
-        reference_collection_id: data.reference_collection_id || null,
-        data: data.data,
-      });
+        await updateField(selectedCollectionId, editingField.id, {
+          name: data.name,
+          default: data.default || null,
+          reference_collection_id: data.reference_collection_id,
+          data: mergedData,
+        });
+      } else {
+        // Create new field
+        await createField(selectedCollectionId, {
+          name: data.name,
+          type: data.type,
+          default: data.default || null,
+          order: collectionFields.length,
+          fillable: true,
+          key: null,
+          hidden: false,
+          reference_collection_id: data.reference_collection_id || null,
+          data: data.data,
+        });
+      }
 
-      // No reload needed - store already updated local state optimistically
-
-      // Close popover
-      setCreateFieldPopoverOpen(false);
+      // Close dialog and reset
+      setFieldDialogOpen(false);
+      setEditingField(null);
     } catch (error) {
-      console.error('Failed to create field:', error);
+      console.error('Failed to save field:', error);
     }
   };
 
@@ -1406,45 +1411,9 @@ const CMS = React.memo(function CMS() {
   };
 
   const handleEditFieldClick = (field: CollectionField) => {
-    // Close the dropdown
     setOpenDropdownId(null);
-
-    // Set the editing field and open dialog
     setEditingField(field);
-    setEditFieldDialogOpen(true);
-  };
-
-  const handleUpdateFieldFromDialog = async (data: {
-    name: string;
-    type: FieldType;
-    default: string;
-    reference_collection_id?: string | null;
-    data?: CollectionFieldData;
-  }) => {
-    if (!selectedCollectionId || !editingField) return;
-
-    try {
-      // Merge new data with existing data to preserve other settings
-      const mergedData = data.data
-        ? { ...editingField.data, ...data.data }
-        : editingField.data;
-
-      // Store updates local state optimistically
-      await updateField(selectedCollectionId, editingField.id, {
-        name: data.name,
-        default: data.default || null,
-        reference_collection_id: data.reference_collection_id,
-        data: mergedData,
-      });
-
-      // No reload needed - store already updated local state optimistically
-
-      // Close dialog and reset
-      setEditFieldDialogOpen(false);
-      setEditingField(null);
-    } catch (error) {
-      console.error('Failed to update field:', error);
-    }
+    setFieldDialogOpen(true);
   };
 
   // Memoize table to prevent unnecessary re-renders during navigation
@@ -1544,23 +1513,15 @@ const CMS = React.memo(function CMS() {
                     );
                   })}
                   <th className="px-4 py-3 text-left font-medium text-sm w-24 sticky top-0 z-10 bg-background border-b border-border">
-                    <FieldFormPopover
-                      trigger={
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={showSkeleton}
-                        >
-                          <Icon name="plus" />
-                          Add field
-                        </Button>
-                      }
-                      mode="create"
-                      currentCollectionId={selectedCollectionId || undefined}
-                      onSubmit={handleCreateFieldFromPopover}
-                      open={createFieldPopoverOpen}
-                      onOpenChange={setCreateFieldPopoverOpen}
-                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={showSkeleton}
+                      onClick={() => { setEditingField(null); setFieldDialogOpen(true); }}
+                    >
+                      <Icon name="plus" />
+                      Add field
+                    </Button>
                   </th>
                   <th className="sticky top-0 z-10 bg-background border-b border-border" />
                 </tr>
@@ -1903,9 +1864,9 @@ const CMS = React.memo(function CMS() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, createFieldPopoverOpen, searchQuery,
+    sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, fieldDialogOpen, searchQuery,
     collectionItems.length, showSkeleton, totalItems, pageSize, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField,
-    handleHideField, handleDeleteField, handleCreateFieldFromPopover, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem,
+    handleHideField, handleDeleteField, handleFieldDialogSubmit, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem,
     handleToggleItemSelection, sensors,
   ]);
 
@@ -2096,19 +2057,10 @@ const CMS = React.memo(function CMS() {
                 This collection has no fields. Add fields to start managing items.
               </EmptyDescription>
             </Empty>
-            <FieldFormPopover
-              trigger={
-                <Button>
-                  <Icon name="plus" />
-                  Add Field
-                </Button>
-              }
-              mode="create"
-              currentCollectionId={selectedCollectionId || undefined}
-              onSubmit={handleCreateFieldFromPopover}
-              open={createFieldPopoverOpen}
-              onOpenChange={setCreateFieldPopoverOpen}
-            />
+            <Button onClick={() => { setEditingField(null); setFieldDialogOpen(true); }}>
+              <Icon name="plus" />
+              Add Field
+            </Button>
           </div>
         ) : (
           <>
@@ -2221,23 +2173,19 @@ const CMS = React.memo(function CMS() {
         )}
       </div>
 
-      {/* Edit Field Dialog using FieldFormPopover */}
-      {editingField && (
-        <FieldFormPopover
-          mode="edit"
-          field={editingField}
-          currentCollectionId={selectedCollectionId || undefined}
-          onSubmit={handleUpdateFieldFromDialog}
-          open={editFieldDialogOpen}
-          onOpenChange={(open) => {
-            setEditFieldDialogOpen(open);
-            if (!open) {
-              setEditingField(null);
-            }
-          }}
-          useDialog={true}
-        />
-      )}
+      {/* Field Create/Edit Dialog */}
+      <FieldFormDialog
+        field={editingField}
+        currentCollectionId={selectedCollectionId || undefined}
+        onSubmit={handleFieldDialogSubmit}
+        open={fieldDialogOpen}
+        onOpenChange={(open) => {
+          setFieldDialogOpen(open);
+          if (!open) {
+            setEditingField(null);
+          }
+        }}
+      />
 
       {/* Confirm Dialogs */}
       <ConfirmDialog

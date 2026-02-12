@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
+ 
 'use client';
 
 /**
@@ -38,138 +38,16 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { slugify, normalizeBooleanValue } from '@/lib/collection-utils';
-import { validateFieldValue, isAssetFieldType, isMultipleAssetField, getFieldIcon } from '@/lib/collection-field-utils';
-import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType, formatFileSize, getFileExtension } from '@/lib/asset-utils';
+import { validateFieldValue, isAssetFieldType, isMultipleAssetField, getFileManagerCategory, getAssetFieldLabel, getAssetFieldTypeLabel, isValidAssetForField } from '@/lib/collection-field-utils';
 import { formatDateInTimezone, localDatetimeToUTC } from '@/lib/date-format-utils';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import CollectionLinkFieldInput from './CollectionLinkFieldInput';
-import type { Asset, CollectionFieldType, CollectionItemWithValues } from '@/types';
+import AssetFieldCard from './AssetFieldCard';
+import type { Asset, CollectionItemWithValues } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-
-// Asset field configuration maps
-const ASSET_CATEGORY_MAP = {
-  image: ASSET_CATEGORIES.IMAGES,
-  audio: ASSET_CATEGORIES.AUDIO,
-  video: ASSET_CATEGORIES.VIDEOS,
-  document: ASSET_CATEGORIES.DOCUMENTS,
-} as const;
-
-const FIELD_LABEL_MAP = { image: 'image', audio: 'audio', video: 'video', document: 'document' } as const;
-const ADD_BUTTON_LABEL_MAP = { image: 'an image', audio: 'an audio', video: 'a video', document: 'a document' } as const;
-
-/** Get asset category filter for a field type */
-function getAssetCategoryForField(fieldType: CollectionFieldType) {
-  return ASSET_CATEGORY_MAP[fieldType as keyof typeof ASSET_CATEGORY_MAP] ?? ASSET_CATEGORIES.DOCUMENTS;
-}
-
-/** Get label for a field type */
-function getFieldLabel(fieldType: CollectionFieldType) {
-  return FIELD_LABEL_MAP[fieldType as keyof typeof FIELD_LABEL_MAP] ?? 'file';
-}
-
-/** Validate asset type for a field */
-function isValidAssetType(asset: Asset, fieldType: CollectionFieldType): boolean {
-  if (fieldType === 'image') {
-    return !!(asset.mime_type && (isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) || isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS)));
-  }
-  const category = getAssetCategoryForField(fieldType);
-  return !!(asset.mime_type && isAssetOfType(asset.mime_type, category));
-}
-
-/** Get file manager category filter for a field type */
-function getFileManagerCategory(fieldType: CollectionFieldType) {
-  return fieldType === 'image' ? [ASSET_CATEGORIES.IMAGES, ASSET_CATEGORIES.ICONS] : getAssetCategoryForField(fieldType);
-}
-
-interface AssetFieldCardProps {
-  asset: Asset | null;
-  fieldType: CollectionFieldType;
-  onChangeFile: () => void;
-  onRemove: () => void;
-}
-
-/** Reusable card component for displaying an asset in a CMS field */
-function AssetFieldCard({ asset, fieldType, onChangeFile, onRemove }: AssetFieldCardProps) {
-  const isImageField = fieldType === 'image' && asset;
-  const isSvgIcon = isImageField && (!!asset!.content || (asset!.mime_type && isAssetOfType(asset!.mime_type, ASSET_CATEGORIES.ICONS)));
-  const imageUrl = isImageField && asset!.public_url ? asset!.public_url : null;
-  const showCheckerboard = isImageField && (isSvgIcon || !!imageUrl);
-
-  return (
-    <div className="bg-input p-2 rounded-lg flex items-center gap-4">
-      <div className="relative group bg-secondary/30 rounded-md w-full aspect-square overflow-hidden max-w-24 shrink-0">
-        {showCheckerboard && (
-          <div className="absolute inset-0 opacity-10 bg-checkerboard" />
-        )}
-        {isImageField ? (
-          isSvgIcon && asset!.content ? (
-            <div
-              data-icon
-              className="relative w-full h-full flex items-center justify-center p-2 pointer-events-none text-foreground z-10"
-              dangerouslySetInnerHTML={{ __html: asset!.content }}
-            />
-          ) : imageUrl ? (
-            <img
-              src={getOptimizedImageUrl(imageUrl)}
-              className="relative w-full h-full object-contain pointer-events-none z-10"
-              alt="Image preview"
-              loading="lazy"
-            />
-          ) : (
-            <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
-              <Icon name="image" className="size-6" />
-            </div>
-          )
-        ) : (
-          <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
-            {asset && <Icon name={getFieldIcon(fieldType)} className="size-6" />}
-          </div>
-        )}
-      </div>
-      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-        {asset && (
-          <div className="flex flex-col gap-1">
-            <Label className="truncate">{asset.filename}</Label>
-            <span className="text-xs text-current/60 inline-flex gap-2 items-center flex-wrap">
-              {getFileExtension(asset.mime_type)}
-              <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
-              {formatFileSize(asset.file_size)}
-              {asset.width && asset.height && (
-                <>
-                  <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
-                  {asset.width}×{asset.height}
-                </>
-              )}
-            </span>
-          </div>
-        )}
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); onChangeFile(); }}
-          >
-            {asset ? 'Change file' : 'Choose file'}
-          </Button>
-          {asset && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            >
-              Remove
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface CollectionItemSheetProps {
   open: boolean;
@@ -622,20 +500,20 @@ export default function CollectionItemSheet({
                                 }
                               }
 
-                              const fieldLabel = getFieldLabel(field.type);
-                              const addButtonLabel = ADD_BUTTON_LABEL_MAP[field.type as keyof typeof ADD_BUTTON_LABEL_MAP] ?? 'a file';
+                              const fieldTypeLabel = getAssetFieldTypeLabel(field.type);
+                              const addButtonLabel = getAssetFieldLabel(field.type);
 
                               const showInvalidTypeError = () => {
-                                const article = fieldLabel === 'audio' ? 'an' : 'a';
+                                const article = fieldTypeLabel === 'audio' ? 'an' : 'a';
                                 toast.error('Invalid asset type', {
-                                  description: `Please select ${article} ${fieldLabel} file.`,
+                                  description: `Please select ${article} ${fieldTypeLabel} file.`,
                                 });
                               };
 
                               const handleAddAsset = () => {
                                 openFileManager(
                                   (asset) => {
-                                    if (!isValidAssetType(asset, field.type)) {
+                                    if (!isValidAssetForField(asset, field.type)) {
                                       showInvalidTypeError();
                                       return false;
                                     }
@@ -651,7 +529,7 @@ export default function CollectionItemSheet({
                               const handleReplaceAsset = (oldAssetId: string) => {
                                 openFileManager(
                                   (asset) => {
-                                    if (!isValidAssetType(asset, field.type)) {
+                                    if (!isValidAssetForField(asset, field.type)) {
                                       showInvalidTypeError();
                                       return false;
                                     }
@@ -698,16 +576,16 @@ export default function CollectionItemSheet({
                             (() => {
                               const currentAssetId = formField.value || null;
                               const currentAsset = currentAssetId ? getAsset(currentAssetId) : null;
-                              const fieldLabel = getFieldLabel(field.type);
-                              const addButtonLabel = ADD_BUTTON_LABEL_MAP[field.type as keyof typeof ADD_BUTTON_LABEL_MAP] ?? 'a file';
+                              const fieldTypeLabel = getAssetFieldTypeLabel(field.type);
+                              const addButtonLabel = getAssetFieldLabel(field.type);
 
                               const handleOpenFileManager = () => {
                                 openFileManager(
                                   (asset) => {
-                                    if (!isValidAssetType(asset, field.type)) {
-                                      const article = fieldLabel === 'audio' ? 'an' : 'a';
+                                    if (!isValidAssetForField(asset, field.type)) {
+                                      const article = fieldTypeLabel === 'audio' ? 'an' : 'a';
                                       toast.error('Invalid asset type', {
-                                        description: `Please select ${article} ${fieldLabel} file.`,
+                                        description: `Please select ${article} ${fieldTypeLabel} file.`,
                                       });
                                       return false;
                                     }
