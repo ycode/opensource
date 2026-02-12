@@ -5,8 +5,9 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Layer } from '@/types';
-import { findDisplayField } from './collection-field-utils';
+import { ASSET_FIELD_TYPES, findDisplayField } from './collection-field-utils';
 
 export interface AssetUsageEntry {
   id: string;
@@ -18,10 +19,16 @@ export interface CmsItemUsageEntry extends AssetUsageEntry {
   collectionName: string;
 }
 
+export interface FieldDefaultUsageEntry extends AssetUsageEntry {
+  collectionId: string;
+  collectionName: string;
+}
+
 export interface AssetUsageResult {
   pages: AssetUsageEntry[];
   components: AssetUsageEntry[];
   cmsItems: CmsItemUsageEntry[];
+  fieldDefaults: FieldDefaultUsageEntry[];
   total: number;
 }
 
@@ -127,6 +134,77 @@ function pageSettingsContainAsset(settings: any, assetId: string): boolean {
   // Check SEO image
   if (settings?.seo?.image === assetId) return true;
   return false;
+}
+
+/**
+ * Parse a field default value into an array of asset IDs.
+ * Returns the parsed array (cached) for multi-asset, or null if not a JSON array.
+ */
+function parseDefaultAssetIds(defaultVal: string): string[] | null {
+  if (!defaultVal.startsWith('[')) return null;
+  try {
+    return JSON.parse(defaultVal) as string[];
+  } catch {
+    return null;
+  }
+}
+
+/** Check if a field default value (single ID or JSON array) references a given asset */
+function fieldDefaultReferencesAsset(defaultVal: string, assetId: string, parsedIds?: string[] | null): boolean {
+  if (defaultVal === assetId) return true;
+  const ids = parsedIds !== undefined ? parsedIds : parseDefaultAssetIds(defaultVal);
+  return ids != null && ids.includes(assetId);
+}
+
+/** Fetch collection names by IDs and return a lookup map */
+async function fetchCollectionNames(
+  client: SupabaseClient,
+  collectionIds: string[]
+): Promise<Record<string, string>> {
+  if (collectionIds.length === 0) return {};
+
+  const { data, error } = await client
+    .from('collections')
+    .select('id, name')
+    .in('id', collectionIds)
+    .eq('is_published', false)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch collections: ${error.message}`);
+  }
+
+  const map: Record<string, string> = {};
+  (data || []).forEach((c: any) => {
+    map[c.id] = c.name ?? 'Unknown Collection';
+  });
+  return map;
+}
+
+interface AssetFieldDefault {
+  id: string;
+  name?: string;
+  collection_id: string;
+  default: string | null;
+}
+
+/** Fetch asset-type collection fields that have a non-null default value */
+async function fetchAssetFieldsWithDefaults(
+  client: SupabaseClient,
+  selectColumns: string = 'id, name, collection_id, default'
+): Promise<AssetFieldDefault[]> {
+  const { data, error } = await client
+    .from('collection_fields')
+    .select(selectColumns)
+    .in('type', ASSET_FIELD_TYPES)
+    .eq('is_published', false)
+    .is('deleted_at', null)
+    .not('default', 'is', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch field defaults: ${error.message}`);
+  }
+  return (data || []) as unknown as AssetFieldDefault[];
 }
 
 /**
@@ -246,30 +324,13 @@ export async function getAssetUsage(assetId: string): Promise<AssetUsageResult> 
         throw new Error(`Failed to fetch collection items: ${itemsError.message}`);
       }
 
-      const collectionIds = [...new Set((items || []).map((i) => i.collection_id))];
-
-      // Get collection names
-      const { data: collections, error: collectionsError } = await client
-        .from('collections')
-        .select('id, name')
-        .in('id', collectionIds)
-        .eq('is_published', false)
-        .is('deleted_at', null);
-
-      if (collectionsError) {
-        throw new Error(`Failed to fetch collections: ${collectionsError.message}`);
-      }
-
-      const collectionNamesById: Record<string, string> = {};
-      (collections || []).forEach((c: any) => {
-        collectionNamesById[c.id] = c.name ?? 'Unknown Collection';
-      });
+      const cmsCollectionIds = [...new Set((items || []).map((i) => i.collection_id))];
 
       // Get fields for display name (key=name, title, or first text field)
       const { data: allFields, error: allFieldsError } = await client
         .from('collection_fields')
         .select('id, key, type, fillable, collection_id')
-        .in('collection_id', collectionIds)
+        .in('collection_id', cmsCollectionIds)
         .eq('is_published', false)
         .is('deleted_at', null);
 
@@ -279,7 +340,7 @@ export async function getAssetUsage(assetId: string): Promise<AssetUsageResult> 
 
       // Find display field per collection
       const displayFieldByCollection: Record<string, { id: string }> = {};
-      for (const collectionId of collectionIds) {
+      for (const collectionId of cmsCollectionIds) {
         const fields = (allFields || []).filter((f) => f.collection_id === collectionId);
         const displayField = findDisplayField(fields as any);
         if (displayField) {
@@ -312,17 +373,49 @@ export async function getAssetUsage(assetId: string): Promise<AssetUsageResult> 
           displayField && valueByItem[`${item.id}:${displayField.id}`]
             ? valueByItem[`${item.id}:${displayField.id}`]
             : 'Untitled';
-        const collectionName = collectionNamesById[item.collection_id] ?? 'Unknown Collection';
-        cmsItemEntries.push({ id: item.id, name, collectionId: item.collection_id, collectionName });
+        cmsItemEntries.push({ id: item.id, name, collectionId: item.collection_id, collectionName: '' });
       }
     }
+  }
+
+  // Check collection field defaults that reference this asset
+  const fieldDefaultEntries: FieldDefaultUsageEntry[] = [];
+  const assetFieldsWithDefaults = await fetchAssetFieldsWithDefaults(client);
+
+  for (const field of assetFieldsWithDefaults) {
+    const defaultVal = field.default as string;
+    if (fieldDefaultReferencesAsset(defaultVal, assetId)) {
+      fieldDefaultEntries.push({
+        id: field.id,
+        name: field.name ?? 'Unknown Field',
+        collectionId: field.collection_id,
+        collectionName: '',
+      });
+    }
+  }
+
+  // Resolve all collection names in a single query
+  const allCollectionIds = [
+    ...new Set([
+      ...cmsItemEntries.map((e) => e.collectionId),
+      ...fieldDefaultEntries.map((e) => e.collectionId),
+    ]),
+  ];
+  const collectionNamesById = await fetchCollectionNames(client, allCollectionIds);
+
+  for (const entry of cmsItemEntries) {
+    entry.collectionName = collectionNamesById[entry.collectionId] ?? 'Unknown Collection';
+  }
+  for (const entry of fieldDefaultEntries) {
+    entry.collectionName = collectionNamesById[entry.collectionId] ?? 'Unknown Collection';
   }
 
   return {
     pages: pageEntries,
     components: componentEntries,
     cmsItems: cmsItemEntries,
-    total: pageEntries.length + componentEntries.length + cmsItemEntries.length,
+    fieldDefaults: fieldDefaultEntries,
+    total: pageEntries.length + componentEntries.length + cmsItemEntries.length + fieldDefaultEntries.length,
   };
 }
 
@@ -346,7 +439,7 @@ export async function getBulkAssetUsage(
   // Initialize results
   const results: Record<string, AssetUsageResult> = {};
   for (const assetId of assetIds) {
-    results[assetId] = { pages: [], components: [], cmsItems: [], total: 0 };
+    results[assetId] = { pages: [], components: [], cmsItems: [], fieldDefaults: [], total: 0 };
   }
 
   // Create a set for faster lookup
@@ -441,6 +534,8 @@ export async function getBulkAssetUsage(
   }
 
   // Check CMS items
+  let cmsCollectionIds: string[] = [];
+
   const { data: imageFields, error: fieldsError } = await client
     .from('collection_fields')
     .select('id')
@@ -479,7 +574,6 @@ export async function getBulkAssetUsage(
     }
 
     const uniqueItemIds = [...new Set(Object.values(itemIdsByAsset).flatMap((s) => [...s]))];
-    const collectionNamesById: Record<string, string> = {};
     const itemCollectionById: Record<string, string> = {};
 
     if (uniqueItemIds.length > 0) {
@@ -493,38 +587,59 @@ export async function getBulkAssetUsage(
       (items || []).forEach((i: any) => {
         itemCollectionById[i.id] = i.collection_id;
       });
-
-      const collectionIds = [...new Set(Object.values(itemCollectionById))];
-      if (collectionIds.length > 0) {
-        const { data: collections } = await client
-          .from('collections')
-          .select('id, name')
-          .in('id', collectionIds)
-          .eq('is_published', false)
-          .is('deleted_at', null);
-
-        (collections || []).forEach((c: any) => {
-          collectionNamesById[c.id] = c.name ?? 'Unknown Collection';
-        });
-      }
     }
 
     for (const assetId of assetIds) {
       results[assetId].cmsItems = [...itemIdsByAsset[assetId]].map((id) => {
         const collectionId = itemCollectionById[id] ?? '';
-        return {
-          id,
-          name: 'Untitled',
-          collectionId,
-          collectionName: collectionNamesById[collectionId] ?? 'Unknown Collection',
-        };
+        return { id, name: 'Untitled', collectionId, collectionName: '' };
       });
+    }
+
+    cmsCollectionIds = [...new Set(Object.values(itemCollectionById))];
+  }
+
+  // Check collection field defaults
+  const assetFieldsWithDefaults = await fetchAssetFieldsWithDefaults(client);
+
+  for (const field of assetFieldsWithDefaults) {
+    const defaultVal = field.default as string;
+    // Parse once per field, reuse for all asset IDs
+    const parsedIds = parseDefaultAssetIds(defaultVal);
+    for (const assetId of assetIds) {
+      if (fieldDefaultReferencesAsset(defaultVal, assetId, parsedIds)) {
+        results[assetId].fieldDefaults.push({
+          id: field.id,
+          name: field.name ?? 'Unknown Field',
+          collectionId: field.collection_id,
+          collectionName: '',
+        });
+      }
+    }
+  }
+
+  // Resolve all collection names in a single query
+  const defaultCollectionIds = new Set<string>();
+  for (const assetId of assetIds) {
+    for (const entry of results[assetId].fieldDefaults) {
+      defaultCollectionIds.add(entry.collectionId);
+    }
+  }
+  const allCollectionIds = [...new Set([...cmsCollectionIds, ...defaultCollectionIds])];
+  const collectionNamesById = await fetchCollectionNames(client, allCollectionIds);
+
+  for (const assetId of assetIds) {
+    for (const entry of results[assetId].cmsItems) {
+      entry.collectionName = collectionNamesById[entry.collectionId] ?? 'Unknown Collection';
+    }
+    for (const entry of results[assetId].fieldDefaults) {
+      entry.collectionName = collectionNamesById[entry.collectionId] ?? 'Unknown Collection';
     }
   }
 
   for (const assetId of assetIds) {
     const r = results[assetId];
-    r.total = r.pages.length + r.components.length + r.cmsItems.length;
+    r.total = r.pages.length + r.components.length + r.cmsItems.length + r.fieldDefaults.length;
   }
 
   return results;
@@ -659,6 +774,7 @@ export interface AssetCleanupResult {
   pagesUpdated: number;
   componentsUpdated: number;
   cmsItemsUpdated: number;
+  fieldDefaultsUpdated: number;
   affectedPages: AffectedPageEntity[];
   affectedComponents: AffectedComponentEntity[];
 }
@@ -837,10 +953,41 @@ export async function cleanupAssetReferences(assetId: string): Promise<AssetClea
     }
   }
 
+  // 5. Update collection field defaults that reference this asset
+  let fieldDefaultsUpdated = 0;
+  const assetFieldsWithDefaults = await fetchAssetFieldsWithDefaults(client, 'id, default');
+
+  for (const field of assetFieldsWithDefaults) {
+    const defaultVal = field.default as string;
+    const parsedIds = parseDefaultAssetIds(defaultVal);
+
+    if (!fieldDefaultReferencesAsset(defaultVal, assetId, parsedIds)) continue;
+
+    // Compute new default: null for single-asset, filtered array for multi-asset
+    let newDefault: string | null = null;
+    if (parsedIds) {
+      const filtered = parsedIds.filter((id) => id !== assetId);
+      newDefault = filtered.length > 0 ? JSON.stringify(filtered) : null;
+    }
+
+    const { error: updateError } = await client
+      .from('collection_fields')
+      .update({ default: newDefault, updated_at: new Date().toISOString() })
+      .eq('id', field.id)
+      .eq('is_published', false);
+
+    if (updateError) {
+      console.error(`Failed to update field default ${field.id}:`, updateError);
+    } else {
+      fieldDefaultsUpdated++;
+    }
+  }
+
   return {
     pagesUpdated,
     componentsUpdated,
     cmsItemsUpdated,
+    fieldDefaultsUpdated,
     affectedPages,
     affectedComponents,
   };

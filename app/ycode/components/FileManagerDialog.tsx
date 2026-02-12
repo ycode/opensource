@@ -46,7 +46,7 @@ import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
 import { assetFoldersApi, assetsApi, uploadFileApi } from '@/lib/api';
 import type { AssetFolder, Asset } from '@/types';
-import type { AssetUsageResult, CmsItemUsageEntry } from '@/lib/asset-usage-utils';
+import type { AssetUsageResult, CmsItemUsageEntry, FieldDefaultUsageEntry } from '@/lib/asset-usage-utils';
 import { getAcceptString, getAssetIcon, getOptimizedImageUrl, isAssetOfType, matchesCategoryFilter, normalizeCategoryFilter } from '@/lib/asset-utils';
 import { ASSET_CATEGORIES } from '@/lib/asset-constants';
 import type { AssetCategory, AssetCategoryFilter } from '@/types';
@@ -532,7 +532,7 @@ export default function FileManagerDialog({
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [showDeleteAssetConfirmDialog, setShowDeleteAssetConfirmDialog] = useState(false);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
-  const [assetUsage, setAssetUsage] = useState<{ pages: { id: string; name: string }[]; components: { id: string; name: string }[]; cmsItems: { id: string; name: string }[]; total: number } | null>(null);
+  const [assetUsage, setAssetUsage] = useState<AssetUsageResult | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(false);
   const [showEditAssetDialog, setShowEditAssetDialog] = useState(false);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
@@ -2606,6 +2606,25 @@ export default function FileManagerDialog({
                       return (
                         <li key={item.id}>
                           {item.collectionName}: {item.name}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {assetUsage.fieldDefaults.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">Field default values</span>
+                    <span>&mdash;</span>
+                    <span>{assetUsage.fieldDefaults.length} field{assetUsage.fieldDefaults.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {assetUsage.fieldDefaults.map((f) => {
+                      const field = f as FieldDefaultUsageEntry;
+                      return (
+                        <li key={field.id}>
+                          Field &quot;{field.name}&quot; in the &quot;{field.collectionName}&quot; collection
                         </li>
                       );
                     })}
