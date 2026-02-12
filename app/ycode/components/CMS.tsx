@@ -1404,115 +1404,116 @@ const CMS = React.memo(function CMS() {
           items={sortedItems.map(item => item.id)}
           strategy={verticalListSortingStrategy}
         >
-          <table className="w-full">
-            <thead className="border-b">
-              <tr>
-                <th className="pl-5 pr-3 py-5 text-left font-normal w-12">
-                  <div className="flex">
-                  <Checkbox
-                    checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
-                    onCheckedChange={handleSelectAll}
-                    disabled={showSkeleton}
-                  />
-                  </div>
-                </th>
+          <div className="flex flex-col">
+            <table className="border-0 whitespace-nowrap text-xs min-w-full align-top border-separate border-spacing-[0px] [&>tbody>tr>td]:border-b">
+              <thead className="">
+                <tr className="">
+                  <th className="pl-5 pr-3 py-5 text-left font-normal w-12 sticky top-0 z-10 bg-background border-b border-border">
+                    <div className="flex">
+                    <Checkbox
+                      checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
+                      onCheckedChange={handleSelectAll}
+                      disabled={showSkeleton}
+                    />
+                    </div>
+                  </th>
 
-                {collectionFields.filter(f => !f.hidden).map((field) => {
-                  const sorting = selectedCollection?.sorting;
-                  const isActiveSort = sorting?.field === field.id;
-                  const sortIcon = isActiveSort && sorting ? (
-                    sorting.direction === 'manual' ? 'M' :
-                      sorting.direction === 'asc' ? '↑' :
-                        '↓'
-                  ) : null;
+                  {collectionFields.filter(f => !f.hidden).map((field) => {
+                    const sorting = selectedCollection?.sorting;
+                    const isActiveSort = sorting?.field === field.id;
+                    const sortIcon = isActiveSort && sorting ? (
+                      sorting.direction === 'manual' ? 'M' :
+                        sorting.direction === 'asc' ? '↑' :
+                          '↓'
+                    ) : null;
 
-                  return (
-                    <th key={field.id} className="px-4 py-5 text-left font-normal">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => !showSkeleton && handleColumnClick(field.id)}
-                          className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
-                          style={{ pointerEvents: showSkeleton ? 'none' : 'auto' }}
+                    return (
+                      <th key={field.id} className="px-4 py-5 text-left font-normal sticky top-0 z-10 bg-background border-b border-border">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => !showSkeleton && handleColumnClick(field.id)}
+                            className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
+                            style={{ pointerEvents: showSkeleton ? 'none' : 'auto' }}
+                          >
+                            {field.name}
+                            {sortIcon && (
+                              <span className="text-xs font-mono">
+                                {sortIcon}
+                              </span>
+                            )}
+                          </button>
+                          <DropdownMenu
+                            open={openDropdownId === field.id}
+                            onOpenChange={(open) => !showSkeleton && setOpenDropdownId(open ? field.id : null)}
+                          >
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                className="-my-2"
+                                disabled={showSkeleton}
+                              >
+                                <Icon name="more" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem
+                                onSelect={() => handleEditFieldClick(field)}
+                                disabled={!!field.key}
+                              >
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDuplicateField(field.id)}
+                                disabled={!!field.key}
+                              >
+                                Duplicate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleHideField(field.id)}
+                                disabled={field.name.toLowerCase() === 'name'}
+                              >
+                                {field.hidden ? 'Show' : 'Hide'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteField(field.id)}
+                                disabled={!!field.key}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </th>
+                    );
+                  })}
+                  <th className="px-4 py-3 text-left font-medium text-sm w-24 sticky top-0 z-10 bg-background border-b border-border">
+                    <FieldFormPopover
+                      trigger={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={showSkeleton}
                         >
-                          {field.name}
-                          {sortIcon && (
-                            <span className="text-xs font-mono">
-                              {sortIcon}
-                            </span>
-                          )}
-                        </button>
-                        <DropdownMenu
-                          open={openDropdownId === field.id}
-                          onOpenChange={(open) => !showSkeleton && setOpenDropdownId(open ? field.id : null)}
-                        >
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="xs"
-                              variant="ghost"
-                              className="-my-2"
-                              disabled={showSkeleton}
-                            >
-                              <Icon name="more" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
-                            <DropdownMenuItem
-                              onSelect={() => handleEditFieldClick(field)}
-                              disabled={!!field.key}
-                            >
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDuplicateField(field.id)}
-                              disabled={!!field.key}
-                            >
-                              Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleHideField(field.id)}
-                              disabled={field.name.toLowerCase() === 'name'}
-                            >
-                              {field.hidden ? 'Show' : 'Hide'}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteField(field.id)}
-                              disabled={!!field.key}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </th>
-                  );
-                })}
-                <th className="px-4 py-3 text-left font-medium text-sm w-24">
-                  <FieldFormPopover
-                    trigger={
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={showSkeleton}
-                      >
-                        <Icon name="plus" />
-                        Add field
-                      </Button>
-                    }
-                    mode="create"
-                    currentCollectionId={selectedCollectionId || undefined}
-                    onSubmit={handleCreateFieldFromPopover}
-                    open={createFieldPopoverOpen}
-                    onOpenChange={setCreateFieldPopoverOpen}
-                  />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                          <Icon name="plus" />
+                          Add field
+                        </Button>
+                      }
+                      mode="create"
+                      currentCollectionId={selectedCollectionId || undefined}
+                      onSubmit={handleCreateFieldFromPopover}
+                      open={createFieldPopoverOpen}
+                      onOpenChange={setCreateFieldPopoverOpen}
+                    />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
               {showSkeleton && totalItems > 0 ? (
                 // Skeleton loading rows - show exact expected number
                 Array.from({ length: Math.min(pageSize, totalItems) }).map((_, index) => (
-                  <tr key={`skeleton-${index}`} className="border-b">
+                  <tr key={`skeleton-${index}`}>
                     <td className="pl-5 pr-3 py-5 w-12">
                       <div className="w-4 h-4 bg-secondary rounded animate-pulse" />
                     </td>
@@ -1521,7 +1522,7 @@ const CMS = React.memo(function CMS() {
                         <div className="h-4 bg-secondary/50 rounded-[6px] animate-pulse w-1/3" />
                       </td>
                     ))}
-                    <td className="px-4 py-3"></td>
+                    <td className="px-4 py-3 "></td>
                   </tr>
                 ))
               ) : showSkeleton ? (
@@ -1539,7 +1540,7 @@ const CMS = React.memo(function CMS() {
                     lockInfo={getItemLockInfo(item.id)}
                   >
                     <td
-                      className="pl-5 pr-3 py-3 w-12"
+                      className="pl-5 pr-3 py-3 w-12 !border-b-0"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!isManualMode) {
@@ -1570,7 +1571,9 @@ const CMS = React.memo(function CMS() {
                             className="px-4 py-5 text-muted-foreground"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
-                            {formatDateInTimezone(value, timezone, 'display')}
+                            <span className="line-clamp-1">
+                              {formatDateInTimezone(value, timezone, 'display')}
+                            </span>
                           </td>
                         );
                       }
@@ -1647,7 +1650,7 @@ const CMS = React.memo(function CMS() {
                                 );
                               })}
                               {assetIds.length > 3 && (
-                                <span className="text-xs text-muted-foreground">+{assetIds.length - 3}</span>
+                                <span className="text-xs text-muted-foreground line-clamp-1">+{assetIds.length - 3}</span>
                               )}
                             </div>
                           </td>
@@ -1700,7 +1703,7 @@ const CMS = React.memo(function CMS() {
                                 );
                               })}
                               {assetIds.length > 3 && (
-                                <span className="text-xs text-muted-foreground">+{assetIds.length - 3}</span>
+                                <span className="text-xs text-muted-foreground line-clamp-1">+{assetIds.length - 3}</span>
                               )}
                             </div>
                           </td>
@@ -1814,7 +1817,9 @@ const CMS = React.memo(function CMS() {
                           className="px-4 py-5 text-muted-foreground"
                           onClick={() => !isManualMode && handleEditItem(item)}
                         >
-                          {value || '-'}
+                          <span className="line-clamp-1">
+                            {value || '-'}
+                          </span>
                         </td>
                       );
                     })}
@@ -1823,7 +1828,7 @@ const CMS = React.memo(function CMS() {
                 ))
               ) : (
                 <tr className="group">
-                  <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4 ">
+                  <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4">
                     {searchQuery && collectionItems.length > 0 ? (
                       <div className="text-muted-foreground py-32">
                         No items found matching &quot;{searchQuery}&quot;
@@ -1835,7 +1840,8 @@ const CMS = React.memo(function CMS() {
                 </tr>
               )}
             </tbody>
-          </table>
+            </table>
+          </div>
         </SortableContext>
       </DndContext>
     );
