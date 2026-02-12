@@ -586,22 +586,33 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     // Track IDs used during this normalization (for templates with multiple elements)
     const usedSettingsIds = new Set<string>(existingSettingsIds);
 
+    // Form elements use a wrapper div - don't set customName so it shows as "Block"
+    const formWrapperTypes = ['input', 'textarea', 'select', 'checkbox', 'radio'];
+    const isFormWrapper = formWrapperTypes.includes(templateId);
+
+    // Track old→new settings.id mappings so we can update 'for' attributes on labels
+    const idMappings = new Map<string, string>();
+
     // Set the display name for the root layer and generate unique settings IDs
     const normalizeLayer = (layer: Layer, isRoot: boolean = true): Layer => {
       const normalized = { ...layer };
 
-      if (isRoot && displayName) {
+      if (isRoot && displayName && !isFormWrapper) {
         normalized.customName = displayName;
       }
 
       // Generate unique settings.id if the layer has one
       if (normalized.settings?.id) {
-        const uniqueId = generateUniqueSettingsId(normalized.settings.id, usedSettingsIds);
+        const originalId = normalized.settings.id;
+        const uniqueId = generateUniqueSettingsId(originalId, usedSettingsIds);
         usedSettingsIds.add(uniqueId);
         normalized.settings = {
           ...normalized.settings,
           id: uniqueId,
         };
+        if (originalId !== uniqueId) {
+          idMappings.set(originalId, uniqueId);
+        }
       }
 
       // Recursively normalize children
@@ -617,7 +628,26 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return normalized;
     };
 
-    const newLayer = normalizeLayer(template, true);
+    // Update 'for' attributes on labels to match the new unique settings IDs
+    const updateForAttributes = (layer: Layer): Layer => {
+      const updated = { ...layer };
+      if (updated.attributes?.for && idMappings.has(updated.attributes.for)) {
+        updated.attributes = {
+          ...updated.attributes,
+          for: idMappings.get(updated.attributes.for),
+        };
+      }
+      if (updated.children) {
+        updated.children = updated.children.map(child => updateForAttributes(child));
+      }
+      return updated;
+    };
+
+    let newLayer = normalizeLayer(template, true);
+    // Fix label 'for' attributes to point to the new unique IDs
+    if (idMappings.size > 0) {
+      newLayer = updateForAttributes(newLayer);
+    }
     const newLayerId = newLayer.id;
 
     // Detect if we're adding a Section layer
@@ -662,11 +692,16 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
         const result = findLayerWithParent(draft.layers, parentLayerId);
 
+        // When adding a form element and the selected node's parent is a form,
+        // add as sibling after the selected node (not as a child of it).
+        // This way new form fields appear at the same level inside the form.
+        const shouldAddAsSiblingInForm = isFormWrapper && result?.parent?.name === 'form';
+
         // Check if parent can have children or if link nesting would occur
-        const cannotAddAsChild = result && (
+        const cannotAddAsChild = shouldAddAsSiblingInForm || (result && (
           !canHaveChildren(result.layer, newLayer.name) ||
           !canAddChild(result.layer, newLayer)
-        );
+        ));
 
         if (cannotAddAsChild) {
 
