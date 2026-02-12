@@ -1906,7 +1906,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             )}
 
             {/* CMS View - kept mounted for instant switching */}
-            <div className={activeTab === 'cms' ? 'flex flex-1' : 'hidden'}>
+            <div className={activeTab === 'cms' ? 'flex flex-1 min-w-0 overflow-hidden' : 'hidden'}>
               <Suspense fallback={null}>
                 <CMS />
               </Suspense>

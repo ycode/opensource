@@ -1460,7 +1460,7 @@ const CMS = React.memo(function CMS() {
           strategy={verticalListSortingStrategy}
         >
           <div className="flex flex-col">
-            <table className="border-0 whitespace-nowrap text-xs min-w-full align-top border-separate border-spacing-[0px] [&>tbody>tr>td]:border-b">
+            <table className="border-0 whitespace-nowrap text-xs min-w-full align-top border-separate border-spacing-[0px] [&>tbody>tr>td]:border-b [&>tbody>tr>td]:max-w-56">
               <thead className="">
                 <tr className="">
                   <th className="pl-5 pr-3 py-5 text-left font-normal w-12 sticky top-0 z-10 bg-background border-b border-border">
@@ -1487,10 +1487,10 @@ const CMS = React.memo(function CMS() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => !showSkeleton && handleColumnClick(field.id)}
-                            className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
+                            className="flex items-center gap-1 hover:opacity-50 cursor-pointer max-w-40"
                             style={{ pointerEvents: showSkeleton ? 'none' : 'auto' }}
                           >
-                            {field.name}
+                            <span className="truncate">{field.name}</span>
                             {sortIcon && (
                               <span className="text-xs font-mono">
                                 {sortIcon}
@@ -1562,6 +1562,7 @@ const CMS = React.memo(function CMS() {
                       onOpenChange={setCreateFieldPopoverOpen}
                     />
                   </th>
+                  <th className="sticky top-0 z-10 bg-background border-b border-border" />
                 </tr>
               </thead>
               <tbody>
@@ -1626,7 +1627,7 @@ const CMS = React.memo(function CMS() {
                             className="px-4 py-5 text-muted-foreground"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
-                            <span className="line-clamp-1">
+                            <span className="line-clamp-1 truncate">
                               {formatDateInTimezone(value, timezone, 'display')}
                             </span>
                           </td>
@@ -1705,7 +1706,7 @@ const CMS = React.memo(function CMS() {
                                 );
                               })}
                               {assetIds.length > 3 && (
-                                <span className="text-xs text-muted-foreground line-clamp-1">+{assetIds.length - 3}</span>
+                                <span className="text-xs text-muted-foreground line-clamp-1 truncate">+{assetIds.length - 3}</span>
                               )}
                             </div>
                           </td>
@@ -1758,7 +1759,7 @@ const CMS = React.memo(function CMS() {
                                 );
                               })}
                               {assetIds.length > 3 && (
-                                <span className="text-xs text-muted-foreground line-clamp-1">+{assetIds.length - 3}</span>
+                                <span className="text-xs text-muted-foreground line-clamp-1 truncate">+{assetIds.length - 3}</span>
                               )}
                             </div>
                           </td>
@@ -1872,7 +1873,7 @@ const CMS = React.memo(function CMS() {
                           className="px-4 py-5 text-muted-foreground"
                           onClick={() => !isManualMode && handleEditItem(item)}
                         >
-                          <span className="line-clamp-1">
+                          <span className="line-clamp-1 truncate">
                             {value || '-'}
                           </span>
                         </td>
@@ -2012,9 +2013,9 @@ const CMS = React.memo(function CMS() {
   }
 
   return (
-    <div className="flex-1 bg-background flex">
+    <div className="flex-1 bg-background flex min-w-0">
       {collectionsSidebar}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
 
       <div className="p-4 flex items-center justify-between border-b">
 
@@ -2081,7 +2082,7 @@ const CMS = React.memo(function CMS() {
       </div>
 
       {/* Items Content */}
-      <div className="flex-1 overflow-auto flex flex-col">
+      <div className="flex-1 overflow-auto flex flex-col min-w-0">
         {loadingSampleCollectionId === selectedCollectionId ? (
           <div className="flex flex-col items-center justify-center gap-4 p-8 flex-1">
             <Spinner />
