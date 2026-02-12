@@ -51,7 +51,7 @@ const nextConfig: NextConfig = {
             key: 'Cache-Control',
             // stale-while-revalidate=86400: Serve stale while updating in background
             // must-revalidate: Browser must check with CDN before using cache
-            value: 's-maxage=0, stale-while-revalidate=0, max-age=0, must-revalidate',
+            value: 'public, s-maxage=31536000, stale-while-revalidate=31536000',
           },
         ],
       },

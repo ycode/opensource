@@ -9,7 +9,7 @@ import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Metadata } from 'next';
 
 // Static by default for performance, dynamic only when pagination is requested
-export const revalidate = 3600; // Revalidate every hour
+export const revalidate = false; // Cache indefinitely until publish invalidates
 
 /**
  * Fetch homepage data from database
@@ -31,7 +31,7 @@ async function fetchPublishedHomepage(paginationContext?: PaginationContext) {
       ['data-for-route-/', `pagination-${paginationKey}`],
       {
         tags: ['route-/'], // Tag for on-demand revalidation via revalidateTag()
-        revalidate: 3600,
+        revalidate: false,
       }
     )();
   } catch {

@@ -12,7 +12,7 @@ import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/l
 import type { Page, PageFolder, Translation, Redirect as RedirectType } from '@/types';
 
 // Static by default for performance, dynamic only when pagination is requested
-export const revalidate = 3600; // Revalidate every hour
+export const revalidate = false; // Cache indefinitely until publish invalidates
 export const dynamicParams = true;
 
 /**
@@ -163,7 +163,7 @@ async function fetchPublishedPageWithLayers(slugPath: string, paginationContext?
       [`data-for-route-/${slugPath}`, `pagination-${paginationKey}`],
       {
         tags: [`route-/${slugPath}`], // Tag for revalidation on publish
-        revalidate: 3600,
+        revalidate: false,
       }
     )();
   } catch {

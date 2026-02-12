@@ -121,7 +121,7 @@ export async function proxy(request: NextRequest) {
   if (isPublicPage) {
     response.headers.set(
       'Cache-Control',
-      'public, s-maxage=0, stale-while-revalidate=0, max-age=0, must-revalidate'
+      'public, s-maxage=31536000, stale-while-revalidate=31536000'
     );
     response.headers.set('Vary', 'Accept-Encoding');
   }
