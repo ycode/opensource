@@ -180,7 +180,7 @@ export function findLayerById(layers: Layer[], id: string): Layer | null {
 }
 
 /**
- * Collect all settings.id values from a layer tree
+ * Collect all element IDs from a layer tree (both settings.id and attributes.id)
  * Used for generating unique IDs for new elements
  */
 export function collectAllSettingsIds(layers: Layer[]): Set<string> {
@@ -190,6 +190,10 @@ export function collectAllSettingsIds(layers: Layer[]): Set<string> {
     for (const layer of layerList) {
       if (layer.settings?.id) {
         ids.add(layer.settings.id);
+      }
+      // Also collect attributes.id for backward compatibility
+      if (layer.attributes?.id) {
+        ids.add(layer.attributes.id);
       }
       if (layer.children) {
         traverse(layer.children);
@@ -906,6 +910,12 @@ export function getLayerIcon(
   // Other named layers
   if (layer.customName === 'Container') return 'container';
 
+  // Input elements - use type-specific icons for checkbox and radio
+  if (layer.name === 'input' && layer.attributes?.type) {
+    if (layer.attributes.type === 'checkbox') return 'checkbox';
+    if (layer.attributes.type === 'radio') return 'radio';
+  }
+
   // Fallback to block icon (based on name)
   return getBlockIcon(layer.name, defaultIcon);
 }
@@ -955,6 +965,12 @@ export function getLayerName(
   // Use custom name if available
   if (layer.customName) {
     return layer.customName;
+  }
+
+  // Input elements - use type-specific names for checkbox and radio
+  if (layer.name === 'input' && layer.attributes?.type) {
+    if (layer.attributes.type === 'checkbox') return 'Checkbox';
+    if (layer.attributes.type === 'radio') return 'Radio';
   }
 
   return getBlockName(layer.name) || 'Layer';

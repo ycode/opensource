@@ -39,6 +39,7 @@ import AlertSettings from './AlertSettings';
 import HTMLEmbedSettings from './HTMLEmbedSettings';
 import InputSettings from './InputSettings';
 import SelectOptionsSettings from './SelectOptionsSettings';
+import LabelSettings from './LabelSettings';
 import LinkSettings, { type LinkSettingsValue } from './LinkSettings';
 import RichTextEditor from './RichTextEditor';
 import InteractionsPanel from './InteractionsPanel';
@@ -642,7 +643,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
   if (selectedLayerId !== prevSelectedLayerId) {
     setPrevSelectedLayerId(selectedLayerId);
-    setCustomId(sanitizeHtmlId(selectedLayer?.attributes?.id || ''));
+    setCustomId(sanitizeHtmlId(selectedLayer?.settings?.id || selectedLayer?.attributes?.id || ''));
     setIsHidden(selectedLayer?.settings?.hidden || false);
     setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
     setTextTag(selectedLayer?.settings?.tag || getDefaultTextTag(selectedLayer));
@@ -744,14 +745,14 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   }, [addClass, currentClassInput]);
 
-  // Handle custom ID change
+  // Handle custom ID change - store in settings.id (takes priority over attributes.id in renderer)
   const handleIdChange = (value: string) => {
     const sanitizedId = sanitizeHtmlId(value);
     setCustomId(sanitizedId);
     if (selectedLayerId) {
-      const currentAttributes = selectedLayer?.attributes || {};
+      const currentSettings = selectedLayer?.settings || {};
       handleLayerUpdate(selectedLayerId, {
-        attributes: { ...currentAttributes, id: sanitizedId }
+        settings: { ...currentSettings, id: sanitizedId }
       });
     }
   };
@@ -2282,7 +2283,7 @@ const RightSidebar = React.memo(function RightSidebar({
             })()}
 
             {/* Link Settings - hide for form-related layers that should not be links */}
-            {selectedLayer && !['form', 'select', 'input', 'textarea', 'checkbox', 'radio', 'label'].includes(selectedLayer.name) && (
+            {selectedLayer && !['form', 'select', 'input', 'textarea', 'checkbox', 'radio', 'label'].includes(selectedLayer.name) && selectedLayer.settings?.tag !== 'label' && (
               <LinkSettings
                 layer={selectedLayer}
                 onLayerUpdate={handleLayerUpdate}
@@ -2692,6 +2693,12 @@ const RightSidebar = React.memo(function RightSidebar({
 
             <AlertSettings
               layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
+            <LabelSettings
+              layer={selectedLayer}
+              allLayers={allLayers}
               onLayerUpdate={handleLayerUpdate}
             />
 

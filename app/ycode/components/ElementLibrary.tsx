@@ -382,18 +382,26 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       const existingSettingsIds = collectAllSettingsIds(layers);
       const usedSettingsIds = new Set<string>(existingSettingsIds);
 
+      // Track old→new settings.id mappings so we can update 'for' attributes on labels
+      const idMappings = new Map<string, string>();
+
       // Helper to normalize layer and generate unique settings IDs
       const normalizeLayerWithUniqueIds = (layer: any): any => {
         const normalized = { ...layer };
 
         // Generate unique settings.id if the layer has one
         if (normalized.settings?.id) {
-          const uniqueId = generateUniqueSettingsId(normalized.settings.id, usedSettingsIds);
+          const originalId = normalized.settings.id;
+          const uniqueId = generateUniqueSettingsId(originalId, usedSettingsIds);
           usedSettingsIds.add(uniqueId);
           normalized.settings = {
             ...normalized.settings,
             id: uniqueId,
           };
+          // Track the mapping for updating 'for' attributes
+          if (originalId !== uniqueId) {
+            idMappings.set(originalId, uniqueId);
+          }
         }
 
         // Recursively normalize children
@@ -404,11 +412,34 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
         return normalized;
       };
 
-      const normalizedTemplate = normalizeLayerWithUniqueIds(template);
+      // Update 'for' attributes on labels to match the new unique settings IDs
+      const updateForAttributes = (layer: any): any => {
+        const updated = { ...layer };
+        if (updated.attributes?.for && idMappings.has(updated.attributes.for)) {
+          updated.attributes = {
+            ...updated.attributes,
+            for: idMappings.get(updated.attributes.for),
+          };
+        }
+        if (updated.children) {
+          updated.children = updated.children.map((child: any) => updateForAttributes(child));
+        }
+        return updated;
+      };
+
+      let normalizedTemplate = normalizeLayerWithUniqueIds(template);
+      // Fix label 'for' attributes to point to the new unique IDs
+      if (idMappings.size > 0) {
+        normalizedTemplate = updateForAttributes(normalizedTemplate);
+      }
+      // Form elements use a wrapper div that should show as "Block" in the Layers panel,
+      // not inherit the element type name. The child elements already show their correct names.
+      const formWrapperTypes = ['input', 'textarea', 'select', 'checkbox', 'radio'];
+      const isFormWrapper = formWrapperTypes.includes(elementType);
       const newLayer = {
         ...normalizedTemplate,
         id: generateId('lyr'),
-        customName: displayName || undefined, // Set display name
+        customName: isFormWrapper ? undefined : (displayName || undefined),
       };
 
       // Detect if we're adding a Section layer
@@ -453,8 +484,13 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
         for (let i = 0; i < tree.length; i++) {
           const node = tree[i];
           if (node.id === targetId) {
+            // When adding a form element and the selected node's parent is a form,
+            // add as sibling after the selected node (not as a child of it).
+            // This way new form fields appear at the same level inside the form.
+            const shouldAddAsSibling = isFormWrapper && parentNode?.name === 'form';
+
             // Found target, check if it can have children
-            if (canHaveChildren(node, newLayer.name)) {
+            if (canHaveChildren(node, newLayer.name) && !shouldAddAsSibling) {
               // Add as child
               const updatedNode = {
                 ...node,
@@ -467,7 +503,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                 parentToExpand: targetId
               };
             } else {
-              // Cannot have children, add as sibling after this node
+              // Cannot have children (or should add as sibling), add as sibling after this node
               return {
                 success: true,
                 newLayers: [...tree.slice(0, i + 1), newLayer, ...tree.slice(i + 1)],
@@ -615,18 +651,25 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       const existingSettingsIds = collectAllSettingsIds(layers);
       const usedSettingsIds = new Set<string>(existingSettingsIds);
 
+      // Track old→new settings.id mappings so we can update 'for' attributes on labels
+      const idMappings = new Map<string, string>();
+
       // Helper to normalize layer and generate unique settings IDs
       const normalizeLayerWithUniqueIds = (layer: any): any => {
         const normalized = { ...layer };
 
         // Generate unique settings.id if the layer has one
         if (normalized.settings?.id) {
-          const uniqueId = generateUniqueSettingsId(normalized.settings.id, usedSettingsIds);
+          const originalId = normalized.settings.id;
+          const uniqueId = generateUniqueSettingsId(originalId, usedSettingsIds);
           usedSettingsIds.add(uniqueId);
           normalized.settings = {
             ...normalized.settings,
             id: uniqueId,
           };
+          if (originalId !== uniqueId) {
+            idMappings.set(originalId, uniqueId);
+          }
         }
 
         // Recursively normalize children
@@ -637,8 +680,26 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
         return normalized;
       };
 
+      // Update 'for' attributes on labels to match the new unique settings IDs
+      const updateForAttributes = (layer: any): any => {
+        const updated = { ...layer };
+        if (updated.attributes?.for && idMappings.has(updated.attributes.for)) {
+          updated.attributes = {
+            ...updated.attributes,
+            for: idMappings.get(updated.attributes.for),
+          };
+        }
+        if (updated.children) {
+          updated.children = updated.children.map((child: any) => updateForAttributes(child));
+        }
+        return updated;
+      };
+
       // getLayoutTemplate already handles ID regeneration and interaction remapping
       let newLayer = normalizeLayerWithUniqueIds(layoutTemplate);
+      if (idMappings.size > 0) {
+        newLayer = updateForAttributes(newLayer);
+      }
 
       // Restore inlined components (create actual components from inlined data)
       if (hasInlinedComponents(newLayer)) {
@@ -770,18 +831,25 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     const existingSettingsIds = collectAllSettingsIds(draft?.layers || []);
     const usedSettingsIds = new Set<string>(existingSettingsIds);
 
+    // Track old→new settings.id mappings so we can update 'for' attributes on labels
+    const idMappings = new Map<string, string>();
+
     // Helper to normalize layer and generate unique settings IDs
     const normalizeLayerWithUniqueIds = (layer: any): any => {
       const normalized = { ...layer };
 
       // Generate unique settings.id if the layer has one
       if (normalized.settings?.id) {
-        const uniqueId = generateUniqueSettingsId(normalized.settings.id, usedSettingsIds);
+        const originalId = normalized.settings.id;
+        const uniqueId = generateUniqueSettingsId(originalId, usedSettingsIds);
         usedSettingsIds.add(uniqueId);
         normalized.settings = {
           ...normalized.settings,
           id: uniqueId,
         };
+        if (originalId !== uniqueId) {
+          idMappings.set(originalId, uniqueId);
+        }
       }
 
       // Recursively normalize children
@@ -792,8 +860,26 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       return normalized;
     };
 
+    // Update 'for' attributes on labels to match the new unique settings IDs
+    const updateForAttributes = (layer: any): any => {
+      const updated = { ...layer };
+      if (updated.attributes?.for && idMappings.has(updated.attributes.for)) {
+        updated.attributes = {
+          ...updated.attributes,
+          for: idMappings.get(updated.attributes.for),
+        };
+      }
+      if (updated.children) {
+        updated.children = updated.children.map((child: any) => updateForAttributes(child));
+      }
+      return updated;
+    };
+
     // getLayoutTemplate already handles ID regeneration and interaction remapping
     let newLayer = normalizeLayerWithUniqueIds(layoutTemplate);
+    if (idMappings.size > 0) {
+      newLayer = updateForAttributes(newLayer);
+    }
 
     // Restore inlined components (create actual components from inlined data)
     if (hasInlinedComponents(newLayer)) {
