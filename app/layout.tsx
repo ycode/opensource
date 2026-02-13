@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import AuthProvider from '@/components/AuthProvider';
 import DarkModeProvider from '@/components/DarkModeProvider';
 
 const inter = Inter({
@@ -25,11 +24,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased text-xs`}>
-        <AuthProvider>
-          <DarkModeProvider>
-            {children}
-          </DarkModeProvider>
-        </AuthProvider>
+        <DarkModeProvider>
+          {children}
+        </DarkModeProvider>
       </body>
     </html>
   );

@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import YCodeBuilder from './components/YCodeBuilderMain';
 import { useEditorUrl } from '@/hooks/use-editor-url';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
  * YCode Editor Layout (Client Component)
@@ -33,6 +34,12 @@ import { useEditorUrl } from '@/hooks/use-editor-url';
 function YCodeLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { routeType } = useEditorUrl();
+  const { initialize } = useAuthStore();
+
+  // Initialize auth only within /ycode routes (not on public pages)
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
 
   // Exclude standalone routes from YCodeBuilder
   // These routes should render independently without the editor UI
