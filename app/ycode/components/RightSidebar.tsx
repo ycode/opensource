@@ -1948,6 +1948,9 @@ const RightSidebar = React.memo(function RightSidebar({
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
               activeTextStyleKey={activeTextStyleKey}
+              fieldGroups={fieldGroups}
+              allFields={fields}
+              collections={collections}
             />
           )}
 
@@ -1956,6 +1959,9 @@ const RightSidebar = React.memo(function RightSidebar({
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
               activeTextStyleKey={activeTextStyleKey}
+              fieldGroups={fieldGroups}
+              allFields={fields}
+              collections={collections}
             />
           )}
 
@@ -1964,6 +1970,9 @@ const RightSidebar = React.memo(function RightSidebar({
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
               activeTextStyleKey={activeTextStyleKey}
+              fieldGroups={fieldGroups}
+              allFields={fields}
+              collections={collections}
             />
           )}
 

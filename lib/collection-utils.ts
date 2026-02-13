@@ -115,6 +115,10 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
         return null;
       }
 
+    case 'color':
+      // Standard hex color string (e.g. #ff0000 or #ff0000aa with alpha)
+      return value;
+
     case 'email':
     case 'phone':
     case 'text':
@@ -172,6 +176,10 @@ export function valueToString(value: any, type: CollectionFieldType): string | n
       if (typeof value === 'object') {
         return JSON.stringify(value);
       }
+      return String(value);
+
+    case 'color':
+      // Standard hex color (e.g. #ff0000 or #ff0000aa)
       return String(value);
 
     case 'email':

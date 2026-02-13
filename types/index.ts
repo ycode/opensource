@@ -310,6 +310,8 @@ export interface Layer {
   _masterComponentId?: string;
   // SSR-only property for pagination metadata (when pagination is enabled)
   _paginationMeta?: CollectionPaginationMeta;
+  // SSR-only property for dynamic inline styles from CMS color field bindings
+  _dynamicStyles?: Record<string, string>;
 }
 
 export interface LayerVariables {
@@ -337,6 +339,36 @@ export interface LayerVariables {
     src: DynamicTextVariable; // Embed URL (allow inline variables)
   };
   link?: LinkSettings;
+
+  // Design property bindings (CMS color fields)
+  design?: {
+    backgroundColor?: DesignColorVariable;
+    color?: DesignColorVariable; // text color
+    borderColor?: DesignColorVariable;
+    divideColor?: DesignColorVariable;
+    textDecorationColor?: DesignColorVariable;
+  };
+}
+
+/** A gradient stop with optional CMS field binding */
+export interface BoundColorStop {
+  id: string;
+  position: number;
+  color: string; // static fallback color
+  field?: FieldVariable; // optional CMS binding for this stop
+}
+
+/** Design color variable supporting solid and gradient CMS bindings.
+ *  Each mode's state is stored separately so switching tabs preserves bindings. */
+export interface DesignColorVariable {
+  type: 'color';
+  mode: 'solid' | 'linear' | 'radial';
+  /** Solid mode: the CMS field binding */
+  field?: FieldVariable;
+  /** Linear gradient state (preserved across tab switches) */
+  linear?: { angle?: number; stops?: BoundColorStop[] };
+  /** Radial gradient state (preserved across tab switches) */
+  radial?: { stops?: BoundColorStop[] };
 }
 
 // Link type discriminator
@@ -771,7 +803,7 @@ export interface ActivityNotification {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'audio' | 'video' | 'document' | 'link' | 'email' | 'phone';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'color' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'audio' | 'video' | 'document' | 'link' | 'email' | 'phone';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {

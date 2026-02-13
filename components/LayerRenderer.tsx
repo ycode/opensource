@@ -13,7 +13,7 @@ import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
 import { resolveFieldFromSources } from '@/lib/cms-variables-utils';
-import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable } from '@/lib/variable-utils';
+import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable, resolveDesignStyles } from '@/lib/variable-utils';
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
 import { isValidLinkSettings } from '@/lib/link-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
@@ -40,6 +40,8 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 import type { HiddenLayerInfo } from '@/lib/animation-utils';
+
+import type { DesignColorVariable } from '@/types';
 
 /**
  * Transform component layers for a specific instance.
@@ -1094,8 +1096,16 @@ const LayerItem: React.FC<{
       )
       : attrStyle;
 
-    // Merge styles: base style + attribute style
-    const mergedStyle = { ...style, ...parsedAttrStyle };
+    // Resolve design color bindings from CMS fields (editor + published, supports gradients)
+    const designBindings = layer.variables?.design as Record<string, DesignColorVariable> | undefined;
+    const resolvedDesignStyles = designBindings
+      ? resolveDesignStyles(designBindings, (fieldVar) =>
+        resolveFieldValue(fieldVar, collectionLayerData, pageCollectionItemData, effectiveLayerDataMap)
+      ) || layer._dynamicStyles
+      : layer._dynamicStyles;
+
+    // Merge styles: base style + attribute style + dynamic CMS color bindings
+    const mergedStyle = { ...style, ...parsedAttrStyle, ...resolvedDesignStyles };
 
     // Check if element is truly empty (no text, no children)
     const isEmpty = !textContent && (!children || children.length === 0);

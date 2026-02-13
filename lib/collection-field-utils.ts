@@ -37,6 +37,7 @@ export const FIELD_TYPES = [
   { value: 'number', label: 'Number', icon: 'hash', category: 'basic', hasDefault: true },
   { value: 'boolean', label: 'Boolean', icon: 'check', category: 'basic', hasDefault: true },
   { value: 'date', label: 'Date', icon: 'calendar', category: 'basic', hasDefault: true },
+  { value: 'color', label: 'Color', icon: 'droplet', category: 'basic', hasDefault: true },
   { value: 'email', label: 'Email', icon: 'email', category: 'contact', hasDefault: true },
   { value: 'phone', label: 'Phone', icon: 'phone', category: 'contact', hasDefault: true },
   { value: 'link', label: 'Link', icon: 'link', category: 'contact', hasDefault: true },
@@ -177,6 +178,7 @@ export function getOperatorsForFieldType(
       return REFERENCE_OPERATORS;
     case 'multi_reference':
       return MULTI_REFERENCE_OPERATORS;
+    case 'color':
     case 'text':
     case 'rich_text':
     case 'email':
@@ -407,6 +409,9 @@ export const MEDIA_FIELD_TYPES: CollectionFieldType[] = ['image', 'audio', 'vide
 
 /** Field types that store asset IDs (media + documents) */
 export const ASSET_FIELD_TYPES: CollectionFieldType[] = ['image', 'audio', 'video', 'document'];
+
+/** Field types that can be bound to color design properties */
+export const COLOR_FIELD_TYPES: CollectionFieldType[] = ['color'];
 
 /** Field types that can be bound to image layers (image fields) */
 export const IMAGE_FIELD_TYPES: CollectionFieldType[] = ['image'];

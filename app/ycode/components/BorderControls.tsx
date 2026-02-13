@@ -15,17 +15,21 @@ import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
 import { removeSpaces } from '@/lib/utils';
-import ColorPicker from '@/app/ycode/components/ColorPicker';
-import type { Layer } from '@/types';
+import ColorPropertyField from '@/app/ycode/components/ColorPropertyField';
+import type { Collection, CollectionField, Layer } from '@/types';
+import type { FieldGroup } from '@/lib/collection-field-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface BorderControlsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   activeTextStyleKey?: string | null;
+  fieldGroups?: FieldGroup[];
+  allFields?: Record<string, CollectionField[]>;
+  collections?: Collection[];
 }
 
-export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKey }: BorderControlsProps) {
+export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKey, fieldGroups, allFields, collections }: BorderControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, updateDesignProperties, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
@@ -34,7 +38,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     activeUIState,
     activeTextStyleKey,
   });
-  
+
   // Get current values from layer (with inheritance)
   const borderRadius = getDesignProperty('borders', 'borderRadius') || '';
   const borderTopLeftRadius = getDesignProperty('borders', 'borderTopLeftRadius') || '';
@@ -62,7 +66,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     designBorders?.borderBottomWidth || designBorders?.borderLeftWidth
   );
   const hasDivider = !!(divideX || divideY || designBorders?.divideX || designBorders?.divideY);
-  
+
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
     borderRadius,
@@ -91,7 +95,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
   const [borderLeftWidthInput, setBorderLeftWidthInput] = inputs.borderLeftWidth;
   const [divideXInput, setDivideXInput] = inputs.divideX;
   const [divideYInput, setDivideYInput] = inputs.divideY;
-  
+
   // Use mode toggle hooks for radius and width
   const radiusModeToggle = useModeToggle({
     category: 'borders',
@@ -103,7 +107,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
-  
+
   const widthModeToggle = useModeToggle({
     category: 'borders',
     unifiedProperty: 'borderWidth',
@@ -114,76 +118,82 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
-  
+
   // Handle radius changes (debounced for text input)
   const handleRadiusChange = (value: string) => {
     setBorderRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderRadius', sanitized || null);
   };
-  
+
   const handleTopLeftRadiusChange = (value: string) => {
     setBorderTopLeftRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopLeftRadius', sanitized || null);
   };
-  
+
   const handleTopRightRadiusChange = (value: string) => {
     setBorderTopRightRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopRightRadius', sanitized || null);
   };
-  
+
   const handleBottomRightRadiusChange = (value: string) => {
     setBorderBottomRightRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomRightRadius', sanitized || null);
   };
-  
+
   const handleBottomLeftRadiusChange = (value: string) => {
     setBorderBottomLeftRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomLeftRadius', sanitized || null);
   };
-  
+
   // Handle border width changes (debounced for text input)
   const handleBorderWidthChange = (value: string) => {
     setBorderWidthInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderWidth', sanitized || null);
   };
-  
+
   const handleTopWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopWidth', sanitized || null);
   };
-  
+
   const handleRightWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderRightWidth', sanitized || null);
   };
-  
+
   const handleBottomWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomWidth', sanitized || null);
   };
-  
+
   const handleLeftWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderLeftWidth', sanitized || null);
   };
-  
+
   // Handle border style change (immediate - dropdown selection)
   const handleBorderStyleChange = (value: string) => {
     updateDesignProperty('borders', 'borderStyle', value);
   };
-  
-  // Handle border color change (debounced for text input)
+
+  // Debounced handler for keyboard-typed hex values
   const handleBorderColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderColor', sanitized || null);
   };
-  
+
+  // Immediate handler for programmatic changes
+  const handleBorderColorImmediate = (value: string) => {
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderColor', sanitized || null);
+  };
+
   // Add border
   const handleAddBorder = () => {
     updateDesignProperties([
@@ -192,7 +202,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
       { category: 'borders', property: 'borderColor', value: '#000000' },
     ]);
   };
-  
+
   // Remove border
   const handleRemoveBorder = () => {
     updateDesignProperties([
@@ -224,10 +234,16 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     updateDesignProperty('borders', 'divideStyle', value);
   };
 
-  // Handle divider color change (debounced for text input)
+  // Debounced handler for keyboard-typed hex values
   const handleDivideColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'divideColor', sanitized || null);
+  };
+
+  // Immediate handler for programmatic changes
+  const handleDivideColorImmediate = (value: string) => {
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'divideColor', sanitized || null);
   };
 
   // Add divider (default to vertical)
@@ -271,7 +287,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                 onChange={(e) => handleRadiusChange(e.target.value)}
                 placeholder="0"
               />
-              <Button 
+              <Button
                 variant={radiusModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={radiusModeToggle.handleToggle}
@@ -373,10 +389,8 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                 )}
               </PopoverTrigger>
 
-              <PopoverContent className="w-[255px] mr-4">
-
+              <PopoverContent className="w-64 mr-4">
                 <div className="flex flex-col gap-2">
-
                   <div className="grid grid-cols-3 items-start">
                     <Label variant="muted" className="h-8">Width</Label>
                     <div className="col-span-2 flex flex-col gap-2">
@@ -391,7 +405,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                           onChange={(e) => handleBorderWidthChange(e.target.value)}
                           placeholder="1"
                         />
-                        <Button 
+                        <Button
                           variant={widthModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                           size="sm"
                           onClick={widthModeToggle.handleToggle}
@@ -410,7 +424,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                                 onChange={(e) => handleTopWidthChange(e.target.value)}
                                 placeholder="1"
                               />
-                              <Label className="!text-[8px]" variant="muted">Top</Label>
+                              <Label className="text-[8px]!" variant="muted">Top</Label>
                             </div>
                             <div className="flex flex-col items-center gap-1">
                               <Input
@@ -421,7 +435,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                                 onChange={(e) => handleRightWidthChange(e.target.value)}
                                 placeholder="1"
                               />
-                              <Label className="!text-[8px]" variant="muted">Right</Label>
+                              <Label className="text-[8px]!" variant="muted">Right</Label>
                             </div>
                             <div className="flex flex-col items-center gap-1">
                               <Input
@@ -432,7 +446,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                                 onChange={(e) => handleBottomWidthChange(e.target.value)}
                                 placeholder="1"
                               />
-                              <Label className="!text-[8px]" variant="muted">Bottom</Label>
+                              <Label className="text-[8px]!" variant="muted">Bottom</Label>
                             </div>
                             <div className="flex flex-col items-center gap-1">
                               <Input
@@ -443,7 +457,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                                 onChange={(e) => handleLeftWidthChange(e.target.value)}
                                 placeholder="1"
                               />
-                              <Label className="!text-[8px]" variant="muted">Left</Label>
+                              <Label className="text-[8px]!" variant="muted">Left</Label>
                             </div>
                           </div>
                       )}
@@ -472,10 +486,17 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                   <div className="grid grid-cols-3">
                     <Label variant="muted">Color</Label>
                     <div className="col-span-2 *:w-full">
-                      <ColorPicker
+                      <ColorPropertyField
                         solidOnly
                         value={borderColor || '#000000'}
                         onChange={handleBorderColorChange}
+                        onImmediateChange={handleBorderColorImmediate}
+                        layer={layer}
+                        onLayerUpdate={onLayerUpdate}
+                        designProperty="borderColor"
+                        fieldGroups={fieldGroups}
+                        allFields={allFields}
+                        collections={collections}
                       />
                     </div>
                   </div>
@@ -522,10 +543,8 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                 )}
               </PopoverTrigger>
 
-              <PopoverContent className="w-[255px] mr-4">
-
+              <PopoverContent className="w-64 mr-4">
                 <div className="flex flex-col gap-2">
-
                   <div className="grid grid-cols-3 items-start">
                     <Label variant="muted" className="h-8">Width</Label>
                     <div className="col-span-2 grid grid-cols-2 gap-2">
@@ -601,10 +620,17 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                   <div className="grid grid-cols-3">
                     <Label variant="muted">Color</Label>
                     <div className="col-span-2 *:w-full">
-                      <ColorPicker
+                      <ColorPropertyField
                         solidOnly
                         value={divideColor || '#000000'}
                         onChange={handleDivideColorChange}
+                        onImmediateChange={handleDivideColorImmediate}
+                        layer={layer}
+                        onLayerUpdate={onLayerUpdate}
+                        designProperty="divideColor"
+                        fieldGroups={fieldGroups}
+                        allFields={allFields}
+                        collections={collections}
                       />
                     </div>
                   </div>

@@ -15,6 +15,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'select' | 'checkbox' | 'radio' | 'zap' | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in'
     | 'ease-back-in-out' | 'ease-back-out' | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash'
     | 'paintbrush' | 'triangle-down' | 'triangle-right' | 'plus-circle' | 'plus-circle-solid' | 'detach' | 'email' | 'phone' | 'paperclip' | 'unlink' | 'map'
+    | 'droplet'
   );
 }
 
@@ -142,6 +143,9 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         r="5"
       />
     </>
+  ),
+  droplet: (
+    <path d="M2.818 3.317L6 0.135L9.182 3.317C10.94 5.074 10.94 7.923 9.182 9.681C7.425 11.438 4.576 11.438 2.818 9.681C1.061 7.923 1.061 5.074 2.818 3.317Z" />
   ),
   radial: (
     <>

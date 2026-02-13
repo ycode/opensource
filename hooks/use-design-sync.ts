@@ -188,10 +188,21 @@ export function useDesignSync({
       // If layer has a style applied, track changes as overrides
       // Note: Use join instead of cn() because setBreakpointClass already handles
       // property-aware conflict resolution
-      const finalUpdate = updateStyledLayer(layer, {
+      const styledLayer = updateStyledLayer(layer, {
         design: updatedDesign,
         classes: updatedClasses.join(' '),
       });
+
+      // Only send changed fields — NOT the full layer object. Sending a full layer
+      // would overwrite concurrent updates (e.g. variables set by onGradientSync)
+      // because updateStyledLayer spreads the stale closure's `layer`.
+      const finalUpdate: Partial<Layer> = {
+        design: styledLayer.design,
+        classes: styledLayer.classes,
+      };
+      if (styledLayer.styleOverrides !== layer.styleOverrides) {
+        finalUpdate.styleOverrides = styledLayer.styleOverrides;
+      }
 
       onLayerUpdate(layer.id, finalUpdate);
     },

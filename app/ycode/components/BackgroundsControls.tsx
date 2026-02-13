@@ -4,16 +4,20 @@ import { Label } from '@/components/ui/label';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { removeSpaces } from '@/lib/utils';
-import type { Layer } from '@/types';
-import ColorPicker from './ColorPicker';
+import type { Collection, CollectionField, Layer } from '@/types';
+import type { FieldGroup } from '@/lib/collection-field-utils';
+import ColorPropertyField from './ColorPropertyField';
 
 interface BackgroundsControlsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   activeTextStyleKey?: string | null;
+  fieldGroups?: FieldGroup[];
+  allFields?: Record<string, CollectionField[]>;
+  collections?: Collection[];
 }
 
-export default function BackgroundsControls({ layer, onLayerUpdate, activeTextStyleKey }: BackgroundsControlsProps) {
+export default function BackgroundsControls({ layer, onLayerUpdate, activeTextStyleKey, fieldGroups, allFields, collections }: BackgroundsControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
@@ -30,10 +34,16 @@ export default function BackgroundsControls({ layer, onLayerUpdate, activeTextSt
   const backgroundPosition = getDesignProperty('backgrounds', 'backgroundPosition') || 'center';
   const backgroundRepeat = getDesignProperty('backgrounds', 'backgroundRepeat') || 'no-repeat';
 
-  // Handle background color change (debounced for text/color input)
+  // Debounced handler for keyboard-typed hex values
   const handleBackgroundColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('backgrounds', 'backgroundColor', sanitized || null);
+  };
+
+  // Immediate handler for programmatic changes (tab switches, color picks, gradient stops)
+  const handleBackgroundColorImmediate = (value: string) => {
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('backgrounds', 'backgroundColor', sanitized || null);
   };
 
   // Handle background image change
@@ -91,10 +101,17 @@ export default function BackgroundsControls({ layer, onLayerUpdate, activeTextSt
         <div className="grid grid-cols-3">
           <Label variant="muted">Fill</Label>
           <div className="col-span-2 *:w-full">
-            <ColorPicker
+            <ColorPropertyField
               value={backgroundColor}
               onChange={handleBackgroundColorChange}
+              onImmediateChange={handleBackgroundColorImmediate}
               defaultValue="#ffffff"
+              layer={layer}
+              onLayerUpdate={onLayerUpdate}
+              designProperty="backgroundColor"
+              fieldGroups={fieldGroups}
+              allFields={allFields}
+              collections={collections}
               backgroundImageProps={{
                 backgroundImage,
                 backgroundSize,
