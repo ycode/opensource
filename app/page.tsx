@@ -30,7 +30,7 @@ async function fetchPublishedHomepage(paginationContext?: PaginationContext) {
       async () => fetchHomepage(true, paginationContext),
       ['data-for-route-/', `pagination-${paginationKey}`],
       {
-        tags: ['route-/'], // Tag for on-demand revalidation via revalidateTag()
+        tags: ['all-pages', 'route-/'], // all-pages for full publish invalidation, route-/ for targeted
         revalidate: false,
       }
     )();
@@ -94,20 +94,25 @@ export default async function Home({ searchParams }: HomeProps) {
     );
   }
 
-  // Check password protection for homepage
+  // Check password protection for homepage.
+  // First evaluate without cookies() so non-protected pages can stay cacheable.
   const folders = await fetchFoldersForAuth(true);
-  const authCookie = await parseAuthCookie();
-  const protection = getPasswordProtection(data.page, folders, authCookie);
+  const protectionCheck = getPasswordProtection(data.page, folders, null);
 
-  // If homepage is protected and not unlocked, show 401 error page
-  if (protection.isProtected && !protection.isUnlocked) {
-    const errorPageData = await fetchErrorPage(401, true);
-    const publishedCSS = await getSettingByKey('published_css');
+  // If homepage is protected, read auth cookie and re-check unlock state.
+  if (protectionCheck.isProtected) {
+    const authCookie = await parseAuthCookie();
+    const protection = getPasswordProtection(data.page, folders, authCookie);
 
-    if (errorPageData) {
-      const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+    // If homepage is protected and not unlocked, show 401 error page
+    if (!protection.isUnlocked) {
+      const errorPageData = await fetchErrorPage(401, true);
+      const publishedCSS = await getSettingByKey('published_css');
 
-      return (
+      if (errorPageData) {
+        const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
+
+        return (
         <PageRenderer
           page={errorPage}
           layers={errorPageLayers.layers || []}
@@ -120,22 +125,23 @@ export default async function Home({ searchParams }: HomeProps) {
             isPublished: true,
           }}
         />
+        );
+      }
+
+      // Inline fallback if no custom 401 page exists
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'white', fontFamily: 'system-ui, sans-serif' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '8px', color: '#111' }}>Password Protected</h1>
+          <p style={{ color: '#666', marginBottom: '24px' }}>Enter the password to continue.</p>
+          <PasswordForm
+            pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
+            folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
+            redirectUrl="/"
+            isPublished={true}
+          />
+        </div>
       );
     }
-
-    // Inline fallback if no custom 401 page exists
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'white', fontFamily: 'system-ui, sans-serif' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '8px', color: '#111' }}>Password Protected</h1>
-        <p style={{ color: '#666', marginBottom: '24px' }}>Enter the password to continue.</p>
-        <PasswordForm
-          pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
-          folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
-          redirectUrl="/"
-          isPublished={true}
-        />
-      </div>
-    );
   }
 
   // Load all global settings in a single query
@@ -174,17 +180,21 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   }
 
-  // Check password protection - don't leak metadata for protected pages
+  // Check password protection - don't leak metadata for protected pages.
+  // First check without cookies() to avoid forcing dynamic metadata for public pages.
   const folders = await fetchFoldersForAuth(true);
-  const authCookie = await parseAuthCookie();
-  const protection = getPasswordProtection(data.page, folders, authCookie);
+  const protectionCheck = getPasswordProtection(data.page, folders, null);
 
-  if (protection.isProtected && !protection.isUnlocked) {
-    return {
-      title: 'Password Protected',
-      description: 'This page is password protected.',
-      robots: { index: false, follow: false },
-    };
+  if (protectionCheck.isProtected) {
+    const authCookie = await parseAuthCookie();
+    const protection = getPasswordProtection(data.page, folders, authCookie);
+    if (!protection.isUnlocked) {
+      return {
+        title: 'Password Protected',
+        description: 'This page is password protected.',
+        robots: { index: false, follow: false },
+      };
+    }
   }
 
   return generatePageMetadata(data.page, {

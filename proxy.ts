@@ -110,21 +110,7 @@ export async function proxy(request: NextRequest) {
   // Add pathname header for layout to determine dark mode
   response.headers.set('x-pathname', pathname);
 
-  // Handle public pages (apply cache control)
-  const isApiRoute = pathname.startsWith('/ycode/api');
-  const isNextRoute = pathname.startsWith('/_next');
-  const isLoginRoute = pathname.startsWith('/login');
-  const isWelcomeRoute = pathname.startsWith('/ycode/welcome');
-  const isYCodeRoute = pathname.startsWith('/ycode');
-  const isPublicPage = !isApiRoute && !isNextRoute && !isLoginRoute && !isWelcomeRoute && !isYCodeRoute;
-
-  if (isPublicPage) {
-    response.headers.set(
-      'Cache-Control',
-      'public, s-maxage=31536000, stale-while-revalidate=31536000'
-    );
-    response.headers.set('Vary', 'Accept-Encoding');
-  }
+  // Cache-Control for public pages is configured centrally via next.config.ts headers().
 
   return response;
 }

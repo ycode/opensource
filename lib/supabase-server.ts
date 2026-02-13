@@ -41,7 +41,7 @@ let cachedCredentials: string | null = null;
 /**
  * Get Supabase client with service role key (admin access)
  */
-export async function getSupabaseAdmin(): Promise<SupabaseClient | null> {
+export async function getSupabaseAdmin(tenantId?: string): Promise<SupabaseClient | null> {
   const credentials = await getSupabaseCredentials();
 
   if (!credentials) {

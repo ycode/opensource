@@ -48,6 +48,8 @@ export async function invalidatePages(routePaths: string[]): Promise<boolean> {
  */
 export async function clearAllCache(): Promise<void> {
   try {
+    // Invalidate Data Cache entries created by public page unstable_cache calls.
+    revalidateTag('all-pages', 'max');
     revalidatePath('/', 'layout');
   } catch (error) {
     console.error('❌ [Cache] Clear all error:', error);

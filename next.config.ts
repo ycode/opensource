@@ -49,8 +49,8 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            // stale-while-revalidate=86400: Serve stale while updating in background
-            // must-revalidate: Browser must check with CDN before using cache
+            // Cache until re-published: CDN caches for up to 1 year
+            // On publish, revalidatePath purges CDN; revalidateTag purges data cache
             value: 'public, s-maxage=31536000, stale-while-revalidate=31536000',
           },
         ],
