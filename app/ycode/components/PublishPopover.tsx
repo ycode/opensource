@@ -28,7 +28,7 @@ const BREAKDOWN_ITEMS: { key: keyof Omit<PublishPreviewCounts, 'total'>; label: 
   { key: 'components', label: 'Components', icon: 'component' },
   { key: 'collections', label: 'Collections', icon: 'database' },
   { key: 'collectionItems', label: 'Collection items', icon: 'database' },
-  { key: 'layerStyles', label: 'Layer styles', icon: 'paintbrush' },
+  { key: 'layerStyles', label: 'Layer styles', icon: 'cube' },
   { key: 'assets', label: 'Assets', icon: 'image' },
 ];
 

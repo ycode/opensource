@@ -14,7 +14,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'code' | 'pencil' | 'eye' | 'eye-off' | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea'
     | 'select' | 'checkbox' | 'radio' | 'zap' | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in'
     | 'ease-back-in-out' | 'ease-back-out' | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash'
-    | 'paintbrush' | 'triangle-down' | 'triangle-right' | 'plus-circle' | 'plus-circle-solid' | 'detach' | 'email' | 'phone' | 'paperclip' | 'unlink' | 'map'
+    | 'paintbrush' | 'swatch' | 'cube' | 'triangle-down' | 'triangle-right' | 'plus-circle' | 'plus-circle-solid' | 'detach' | 'email' | 'phone' | 'paperclip' | 'unlink' | 'map'
     | 'droplet'
   );
 }
@@ -145,7 +145,7 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
     </>
   ),
   droplet: (
-    <path d="M2.818 3.317L6 0.135L9.182 3.317C10.94 5.074 10.94 7.923 9.182 9.681C7.425 11.438 4.576 11.438 2.818 9.681C1.061 7.923 1.061 5.074 2.818 3.317Z" />
+    <path d="M6 0.1345L9.182 3.3164C10.9394 5.0738 10.9394 7.9231 9.182 9.6804C7.4246 11.4378 4.5754 11.4378 2.818 9.6804C1.0606 7.9231 1.0606 5.0738 2.818 3.3164L6 0.1345ZM6 1.5487L3.5251 4.0236C2.1583 5.3904 2.1583 7.6065 3.5251 8.9733C4.2091 9.6573 5.1057 9.999 6.0021 9.9984L6 1.5487Z" />
   ),
   radial: (
     <>
@@ -774,6 +774,16 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   paintbrush: (
     <>
       <path d="M11.354.646a.5.5 0 0 1 0 .708L6.707 6H8.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H6v2.5a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5V8H1.5a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h1.793L.646 3.354a.5.5 0 1 1 .708-.708L4 5.293V3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5V6h2.293l4.647-4.646a.5.5 0 0 1 .708 0zM2 7v.5h2V7H2zm3 0v.5h2V7H5zm3 0v.5h2V7H8zM4.5 4v2h.5V4h-.5zm0 3v2.5h.5V7h-.5z" />
+    </>
+  ),
+  swatch: (
+    <>
+      <path d="M6.6443 3.1065L9.1139 1.1857C9.313 1.0309 9.5961 1.0485 9.7744 1.2268L11.2715 2.7239C11.4498 2.9022 11.4675 3.1854 11.3127 3.3845L9.3924 5.8534C9.5389 6.4476 9.5418 7.0861 9.3722 7.719C8.9232 9.3949 7.4071 10.4993 5.7508 10.4993C4 10.4993 1.75 9.7484 0.5 8.9984C2.4899 7.4984 2.0236 6.5933 2.25 5.7484C2.7792 3.7733 4.6711 2.6197 6.6443 3.1065ZM8.3508 4.0458C8.3836 4.0775 8.416 4.1098 8.4476 4.1427L9.0149 4.7099L10.2523 3.1189L9.3795 2.2461L7.7885 3.4835L8.3508 4.0458Z" />
+    </>
+  ),
+  cube: (
+    <>
+      <path d="M6 0.23L10.99 3.11V8.89L6 11.78L1.01 8.89V3.11L6 0.23ZM2.58 3.42L6 5.39L9.42 3.42L6 1.44L2.58 3.42ZM2.06 4.33V8.28L5.48 10.26V6.3L2.06 4.33ZM6.53 10.26L9.94 8.28V4.33L6.53 6.3V10.26Z" />
     </>
   ),
   'triangle-down': (
