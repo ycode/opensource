@@ -40,6 +40,38 @@ async function fetchPublishedHomepage(paginationContext?: PaginationContext) {
   }
 }
 
+async function fetchCachedGlobalSettings() {
+  return unstable_cache(
+    async () => fetchGlobalPageSettings(),
+    ['data-for-global-settings'],
+    { tags: ['all-pages'], revalidate: false }
+  )();
+}
+
+async function fetchCachedFoldersForAuth() {
+  return unstable_cache(
+    async () => fetchFoldersForAuth(true),
+    ['data-for-auth-folders'],
+    { tags: ['all-pages'], revalidate: false }
+  )();
+}
+
+async function fetchCachedErrorPage(errorCode: 401) {
+  return unstable_cache(
+    async () => fetchErrorPage(errorCode, true),
+    [`data-for-error-page-${errorCode}`],
+    { tags: ['all-pages'], revalidate: false }
+  )();
+}
+
+async function fetchCachedPublishedCss() {
+  return unstable_cache(
+    async () => getSettingByKey('published_css'),
+    ['data-for-published-css'],
+    { tags: ['all-pages'], revalidate: false }
+  )();
+}
+
 interface HomeProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
@@ -96,7 +128,7 @@ export default async function Home({ searchParams }: HomeProps) {
 
   // Check password protection for homepage.
   // First evaluate without cookies() so non-protected pages can stay cacheable.
-  const folders = await fetchFoldersForAuth(true);
+  const folders = await fetchCachedFoldersForAuth();
   const protectionCheck = getPasswordProtection(data.page, folders, null);
 
   // If homepage is protected, read auth cookie and re-check unlock state.
@@ -106,8 +138,8 @@ export default async function Home({ searchParams }: HomeProps) {
 
     // If homepage is protected and not unlocked, show 401 error page
     if (!protection.isUnlocked) {
-      const errorPageData = await fetchErrorPage(401, true);
-      const publishedCSS = await getSettingByKey('published_css');
+      const errorPageData = await fetchCachedErrorPage(401);
+      const publishedCSS = await fetchCachedPublishedCss();
 
       if (errorPageData) {
         const { page: errorPage, pageLayers: errorPageLayers, components: errorComponents } = errorPageData;
@@ -145,7 +177,7 @@ export default async function Home({ searchParams }: HomeProps) {
   }
 
   // Load all global settings in a single query
-  const globalSettings = await fetchGlobalPageSettings();
+  const globalSettings = await fetchCachedGlobalSettings();
 
   // Render homepage
   return (
@@ -170,7 +202,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // Fetch page and global settings in parallel
   const [data, globalSettings] = await Promise.all([
     fetchPublishedHomepage(),
-    fetchGlobalPageSettings(),
+    fetchCachedGlobalSettings(),
   ]);
 
   if (!data) {
@@ -182,7 +214,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
   // Check password protection - don't leak metadata for protected pages.
   // First check without cookies() to avoid forcing dynamic metadata for public pages.
-  const folders = await fetchFoldersForAuth(true);
+  const folders = await fetchCachedFoldersForAuth();
   const protectionCheck = getPasswordProtection(data.page, folders, null);
 
   if (protectionCheck.isProtected) {
@@ -197,9 +229,13 @@ export async function generateMetadata(): Promise<Metadata> {
     }
   }
 
-  return generatePageMetadata(data.page, {
-    fallbackTitle: 'Home',
-    pagePath: '/',
-    globalSeoSettings: globalSettings,
-  });
+  return unstable_cache(
+    async () => generatePageMetadata(data.page, {
+      fallbackTitle: 'Home',
+      pagePath: '/',
+      globalSeoSettings: globalSettings,
+    }),
+    ['data-for-route-/-meta'],
+    { tags: ['all-pages', 'route-/'], revalidate: false }
+  )();
 }
