@@ -104,6 +104,22 @@ export async function proxy(request: NextRequest) {
     if (authResponse) return authResponse;
   }
 
+  const isPublicPage = !pathname.startsWith('/ycode')
+    && !pathname.startsWith('/_next')
+    && !pathname.startsWith('/api')
+    && !pathname.startsWith('/_dynamic');
+  const hasPaginationParams = Array.from(request.nextUrl.searchParams.keys())
+    .some((key) => key.startsWith('p_'));
+
+  if (isPublicPage && hasPaginationParams) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = pathname === '/' ? '/_dynamic' : `/_dynamic${pathname}`;
+
+    const rewriteResponse = NextResponse.rewrite(rewriteUrl);
+    rewriteResponse.headers.set('x-pathname', pathname);
+    return rewriteResponse;
+  }
+
   // Create response
   const response = NextResponse.next();
 

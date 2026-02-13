@@ -1,10 +1,10 @@
 import { notFound, redirect, permanentRedirect } from 'next/navigation';
-import { unstable_cache, unstable_noStore } from 'next/cache';
+import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
 import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
-import { fetchPageByPath, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
+import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
@@ -147,80 +147,104 @@ export async function generateStaticParams() {
  * Fetch published page and layers data from database
  * Cached per slug and page for revalidation
  */
-async function fetchPublishedPageWithLayers(slugPath: string, paginationContext?: PaginationContext) {
-  // Include pagination params in cache key for per-collection pagination support
-  // Sort keys for consistent cache key regardless of param order
-  const paginationKey = paginationContext?.pageNumbers
-    ? Object.entries(paginationContext.pageNumbers)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([id, page]) => `${id}:${page}`)
-      .join(',')
-    : '';
-
+async function fetchPublishedPageWithLayers(slugPath: string) {
   try {
     return await unstable_cache(
-      async () => fetchPageByPath(slugPath, true, paginationContext),
-      [`data-for-route-/${slugPath}`, `pagination-${paginationKey}`],
+      async () => fetchPageByPath(slugPath, true),
+      [`data-for-route-/${slugPath}`],
       {
         tags: ['all-pages', `route-/${slugPath}`], // all-pages for full publish invalidation
         revalidate: false,
       }
     )();
   } catch {
-    // Fallback to uncached fetch when data exceeds cache size limit (2MB)
-    return fetchPageByPath(slugPath, true, paginationContext);
+    // Fallback to uncached fetch when data exceeds cache size limit (2MB).
+    // If runtime credentials are unavailable (e.g. build-time), return null.
+    try {
+      return await fetchPageByPath(slugPath, true);
+    } catch {
+      return null;
+    }
   }
 }
 
 async function fetchCachedRedirects(): Promise<RedirectType[] | null> {
-  return unstable_cache(
-    async () => getSettingByKey('redirects') as Promise<RedirectType[] | null>,
-    ['data-for-redirects'],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => getSettingByKey('redirects') as Promise<RedirectType[] | null>,
+      ['data-for-redirects'],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return null;
+  }
 }
 
 async function fetchCachedGlobalSettings() {
-  return unstable_cache(
-    async () => fetchGlobalPageSettings(),
-    ['data-for-global-settings'],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => fetchGlobalPageSettings(),
+      ['data-for-global-settings'],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return {
+      googleSiteVerification: null,
+      globalCanonicalUrl: null,
+      gaMeasurementId: null,
+      publishedCss: null,
+      globalCustomCodeHead: null,
+      globalCustomCodeBody: null,
+      ycodeBadge: true,
+      faviconUrl: null,
+      webClipUrl: null,
+    };
+  }
 }
 
 async function fetchCachedFoldersForAuth() {
-  return unstable_cache(
-    async () => fetchFoldersForAuth(true),
-    ['data-for-auth-folders'],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => fetchFoldersForAuth(true),
+      ['data-for-auth-folders'],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return [];
+  }
 }
 
 async function fetchCachedErrorPage(errorCode: 401 | 404) {
-  return unstable_cache(
-    async () => fetchErrorPage(errorCode, true),
-    [`data-for-error-page-${errorCode}`],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => fetchErrorPage(errorCode, true),
+      [`data-for-error-page-${errorCode}`],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return null;
+  }
 }
 
 async function fetchCachedPublishedCss() {
-  return unstable_cache(
-    async () => getSettingByKey('published_css'),
-    ['data-for-published-css'],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => getSettingByKey('published_css'),
+      ['data-for-published-css'],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return null;
+  }
 }
 
 interface PageProps {
   params: Promise<{ slug: string | string[] }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function Page({ params, searchParams }: PageProps) {
-  // Await params and searchParams (Next.js 15 requirement)
+export default async function Page({ params }: PageProps) {
+  // Await params
   const { slug } = await params;
-  const resolvedSearchParams = await searchParams;
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
@@ -240,32 +264,8 @@ export default async function Page({ params, searchParams }: PageProps) {
     }
   }
 
-  // Parse layer-specific pagination params (p_LAYER_ID=N)
-  // This enables independent pagination for multiple collections on the same page
-  const pageNumbers: Record<string, number> = {};
-  for (const [key, value] of Object.entries(resolvedSearchParams)) {
-    if (key.startsWith('p_') && typeof value === 'string') {
-      const layerId = key.slice(2); // Remove 'p_' prefix
-      const pageNum = parseInt(value, 10);
-      if (!isNaN(pageNum) && pageNum >= 1) {
-        pageNumbers[layerId] = pageNum;
-      }
-    }
-  }
-
-  // Only opt out of caching when pagination is requested
-  // This keeps default page visits fast and cached
-  if (Object.keys(pageNumbers).length > 0) {
-    unstable_noStore();
-  }
-
-  const paginationContext: PaginationContext = {
-    pageNumbers,
-    defaultPage: 1,
-  };
-
-  // Fetch page and layers data
-  const data = await fetchPublishedPageWithLayers(slugPath, paginationContext);
+  // Cache-first slug path; pagination is served through internal dynamic routes.
+  const data = await fetchPublishedPageWithLayers(slugPath);
 
   // If page not found, try to show custom 404 error page
   if (!data) {

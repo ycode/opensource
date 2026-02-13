@@ -1,6 +1,6 @@
-import { unstable_cache, unstable_noStore } from 'next/cache';
+import { unstable_cache } from 'next/cache';
 import Link from 'next/link';
-import { fetchHomepage, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
+import { fetchHomepage, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import PasswordForm from '@/components/PasswordForm';
 import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
@@ -15,97 +15,88 @@ export const revalidate = false; // Cache indefinitely until publish invalidates
  * Fetch homepage data from database
  * Cached with tag-based revalidation (no time-based stale cache)
  */
-async function fetchPublishedHomepage(paginationContext?: PaginationContext) {
-  // Include pagination params in cache key for per-collection pagination support
-  // Sort keys for consistent cache key regardless of param order
-  const paginationKey = paginationContext?.pageNumbers
-    ? Object.entries(paginationContext.pageNumbers)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([id, page]) => `${id}:${page}`)
-      .join(',')
-    : '';
-
+async function fetchPublishedHomepage() {
   try {
     return await unstable_cache(
-      async () => fetchHomepage(true, paginationContext),
-      ['data-for-route-/', `pagination-${paginationKey}`],
+      async () => fetchHomepage(true),
+      ['data-for-route-/'],
       {
         tags: ['all-pages', 'route-/'], // all-pages for full publish invalidation, route-/ for targeted
         revalidate: false,
       }
     )();
   } catch {
-    // Fallback to uncached fetch when data exceeds cache size limit (2MB)
-    return fetchHomepage(true, paginationContext);
+    // Fallback to uncached fetch when data exceeds cache size limit (2MB).
+    // If runtime credentials are unavailable (e.g. build-time), return null.
+    try {
+      return await fetchHomepage(true);
+    } catch {
+      return null;
+    }
   }
 }
 
 async function fetchCachedGlobalSettings() {
-  return unstable_cache(
-    async () => fetchGlobalPageSettings(),
-    ['data-for-global-settings'],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => fetchGlobalPageSettings(),
+      ['data-for-global-settings'],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return {
+      googleSiteVerification: null,
+      globalCanonicalUrl: null,
+      gaMeasurementId: null,
+      publishedCss: null,
+      globalCustomCodeHead: null,
+      globalCustomCodeBody: null,
+      ycodeBadge: true,
+      faviconUrl: null,
+      webClipUrl: null,
+    };
+  }
 }
 
 async function fetchCachedFoldersForAuth() {
-  return unstable_cache(
-    async () => fetchFoldersForAuth(true),
-    ['data-for-auth-folders'],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => fetchFoldersForAuth(true),
+      ['data-for-auth-folders'],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return [];
+  }
 }
 
 async function fetchCachedErrorPage(errorCode: 401) {
-  return unstable_cache(
-    async () => fetchErrorPage(errorCode, true),
-    [`data-for-error-page-${errorCode}`],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => fetchErrorPage(errorCode, true),
+      [`data-for-error-page-${errorCode}`],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return null;
+  }
 }
 
 async function fetchCachedPublishedCss() {
-  return unstable_cache(
-    async () => getSettingByKey('published_css'),
-    ['data-for-published-css'],
-    { tags: ['all-pages'], revalidate: false }
-  )();
+  try {
+    return await unstable_cache(
+      async () => getSettingByKey('published_css'),
+      ['data-for-published-css'],
+      { tags: ['all-pages'], revalidate: false }
+    )();
+  } catch {
+    return null;
+  }
 }
 
-interface HomeProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}
-
-export default async function Home({ searchParams }: HomeProps) {
-  // Await searchParams (Next.js 15 requirement)
-  const resolvedSearchParams = await searchParams;
-
-  // Parse layer-specific pagination params (p_LAYER_ID=N)
-  // This enables independent pagination for multiple collections on the same page
-  const pageNumbers: Record<string, number> = {};
-  for (const [key, value] of Object.entries(resolvedSearchParams)) {
-    if (key.startsWith('p_') && typeof value === 'string') {
-      const layerId = key.slice(2); // Remove 'p_' prefix
-      const pageNum = parseInt(value, 10);
-      if (!isNaN(pageNum) && pageNum >= 1) {
-        pageNumbers[layerId] = pageNum;
-      }
-    }
-  }
-
-  // Only opt out of caching when pagination is requested
-  // This keeps default page visits fast and cached
-  if (Object.keys(pageNumbers).length > 0) {
-    unstable_noStore();
-  }
-
-  const paginationContext: PaginationContext = {
-    pageNumbers,
-    defaultPage: 1,
-  };
-
-  // Fetch homepage data with pagination context
-  const data = await fetchPublishedHomepage(paginationContext);
+export default async function Home() {
+  // Cache-first homepage path; pagination is served through internal dynamic routes.
+  const data = await fetchPublishedHomepage();
 
   // If no published homepage exists, show default landing page
   if (!data || !data.pageLayers) {
