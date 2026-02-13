@@ -513,7 +513,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const initialZoomRef = useRef<number | null>(null);
   const [initialZoomSet, setInitialZoomSet] = useState(false);
 
-  // Track whether initial zoom calculation is ready (prevents flash of wrong zoom)
+  // Track whether zoom calculation is ready (prevents flash of wrong zoom on initial load)
   const [isCanvasReady, setIsCanvasReady] = useState(false);
 
   // Optimize store subscriptions - use selective selectors
@@ -762,9 +762,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
       setContainerHeight(height);
       setContainerWidth(width);
 
-      // Mark canvas ready once we have valid dimensions (autofit will calculate on next frame)
-      if (height > 0 && width > 0) {
-        // Use rAF to ensure zoom calculation from ResizeObserver has applied before revealing
+      // Mark canvas ready once we have valid dimensions
+      if (height > 0 && width > 0 && !isCanvasReady) {
+        // Use rAF to ensure zoom calculation has applied before revealing
         requestAnimationFrame(() => {
           setIsCanvasReady(true);
         });
@@ -776,7 +776,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     resizeObserver.observe(container);
 
     return () => resizeObserver.disconnect();
-  }, []);
+  }, [isCanvasReady]);
 
   const layers = useMemo(() => {
     // If editing a component, show component layers

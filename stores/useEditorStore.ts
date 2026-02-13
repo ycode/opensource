@@ -77,6 +77,7 @@ interface EditorActions {
   setHoveredLayerId: (id: string | null) => void;
   setPreviewMode: (enabled: boolean) => void;
   setActiveSidebarTab: (tab: EditorSidebarTab) => void;
+  setLastDesignUrl: (url: string | null) => void;
   openFileManager: (onSelect?: ((asset: Asset) => void | false) | null, assetId?: string | null, category?: AssetCategoryFilter) => void;
   closeFileManager: () => void;
   setKeyboardShortcutsOpen: (open: boolean) => void;
@@ -116,6 +117,8 @@ interface EditorStoreWithHistory extends EditorState {
   hoveredLayerId: string | null;
   isPreviewMode: boolean;
   activeSidebarTab: EditorSidebarTab;
+  /** Last visited design route URL for restoring navigation */
+  lastDesignUrl: string | null;
   fileManager: {
     open: boolean;
     onSelect: ((asset: Asset) => void | false) | null;
@@ -178,6 +181,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   hoveredLayerId: null,
   isPreviewMode: false,
   activeSidebarTab: 'layers' as EditorSidebarTab,
+  lastDesignUrl: null,
   fileManager: {
     open: false,
     onSelect: null,
@@ -465,6 +469,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setPreviewMode: (enabled) => set({ isPreviewMode: enabled }),
 
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
+  setLastDesignUrl: (url) => set({ lastDesignUrl: url }),
 
   openFileManager: (onSelect, assetId, category) => set({
     fileManager: {
