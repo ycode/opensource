@@ -5,6 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { storage } from '@/lib/storage';
 
 import { getAllPages } from '@/lib/repositories/pageRepository';
 import { getAllPublishedPageFolders } from '@/lib/repositories/pageFolderRepository';
@@ -40,6 +41,17 @@ function getBaseUrl(): string {
 
 export async function GET() {
   try {
+    const hasSupabaseCredentials = await storage.exists();
+    if (!hasSupabaseCredentials) {
+      const xml = generateSitemapXml([]);
+      return new NextResponse(xml, {
+        headers: {
+          'Content-Type': 'application/xml',
+          'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+        },
+      });
+    }
+
     // Get sitemap settings
     const storedSettings = await getSettingByKey('sitemap');
     const settings: SitemapSettings = storedSettings || getDefaultSitemapSettings();

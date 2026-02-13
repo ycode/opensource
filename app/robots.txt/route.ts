@@ -6,6 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { storage } from '@/lib/storage';
 import type { SitemapSettings } from '@/types';
 
 /**
@@ -28,6 +29,25 @@ function getBaseUrl(): string {
 
 export async function GET() {
   try {
+    const hasSupabaseCredentials = await storage.exists();
+    if (!hasSupabaseCredentials) {
+      const baseUrl = getBaseUrl();
+      const fallback = `# Default robots.txt
+User-agent: *
+Allow: /
+Disallow: /ycode/
+
+# Sitemap
+Sitemap: ${baseUrl}/sitemap.xml`;
+
+      return new NextResponse(fallback, {
+        headers: {
+          'Content-Type': 'text/plain',
+          'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+        },
+      });
+    }
+
     // Get custom robots.txt content if set
     const customRobots = await getSettingByKey('robots_txt');
 
