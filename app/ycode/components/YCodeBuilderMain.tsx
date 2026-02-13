@@ -37,8 +37,10 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { checkCircularReference } from '@/lib/component-utils';
 
+// Right sidebar is always visible in editor mode - load eagerly to avoid delay
+import RightSidebar from '../components/RightSidebar';
+
 // Lazy-loaded components (heavy, not needed on initial render)
-const RightSidebar = lazy(() => import('../components/RightSidebar'));
 const CMS = lazy(() => import('../components/CMS'));
 const CollectionItemSheet = lazy(() => import('../components/CollectionItemSheet'));
 const FileManagerDialog = lazy(() => import('../components/FileManagerDialog'));
@@ -1900,44 +1902,42 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 liveComponentUpdates={liveComponentUpdates}
               />
 
-              {/* Right Sidebar - Properties (lazy loaded, hidden in preview mode) */}
+              {/* Right Sidebar - Properties (hidden in preview mode) */}
               {!isPreviewMode && (
-                <Suspense fallback={<div className="w-72 shrink-0 bg-background border-l" />}>
-                  <RightSidebar
-                    selectedLayerId={selectedLayerId}
-                    onLayerUpdate={(layerId, updates) => {
-                      // If editing component, update component draft
-                      if (editingComponentId) {
-                        const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
-                        const layers = componentDrafts[editingComponentId] || [];
+                <RightSidebar
+                  selectedLayerId={selectedLayerId}
+                  onLayerUpdate={(layerId, updates) => {
+                    // If editing component, update component draft
+                    if (editingComponentId) {
+                      const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
+                      const layers = componentDrafts[editingComponentId] || [];
 
-                        // Find and update layer in tree
-                        const updateLayerInTree = (tree: Layer[]): Layer[] => {
-                          return tree.map(layer => {
-                            if (layer.id === layerId) {
-                              return { ...layer, ...updates };
-                            }
-                            if (layer.children) {
-                              return { ...layer, children: updateLayerInTree(layer.children) };
-                            }
-                            return layer;
-                          });
-                        };
+                      // Find and update layer in tree
+                      const updateLayerInTree = (tree: Layer[]): Layer[] => {
+                        return tree.map(layer => {
+                          if (layer.id === layerId) {
+                            return { ...layer, ...updates };
+                          }
+                          if (layer.children) {
+                            return { ...layer, children: updateLayerInTree(layer.children) };
+                          }
+                          return layer;
+                        });
+                      };
 
-                        const updatedLayers = updateLayerInTree(layers);
-                        updateComponentDraft(editingComponentId, updatedLayers);
-                      } else if (currentPageId) {
-                        // Regular page mode
-                        updateLayer(currentPageId, layerId, updates);
+                      const updatedLayers = updateLayerInTree(layers);
+                      updateComponentDraft(editingComponentId, updatedLayers);
+                    } else if (currentPageId) {
+                      // Regular page mode
+                      updateLayer(currentPageId, layerId, updates);
 
-                        // Broadcast to other collaborators
-                        if (liveLayerUpdates) {
-                          liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
-                        }
+                      // Broadcast to other collaborators
+                      if (liveLayerUpdates) {
+                        liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
                       }
-                    }}
-                  />
-                  </Suspense>
+                    }
+                  }}
+                />
               )}
             </div>
           </>

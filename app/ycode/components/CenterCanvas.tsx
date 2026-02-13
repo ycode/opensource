@@ -513,6 +513,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const initialZoomRef = useRef<number | null>(null);
   const [initialZoomSet, setInitialZoomSet] = useState(false);
 
+  // Track whether zoom calculation is ready (prevents flash of wrong zoom on initial load)
+  const [isCanvasReady, setIsCanvasReady] = useState(false);
+
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const addLayerFromTemplate = usePagesStore((state) => state.addLayerFromTemplate);
@@ -754,8 +757,18 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!container) return;
 
     const updateContainerDimensions = () => {
-      setContainerHeight(container.clientHeight);
-      setContainerWidth(container.clientWidth);
+      const height = container.clientHeight;
+      const width = container.clientWidth;
+      setContainerHeight(height);
+      setContainerWidth(width);
+
+      // Mark canvas ready once we have valid dimensions
+      if (height > 0 && width > 0 && !isCanvasReady) {
+        // Use rAF to ensure zoom calculation has applied before revealing
+        requestAnimationFrame(() => {
+          setIsCanvasReady(true);
+        });
+      }
     };
 
     updateContainerDimensions();
@@ -763,7 +776,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     resizeObserver.observe(container);
 
     return () => resizeObserver.disconnect();
-  }, []);
+  }, [isCanvasReady]);
 
   const layers = useMemo(() => {
     // If editing a component, show component layers
@@ -2096,6 +2109,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
             isPreviewMode ? 'overflow-hidden' : 'overflow-auto'
           )}
           style={{
+            // Hide content until initial zoom is calculated to prevent layout jump
+            opacity: isCanvasReady ? 1 : 0,
             // Hide scrollbars but keep scrolling functionality (editor mode only)
             scrollbarWidth: isPreviewMode ? undefined : 'none', // Firefox
             msOverflowStyle: isPreviewMode ? undefined : 'none', // IE/Edge

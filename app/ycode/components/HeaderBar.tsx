@@ -80,11 +80,40 @@ export default function HeaderBar({
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager, setKeyboardShortcutsOpen, setActiveSidebarTab } = useEditorStore();
+  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager, setKeyboardShortcutsOpen, setActiveSidebarTab, lastDesignUrl, setLastDesignUrl } = useEditorStore();
   const { folders, pages: storePages } = usePagesStore();
-  const { items, fields } = useCollectionsStore();
+  const { items, fields, collections, selectedCollectionId: storeSelectedCollectionId, setSelectedCollectionId } = useCollectionsStore();
   const { locales, selectedLocaleId, setSelectedLocaleId, translations } = useLocalisationStore();
-  const { navigateToLayers, navigateToCollections, updateQueryParams, routeType } = useEditorUrl();
+  const { navigateToLayers, navigateToCollection, navigateToCollections, updateQueryParams, routeType } = useEditorUrl();
+
+  // Optimistic nav button state - set immediately on click, cleared when URL catches up
+  type NavButton = 'design' | 'cms' | 'forms';
+  const [optimisticNav, setOptimisticNav] = useState<NavButton | null>(null);
+
+  // Clear optimistic state once the URL reflects the clicked route
+  useEffect(() => {
+    if (!optimisticNav) return;
+    const isDesignRoute = routeType === 'layers' || routeType === 'page' || routeType === 'component' || routeType === null;
+    const isCmsRoute = routeType === 'collection' || routeType === 'collections-base';
+    const isFormsRoute = routeType === 'forms';
+
+    if (
+      (optimisticNav === 'design' && isDesignRoute) ||
+      (optimisticNav === 'cms' && isCmsRoute) ||
+      (optimisticNav === 'forms' && isFormsRoute)
+    ) {
+      setOptimisticNav(null);
+    }
+  }, [routeType, optimisticNav]);
+
+  // Derive active button: optimistic state takes priority, then URL
+  const activeNavButton = useMemo((): NavButton => {
+    if (optimisticNav) return optimisticNav;
+    if (routeType === 'collection' || routeType === 'collections-base') return 'cms';
+    if (routeType === 'forms') return 'forms';
+    return 'design';
+  }, [optimisticNav, routeType]);
+
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'system' | 'light' | 'dark' | null;
@@ -370,13 +399,19 @@ export default function HeaderBar({
 
         <div className="flex gap-1">
           <Button
-            variant={routeType === 'layers' || routeType === 'page' || routeType === 'component' || routeType === null ? 'secondary' : 'ghost'}
+            variant={activeNavButton === 'design' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => {
-              const targetPageId = storeCurrentPageId || findHomepage(storePages)?.id || storePages[0]?.id;
-              if (targetPageId) {
-                setActiveSidebarTab('layers');
-                navigateToLayers(targetPageId);
+              setOptimisticNav('design');
+              setActiveSidebarTab('layers');
+              // Restore last design URL if available
+              if (lastDesignUrl) {
+                router.push(lastDesignUrl);
+              } else {
+                const targetPageId = storeCurrentPageId || findHomepage(storePages)?.id || storePages[0]?.id;
+                if (targetPageId) {
+                  navigateToLayers(targetPageId);
+                }
               }
             }}
           >
@@ -384,20 +419,39 @@ export default function HeaderBar({
             Design
           </Button>
           <Button
-            variant={routeType === 'collection' || routeType === 'collections-base' ? 'secondary' : 'ghost'}
+            variant={activeNavButton === 'cms' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => {
+              // Save current design URL before navigating away
+              const isDesignRoute = routeType === 'layers' || routeType === 'page' || routeType === 'component';
+              if (isDesignRoute) {
+                setLastDesignUrl(window.location.pathname + window.location.search);
+              }
+              setOptimisticNav('cms');
               setActiveSidebarTab('cms');
-              navigateToCollections();
+              // Navigate to last selected or first available collection
+              const targetCollectionId = storeSelectedCollectionId || collections[0]?.id;
+              if (targetCollectionId) {
+                setSelectedCollectionId(targetCollectionId);
+                navigateToCollection(targetCollectionId);
+              } else {
+                navigateToCollections();
+              }
             }}
           >
             <Icon name="database" />
             CMS
           </Button>
           <Button
-            variant={routeType === 'forms' ? 'secondary' : 'ghost'}
+            variant={activeNavButton === 'forms' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => {
+              // Save current design URL before navigating away
+              const isDesignRoute = routeType === 'layers' || routeType === 'page' || routeType === 'component';
+              if (isDesignRoute) {
+                setLastDesignUrl(window.location.pathname + window.location.search);
+              }
+              setOptimisticNav('forms');
               router.push('/ycode/forms');
             }}
           >

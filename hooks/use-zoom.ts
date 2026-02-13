@@ -37,10 +37,13 @@ export function useZoom({
   const [zoomMode, setZoomMode] = useState<ZoomMode>('autofit'); // Default to autofit
 
   // Calculate zoom to fit height (prioritizes vertical fit, width follows)
-  const calculateZoomToFit = useCallback((): number => {
-    if (!containerRef.current) return 100;
+  // Returns null if container is hidden (0 dimensions) to preserve current zoom
+  const calculateZoomToFit = useCallback((): number | null => {
+    if (!containerRef.current) return null;
 
     const containerHeight = containerRef.current.clientHeight;
+    // Skip calculation when container is hidden (e.g. tab switch to CMS)
+    if (containerHeight === 0) return null;
 
     // Calculate zoom based on height with padding
     const availableHeight = containerHeight - CANVAS_PADDING;
@@ -51,10 +54,13 @@ export function useZoom({
   }, [containerRef, contentHeight, minZoom]);
 
   // Calculate autofit (fits horizontally)
-  const calculateAutofit = useCallback((): number => {
-    if (!containerRef.current) return 100;
+  // Returns null if container is hidden (0 dimensions) to preserve current zoom
+  const calculateAutofit = useCallback((): number | null => {
+    if (!containerRef.current) return null;
 
     const containerWidth = containerRef.current.clientWidth;
+    // Skip calculation when container is hidden (e.g. tab switch to CMS)
+    if (containerWidth === 0) return null;
 
     // Calculate zoom that fits content horizontally with padding
     const availableWidth = containerWidth - CANVAS_PADDING;
@@ -91,6 +97,7 @@ export function useZoom({
   // Zoom to fit (vertical)
   const zoomToFit = useCallback(() => {
     const newZoom = calculateZoomToFit();
+    if (newZoom === null) return; // Container hidden, preserve current zoom
     setZoom(newZoom);
     setZoomMode('fit');
   }, [calculateZoomToFit]);
@@ -98,6 +105,7 @@ export function useZoom({
   // Autofit (horizontal)
   const autofit = useCallback(() => {
     const newZoom = calculateAutofit();
+    if (newZoom === null) return; // Container hidden, preserve current zoom
     setZoom(newZoom);
     setZoomMode('autofit');
   }, [calculateAutofit]);
@@ -131,10 +139,10 @@ export function useZoom({
 
       if (zoomMode === 'fit') {
         const newZoom = calculateZoomToFit();
-        setZoom(newZoom);
+        if (newZoom !== null) setZoom(newZoom);
       } else if (zoomMode === 'autofit') {
         const newZoom = calculateAutofit();
-        setZoom(newZoom);
+        if (newZoom !== null) setZoom(newZoom);
       }
     };
 
