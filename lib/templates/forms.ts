@@ -12,7 +12,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Form',
     template: {
       name: 'form',
-      classes: ['space-y-4'],
+      classes: ['flex', 'flex-col', 'gap-8', 'w-full'],
       settings: {
         id: 'contact-form'
       },
@@ -23,7 +23,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Error alert',
           alertType: 'error',
           hiddenGenerated: true,
-          classes: ['bg-[#fee2e2]', 'text-[#991b1b]', 'text-[1rem]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
+          classes: ['bg-[#fee2e2]', 'text-[#991b1b]', 'text-[16px]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
           children: [
             getTemplateRef('text', {
               customName: 'Message',
@@ -55,7 +55,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               color: '#991b1b',
               fontWeight: '500'
             },
@@ -71,7 +71,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Success alert',
           alertType: 'success',
           hiddenGenerated: true,
-          classes: ['bg-[#d1fae5]', 'text-[#065f46]', 'text-[1rem]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
+          classes: ['bg-[#d1fae5]', 'text-[#065f46]', 'text-[16px]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
           children: [
             getTemplateRef('text', {
               customName: 'Message',
@@ -103,7 +103,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               color: '#065f46',
               fontWeight: '500'
             },
@@ -122,14 +122,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
               customName: 'Label',
               settings: { tag: 'label' },
               attributes: { for: 'name' },
-              classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+              classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
               restrictions: { editText: true },
               design: {
                 typography: {
                   isActive: true,
-                  fontSize: '0.875rem',
+                  fontSize: '16px',
                   fontWeight: '500',
-                  color: '#111827'
+                  color: '#404040',
+                  letterSpacing: '-0.025em',
+                  lineHeight: '24px'
                 }
               },
               variables: {
@@ -143,7 +145,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             }),
             {
               name: 'input',
-              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
+              classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
               attributes: {
                 type: 'text',
                 name: 'name',
@@ -172,14 +174,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
               customName: 'Label',
               settings: { tag: 'label' },
               attributes: { for: 'email' },
-              classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+              classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
               restrictions: { editText: true },
               design: {
                 typography: {
                   isActive: true,
-                  fontSize: '0.875rem',
+                  fontSize: '16px',
                   fontWeight: '500',
-                  color: '#111827'
+                  color: '#404040',
+                  letterSpacing: '-0.025em',
+                  lineHeight: '24px'
                 }
               },
               variables: {
@@ -193,7 +197,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             }),
             {
               name: 'input',
-              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
+              classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
               attributes: {
                 type: 'email',
                 name: 'email',
@@ -222,14 +226,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
               customName: 'Label',
               settings: { tag: 'label' },
               attributes: { for: 'message' },
-              classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+              classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
               restrictions: { editText: true },
               design: {
                 typography: {
                   isActive: true,
-                  fontSize: '0.875rem',
+                  fontSize: '16px',
                   fontWeight: '500',
-                  color: '#111827'
+                  color: '#404040',
+                  letterSpacing: '-0.025em',
+                  lineHeight: '24px'
                 }
               },
               variables: {
@@ -243,7 +249,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             }),
             {
               name: 'textarea',
-              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
+              classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
               attributes: {
                 name: 'message',
                 placeholder: 'Message',
@@ -266,7 +272,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         // Submit button
         {
           name: 'button',
-          classes: ['px-[1.5rem]', 'py-[0.75rem]', 'bg-[#2563eb]', 'text-[#ffffff]', 'rounded-[0.5rem]', 'font-[500]', 'hover:bg-[#1d4ed8]', 'cursor-pointer'],
+          classes: ['inline-block', 'px-5', 'py-2', 'text-[14px]', 'tracking-wide', 'leading-[20px]', 'text-white', 'bg-black', 'border', 'border-solid', 'border-transparent', 'rounded-md', 'focus:outline-none', 'cursor-pointer'],
           attributes: {
             type: 'button'
           },
@@ -287,25 +293,33 @@ export const formTemplates: Record<string, BlockTemplate> = {
             }),
           ],
           design: {
+            layout: {
+              isActive: true,
+              display: 'inline-block'
+            },
             spacing: {
               isActive: true,
-              paddingLeft: '1.5rem',
-              paddingRight: '1.5rem',
-              paddingTop: '0.75rem',
-              paddingBottom: '0.75rem'
+              paddingLeft: '1.25rem',
+              paddingRight: '1.25rem',
+              paddingTop: '0.5rem',
+              paddingBottom: '0.5rem'
             },
             backgrounds: {
               isActive: true,
-              backgroundColor: '#2563eb'
+              backgroundColor: '#000000'
             },
             typography: {
               isActive: true,
-              color: '#ffffff',
-              fontWeight: '500'
+              fontSize: '14px',
+              letterSpacing: '0.025em',
+              lineHeight: '20px',
+              color: '#ffffff'
             },
             borders: {
               isActive: true,
-              borderRadius: '0.5rem'
+              borderWidth: '1px',
+              borderColor: 'transparent',
+              borderRadius: '0.375rem'
             }
           }
         }
@@ -315,8 +329,15 @@ export const formTemplates: Record<string, BlockTemplate> = {
         action: ''
       },
       design: {
-        spacing: {
-          isActive: true
+        sizing: {
+          isActive: true,
+          width: '100%'
+        },
+        layout: {
+          isActive: true,
+          display: 'Flex',
+          flexDirection: 'column',
+          gap: '2rem'
         }
       }
     }
@@ -333,14 +354,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'input' },
-          classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+          classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
+              fontSize: '16px',
               fontWeight: '500',
-              color: '#111827'
+              color: '#404040',
+              letterSpacing: '-0.025em',
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -354,7 +377,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         }),
         {
           name: 'input',
-          classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text', 'text-[0.875rem]', 'text-[#111827]'],
+          classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
           settings: {
             id: 'input'
           },
@@ -371,19 +394,25 @@ export const formTemplates: Record<string, BlockTemplate> = {
               isActive: true,
               paddingLeft: '1rem',
               paddingRight: '1rem',
-              paddingTop: '0.5rem',
-              paddingBottom: '0.5rem'
+              paddingTop: '0.625rem',
+              paddingBottom: '0.625rem'
             },
             borders: {
               isActive: true,
               borderWidth: '1px',
-              borderColor: '#d1d5db',
-              borderRadius: '0.5rem'
+              borderColor: 'rgba(115, 115, 115, 0.15)',
+              borderRadius: '0.75rem'
+            },
+            backgrounds: {
+              isActive: true,
+              backgroundColor: 'rgba(212, 212, 212, 0.1)'
             },
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
-              color: '#111827'
+              fontSize: '16px',
+              lineHeight: '24px',
+              letterSpacing: '0px',
+              color: '#171717'
             }
           }
         }
@@ -414,14 +443,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'textarea' },
-          classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+          classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
+              fontSize: '16px',
               fontWeight: '500',
-              color: '#111827'
+              color: '#404040',
+              letterSpacing: '-0.025em',
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -435,7 +466,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         }),
         {
           name: 'textarea',
-          classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text', 'text-[0.875rem]', 'text-[#111827]'],
+          classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
           settings: {
             id: 'textarea'
           },
@@ -452,19 +483,25 @@ export const formTemplates: Record<string, BlockTemplate> = {
               isActive: true,
               paddingLeft: '1rem',
               paddingRight: '1rem',
-              paddingTop: '0.5rem',
-              paddingBottom: '0.5rem'
+              paddingTop: '0.625rem',
+              paddingBottom: '0.625rem'
             },
             borders: {
               isActive: true,
               borderWidth: '1px',
-              borderColor: '#d1d5db',
-              borderRadius: '0.5rem'
+              borderColor: 'rgba(115, 115, 115, 0.15)',
+              borderRadius: '0.75rem'
+            },
+            backgrounds: {
+              isActive: true,
+              backgroundColor: 'rgba(212, 212, 212, 0.1)'
             },
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
-              color: '#111827'
+              fontSize: '16px',
+              lineHeight: '24px',
+              letterSpacing: '0px',
+              color: '#171717'
             }
           }
         }
@@ -495,14 +532,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'select' },
-          classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+          classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
+              fontSize: '16px',
               fontWeight: '500',
-              color: '#111827'
+              color: '#404040',
+              letterSpacing: '-0.025em',
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -516,7 +555,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         }),
         {
           name: 'select',
-          classes: ['w-full', 'px-4', 'py-2', 'border', 'border-[#d1d5db]', 'rounded-lg', 'focus:ring-2', 'focus:ring-[#3b82f6]', 'bg-white', 'cursor-pointer', 'text-[0.875rem]', 'text-[#111827]'],
+          classes: ['w-full', 'appearance-none', 'px-4', 'pr-10', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-pointer'],
           settings: {
             id: 'select'
           },
@@ -555,19 +594,25 @@ export const formTemplates: Record<string, BlockTemplate> = {
               isActive: true,
               paddingLeft: '1rem',
               paddingRight: '1rem',
-              paddingTop: '0.5rem',
-              paddingBottom: '0.5rem'
+              paddingTop: '0.625rem',
+              paddingBottom: '0.625rem'
             },
             borders: {
               isActive: true,
               borderWidth: '1px',
-              borderColor: '#d1d5db',
-              borderRadius: '0.5rem'
+              borderColor: 'rgba(115, 115, 115, 0.15)',
+              borderRadius: '0.75rem'
+            },
+            backgrounds: {
+              isActive: true,
+              backgroundColor: 'rgba(212, 212, 212, 0.1)'
             },
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
-              color: '#111827'
+              fontSize: '16px',
+              lineHeight: '24px',
+              letterSpacing: '0px',
+              color: '#171717'
             }
           }
         }
@@ -602,19 +647,39 @@ export const formTemplates: Record<string, BlockTemplate> = {
           attributes: {
             type: 'checkbox'
           },
-          classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'rounded-[0.25rem]', 'focus:ring-[#3b82f6]', 'cursor-pointer']
+          classes: ['w-[18px]', 'h-[18px]', 'appearance-none', 'checked:appearance-auto', 'rounded', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'bg-[#d4d4d4]/10', 'cursor-pointer'],
+          design: {
+            sizing: {
+              isActive: true,
+              width: '18px',
+              height: '18px'
+            },
+            borders: {
+              isActive: true,
+              borderWidth: '1px',
+              borderColor: 'rgba(115, 115, 115, 0.15)',
+              borderRadius: '0.25rem'
+            },
+            backgrounds: {
+              isActive: true,
+              backgroundColor: 'rgba(212, 212, 212, 0.1)'
+            }
+          }
         },
         getTemplateRef('text', {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'checkbox' },
-          classes: ['text-[0.875rem]', 'text-[#111827]', 'cursor-pointer'],
+          classes: ['text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
-              color: '#111827'
+              fontSize: '16px',
+              fontWeight: '500',
+              color: '#404040',
+              letterSpacing: '-0.025em',
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -658,19 +723,39 @@ export const formTemplates: Record<string, BlockTemplate> = {
             type: 'radio',
             name: 'radio-group'
           },
-          classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'focus:ring-[#3b82f6]', 'cursor-pointer']
+          classes: ['w-[18px]', 'h-[18px]', 'appearance-none', 'checked:appearance-auto', 'rounded-full', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'bg-[#d4d4d4]/10', 'cursor-pointer'],
+          design: {
+            sizing: {
+              isActive: true,
+              width: '18px',
+              height: '18px'
+            },
+            borders: {
+              isActive: true,
+              borderWidth: '1px',
+              borderColor: 'rgba(115, 115, 115, 0.15)',
+              borderRadius: '9999px'
+            },
+            backgrounds: {
+              isActive: true,
+              backgroundColor: 'rgba(212, 212, 212, 0.1)'
+            }
+          }
         },
         getTemplateRef('text', {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'radio' },
-          classes: ['text-[0.875rem]', 'text-[#111827]', 'cursor-pointer'],
+          classes: ['text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
-              color: '#111827'
+              fontSize: '16px',
+              fontWeight: '500',
+              color: '#404040',
+              letterSpacing: '-0.025em',
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -706,14 +791,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
       settings: {
         tag: 'label',
       },
-      classes: ['block', 'text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'mb-[0.25rem]', 'cursor-pointer'],
+      classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'mb-[0.25rem]', 'cursor-pointer'],
       restrictions: { editText: true },
       design: {
         typography: {
           isActive: true,
-          fontSize: '0.875rem',
+          fontSize: '16px',
           fontWeight: '500',
-          color: '#111827'
+          color: '#404040',
+          letterSpacing: '-0.025em',
+          lineHeight: '24px'
         }
       },
       variables: {
