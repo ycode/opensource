@@ -23,7 +23,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Error alert',
           alertType: 'error',
           hiddenGenerated: true,
-          classes: ['bg-[#fee2e2]', 'text-[#991b1b]', 'text-[1rem]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
+          classes: ['bg-[#fee2e2]', 'text-[#991b1b]', 'text-[16px]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
           children: [
             getTemplateRef('text', {
               customName: 'Message',
@@ -55,7 +55,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               color: '#991b1b',
               fontWeight: '500'
             },
@@ -71,7 +71,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Success alert',
           alertType: 'success',
           hiddenGenerated: true,
-          classes: ['bg-[#d1fae5]', 'text-[#065f46]', 'text-[1rem]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
+          classes: ['bg-[#d1fae5]', 'text-[#065f46]', 'text-[16px]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
           children: [
             getTemplateRef('text', {
               customName: 'Message',
@@ -103,7 +103,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               color: '#065f46',
               fontWeight: '500'
             },
@@ -122,16 +122,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
               customName: 'Label',
               settings: { tag: 'label' },
               attributes: { for: 'name' },
-              classes: ['block', 'text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'cursor-pointer'],
+              classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
               restrictions: { editText: true },
               design: {
                 typography: {
                   isActive: true,
-                  fontSize: '1rem',
+                  fontSize: '16px',
                   fontWeight: '500',
                   color: '#404040',
                   letterSpacing: '-0.025em',
-                  lineHeight: '1.5em'
+                  lineHeight: '24px'
                 }
               },
               variables: {
@@ -145,7 +145,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             }),
             {
               name: 'input',
-              classes: ['w-full', 'px-4', 'py-2.5', 'text-base', 'leading-[1.5em]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
+              classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
               attributes: {
                 type: 'text',
                 name: 'name',
@@ -174,16 +174,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
               customName: 'Label',
               settings: { tag: 'label' },
               attributes: { for: 'email' },
-              classes: ['block', 'text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'cursor-pointer'],
+              classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
               restrictions: { editText: true },
               design: {
                 typography: {
                   isActive: true,
-                  fontSize: '1rem',
+                  fontSize: '16px',
                   fontWeight: '500',
                   color: '#404040',
                   letterSpacing: '-0.025em',
-                  lineHeight: '1.5em'
+                  lineHeight: '24px'
                 }
               },
               variables: {
@@ -197,7 +197,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             }),
             {
               name: 'input',
-              classes: ['w-full', 'px-4', 'py-2.5', 'text-base', 'leading-[1.5em]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
+              classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
               attributes: {
                 type: 'email',
                 name: 'email',
@@ -226,16 +226,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
               customName: 'Label',
               settings: { tag: 'label' },
               attributes: { for: 'message' },
-              classes: ['block', 'text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'cursor-pointer'],
+              classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
               restrictions: { editText: true },
               design: {
                 typography: {
                   isActive: true,
-                  fontSize: '1rem',
+                  fontSize: '16px',
                   fontWeight: '500',
                   color: '#404040',
                   letterSpacing: '-0.025em',
-                  lineHeight: '1.5em'
+                  lineHeight: '24px'
                 }
               },
               variables: {
@@ -249,7 +249,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             }),
             {
               name: 'textarea',
-              classes: ['w-full', 'px-4', 'py-2.5', 'text-base', 'leading-[1.5em]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
+              classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
               attributes: {
                 name: 'message',
                 placeholder: 'Message',
@@ -272,7 +272,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         // Submit button
         {
           name: 'button',
-          classes: ['inline-block', 'px-5', 'py-2', 'text-sm', 'tracking-wide', 'leading-5', 'text-white', 'bg-black', 'border', 'border-solid', 'border-transparent', 'rounded-md', 'focus:outline-none', 'cursor-pointer'],
+          classes: ['inline-block', 'px-5', 'py-2', 'text-[14px]', 'tracking-wide', 'leading-[20px]', 'text-white', 'bg-black', 'border', 'border-solid', 'border-transparent', 'rounded-md', 'focus:outline-none', 'cursor-pointer'],
           attributes: {
             type: 'button'
           },
@@ -310,9 +310,9 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             typography: {
               isActive: true,
-              fontSize: '0.875rem',
+              fontSize: '14px',
               letterSpacing: '0.025em',
-              lineHeight: '1.25rem',
+              lineHeight: '20px',
               color: '#ffffff'
             },
             borders: {
@@ -354,16 +354,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'input' },
-          classes: ['block', 'text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'cursor-pointer'],
+          classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               fontWeight: '500',
               color: '#404040',
               letterSpacing: '-0.025em',
-              lineHeight: '1.5em'
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -377,7 +377,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         }),
         {
           name: 'input',
-          classes: ['w-full', 'px-4', 'py-2.5', 'text-base', 'leading-[1.5em]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
+          classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
           settings: {
             id: 'input'
           },
@@ -409,8 +409,8 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             typography: {
               isActive: true,
-              fontSize: '1rem',
-              lineHeight: '1.5em',
+              fontSize: '16px',
+              lineHeight: '24px',
               letterSpacing: '0px',
               color: '#171717'
             }
@@ -443,16 +443,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'textarea' },
-          classes: ['block', 'text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'cursor-pointer'],
+          classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               fontWeight: '500',
               color: '#404040',
               letterSpacing: '-0.025em',
-              lineHeight: '1.5em'
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -466,7 +466,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         }),
         {
           name: 'textarea',
-          classes: ['w-full', 'px-4', 'py-2.5', 'text-base', 'leading-[1.5em]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
+          classes: ['w-full', 'px-4', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'placeholder:text-[#a8a8a8]', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-text'],
           settings: {
             id: 'textarea'
           },
@@ -498,8 +498,8 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             typography: {
               isActive: true,
-              fontSize: '1rem',
-              lineHeight: '1.5em',
+              fontSize: '16px',
+              lineHeight: '24px',
               letterSpacing: '0px',
               color: '#171717'
             }
@@ -532,16 +532,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'select' },
-          classes: ['block', 'text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'cursor-pointer'],
+          classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               fontWeight: '500',
               color: '#404040',
               letterSpacing: '-0.025em',
-              lineHeight: '1.5em'
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -555,7 +555,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         }),
         {
           name: 'select',
-          classes: ['w-full', 'appearance-none', 'px-4', 'pr-10', 'py-2.5', 'text-base', 'leading-[1.5em]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-pointer'],
+          classes: ['w-full', 'appearance-none', 'px-4', 'pr-10', 'py-2.5', 'text-[16px]', 'leading-[24px]', 'tracking-[0px]', 'text-[#171717]', 'bg-[#d4d4d4]/10', 'border', 'border-solid', 'border-[#737373]/[0.15]', 'rounded-xl', 'focus:outline-none', 'focus:border-[#737373]/20', 'disabled:opacity-50', 'cursor-pointer'],
           settings: {
             id: 'select'
           },
@@ -609,8 +609,8 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             typography: {
               isActive: true,
-              fontSize: '1rem',
-              lineHeight: '1.5em',
+              fontSize: '16px',
+              lineHeight: '24px',
               letterSpacing: '0px',
               color: '#171717'
             }
@@ -670,16 +670,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'checkbox' },
-          classes: ['text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'cursor-pointer'],
+          classes: ['text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               fontWeight: '500',
               color: '#404040',
               letterSpacing: '-0.025em',
-              lineHeight: '1.5em'
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -746,16 +746,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
           customName: 'Label',
           settings: { tag: 'label' },
           attributes: { for: 'radio' },
-          classes: ['text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'cursor-pointer'],
+          classes: ['text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'cursor-pointer'],
           restrictions: { editText: true },
           design: {
             typography: {
               isActive: true,
-              fontSize: '1rem',
+              fontSize: '16px',
               fontWeight: '500',
               color: '#404040',
               letterSpacing: '-0.025em',
-              lineHeight: '1.5em'
+              lineHeight: '24px'
             }
           },
           variables: {
@@ -791,16 +791,16 @@ export const formTemplates: Record<string, BlockTemplate> = {
       settings: {
         tag: 'label',
       },
-      classes: ['block', 'text-base', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[1.5em]', 'mb-[0.25rem]', 'cursor-pointer'],
+      classes: ['block', 'text-[16px]', 'font-medium', 'text-[#404040]', 'tracking-tight', 'leading-[24px]', 'mb-[0.25rem]', 'cursor-pointer'],
       restrictions: { editText: true },
       design: {
         typography: {
           isActive: true,
-          fontSize: '1rem',
+          fontSize: '16px',
           fontWeight: '500',
           color: '#404040',
           letterSpacing: '-0.025em',
-          lineHeight: '1.5em'
+          lineHeight: '24px'
         }
       },
       variables: {
