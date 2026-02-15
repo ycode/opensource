@@ -662,7 +662,7 @@ export default function CollectionFiltersSettings({
         </DropdownMenu>
       }
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {groups.length === 0 ? (
           <div className="text-xs text-muted-foreground text-center py-4">
             No filters set. Click + to add a filter.

@@ -309,7 +309,7 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3">
         {/* Source Section */}
         <div className="grid grid-cols-3 items-center">
           <Label variant="muted">Source</Label>

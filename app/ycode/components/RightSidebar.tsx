@@ -249,6 +249,22 @@ const RightSidebar = React.memo(function RightSidebar({
     return !!parentCollection;
   }, [selectedLayer, selectedLayerId, allLayers]);
 
+  // Check if link settings should be hidden:
+  // - Buttons inside a form (they act as submit buttons)
+  // - Any layer inside a button (the button itself handles the link)
+  const shouldHideLinkSettings: boolean = useMemo(() => {
+    if (!selectedLayer || !selectedLayerId) return false;
+
+    let current = findLayerWithParent(allLayers, selectedLayerId)?.parent ?? null;
+    while (current) {
+      if (current.name === 'button') return true;
+      if (current.name === 'form' && selectedLayer.name === 'button') return true;
+      const parentResult = findLayerWithParent(allLayers, current.id);
+      current = parentResult?.parent ?? null;
+    }
+    return false;
+  }, [selectedLayer, selectedLayerId, allLayers]);
+
   // Check if pagination should be disabled (only for root-level case where we show a message)
   const isPaginationDisabled: boolean = useMemo(() => {
     if (!selectedLayer) return true;
@@ -2203,7 +2219,7 @@ const RightSidebar = React.memo(function RightSidebar({
                 >
                   <div className="grid grid-cols-3">
                     {!(isTextEditingOnCanvas && editingLayerIdOnCanvas === selectedLayerId) && (
-                      <div className="flex items-start gap-1 py-1">
+                      <div className="flex items-start gap-1 py-2">
                         {editingComponentId ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -2291,8 +2307,8 @@ const RightSidebar = React.memo(function RightSidebar({
               );
             })()}
 
-            {/* Link Settings - hide for form-related layers that should not be links */}
-            {selectedLayer && !['form', 'select', 'input', 'textarea', 'checkbox', 'radio', 'label'].includes(selectedLayer.name) && selectedLayer.settings?.tag !== 'label' && (
+            {/* Link Settings - hide for form-related layers, buttons inside forms, and layers inside buttons */}
+            {selectedLayer && !['form', 'select', 'input', 'textarea', 'checkbox', 'radio', 'label'].includes(selectedLayer.name) && selectedLayer.settings?.tag !== 'label' && !shouldHideLinkSettings && (
               <LinkSettings
                 layer={selectedLayer}
                 onLayerUpdate={handleLayerUpdate}

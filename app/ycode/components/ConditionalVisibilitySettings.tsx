@@ -713,7 +713,7 @@ export default function ConditionalVisibilitySettings({
         </DropdownMenu>
       }
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {groups.length === 0 ? (
           <div className="text-xs text-muted-foreground text-center py-4">
             No conditions set. Click + to add a condition.

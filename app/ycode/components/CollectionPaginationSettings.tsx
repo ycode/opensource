@@ -91,7 +91,7 @@ export default function CollectionPaginationSettings({
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         {/* Enable Pagination Toggle */}
         <div className="flex items-center justify-between">
           <Label htmlFor="pagination-enabled" className="text-xs">
