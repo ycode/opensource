@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SettingsPanel from './SettingsPanel';
-import type { Layer, FormSettings as FormSettingsType } from '@/types';
+import LinkSettings from './LinkSettings';
+import type { Layer, FormSettings as FormSettingsType, LinkSettingsValue } from '@/types';
 
 interface FormSettingsProps {
   layer: Layer | null;
@@ -62,6 +63,25 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
   // Get current form settings
   const formSettings: FormSettingsType = layer?.settings?.form || {};
   const successAction = formSettings.success_action || 'message';
+  const handleRedirectLinkChange = useCallback(
+    (value: LinkSettingsValue) => {
+      if (!layer) return;
+
+      onLayerUpdate(layer.id, {
+        settings: {
+          ...layer.settings,
+          form: {
+            ...layer.settings?.form,
+            redirect_link: value,
+            // Clear deprecated fields
+            redirect_url: undefined,
+            redirect_page_id: undefined,
+          },
+        },
+      });
+    },
+    [layer, onLayerUpdate]
+  );
 
   const handleSettingChange = useCallback(
     (key: keyof FormSettingsType, value: any) => {
@@ -142,40 +162,37 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
     >
       <div className="flex flex-col gap-3">
         {/* Success Action Toggle */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-normal">
-            On Success
-          </Label>
-          <Tabs
-            value={successAction}
-            onValueChange={(value) => handleSettingChange('success_action', value)}
-            className="w-full"
-          >
-            <TabsList className="w-full">
-              <TabsTrigger value="message" className="flex-1 text-xs">
-                Message
-              </TabsTrigger>
-              <TabsTrigger value="redirect" className="flex-1 text-xs">
-                Redirect
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <div className="grid grid-cols-3">
+          <Label variant="muted">Success</Label>
+          <div className="col-span-2 *:w-full">
+            <Tabs
+              value={successAction}
+              onValueChange={(value) => handleSettingChange('success_action', value)}
+              className="w-full"
+            >
+              <TabsList className="w-full">
+                <TabsTrigger value="message" className="flex-1 text-xs">
+                  Message
+                </TabsTrigger>
+                <TabsTrigger value="redirect" className="flex-1 text-xs">
+                  Redirect
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
 
-        {/* Redirect URL - only show when redirect is selected */}
+        {/* Redirect destination - only show when redirect is selected */}
         {successAction === 'redirect' && (
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="redirect-url" className="text-xs font-normal">
-              Redirect URL
-            </Label>
-            <Input
-              id="redirect-url"
-              value={formSettings.redirect_url || ''}
-              onChange={(e) => handleSettingChange('redirect_url', e.target.value)}
-              placeholder="/thank-you"
-              className="text-xs"
-            />
-          </div>
+          <LinkSettings
+            mode="standalone"
+            value={formSettings.redirect_link}
+            onChange={handleRedirectLinkChange}
+            gridLayout
+            typeLabel="Redirect to"
+            allowedTypes={['page', 'url']}
+            hideBehavior
+          />
         )}
 
       </div>

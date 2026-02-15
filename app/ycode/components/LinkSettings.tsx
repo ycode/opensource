@@ -84,6 +84,14 @@ interface CommonProps {
   isLockedByOther?: boolean;
   isInsideCollectionLayer?: boolean; // Whether fields come from a collection layer (vs page fields)
   onOpenVariablesDialog?: () => void;
+  /** When true, standalone mode uses grid-cols-3 layout with labels on the left (like layer mode) */
+  gridLayout?: boolean;
+  /** Label for the link type selector row when using gridLayout in standalone mode */
+  typeLabel?: string;
+  /** Restrict which link types are available (e.g., ['page', 'url']) */
+  allowedTypes?: (LinkType | 'none')[];
+  /** When true, hides the behavior section (open in new tab, no follow, etc.) */
+  hideBehavior?: boolean;
 }
 
 type LinkSettingsProps = (LayerModeProps | StandaloneModeProps) & CommonProps;
@@ -96,10 +104,17 @@ export default function LinkSettings(props: LinkSettingsProps) {
     isLockedByOther,
     isInsideCollectionLayer = false,
     onOpenVariablesDialog,
+    gridLayout,
+    typeLabel,
+    allowedTypes,
+    hideBehavior,
   } = props;
 
   // Determine mode
   const isStandaloneMode = props.mode === 'standalone';
+
+  // Standalone mode uses stacked layout by default, grid layout when gridLayout prop is set
+  const useStackedLayout = isStandaloneMode && !gridLayout;
 
   // Mode-specific props
   const layer = isStandaloneMode ? null : props.layer;
@@ -304,7 +319,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
       | { type: 'separator' }
     >
   >(() => {
-    return [
+    const allOptions: Array<
+      | { value: LinkType | 'none'; label: string; icon: string; disabled?: boolean }
+      | { type: 'separator' }
+    > = [
       { value: 'none', label: 'No link set', icon: 'none' },
       { type: 'separator' },
       { value: 'page', label: 'Page', icon: 'page' },
@@ -315,7 +333,27 @@ export default function LinkSettings(props: LinkSettingsProps) {
       { value: 'email', label: 'Email', icon: 'email' },
       { value: 'phone', label: 'Phone', icon: 'phone' },
     ];
-  }, [linkFieldGroups]);
+
+    if (!allowedTypes) return allOptions;
+
+    // Filter to only allowed types (always keep 'none')
+    const allowed = new Set([...allowedTypes, 'none']);
+    const filtered = allOptions.filter(
+      (option) => 'type' in option || ('value' in option && allowed.has(option.value))
+    );
+
+    // Remove consecutive/trailing separators
+    return filtered.filter((option, index, arr) => {
+      if (!('type' in option)) return true;
+      const next = arr[index + 1];
+      const prev = arr[index - 1];
+      // Remove separator at start, end, or before another separator
+      if (index === 0 || index === arr.length - 1) return false;
+      if (!next || ('type' in next)) return false;
+      if (!prev || ('type' in prev)) return false;
+      return true;
+    });
+  }, [linkFieldGroups, allowedTypes]);
 
   // Update link settings helper - supports both layer and standalone mode
   const updateLinkSettings = useCallback(
@@ -668,7 +706,7 @@ export default function LinkSettings(props: LinkSettingsProps) {
 
   // Standalone mode content (without SettingsPanel wrapper)
   const linkTypeContent = (
-    <div className={isStandaloneMode ? '' : 'grid grid-cols-3 items-center gap-2'}>
+    <div className={useStackedLayout ? '' : 'grid grid-cols-3 items-center gap-2'}>
       {!isStandaloneMode && (
         <div className="flex items-start gap-1 py-1">
           {editingComponentId ? (
@@ -716,7 +754,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
           )}
         </div>
       )}
-      <div className={isStandaloneMode ? '' : 'col-span-2'}>
+      {isStandaloneMode && !useStackedLayout && typeLabel && (
+        <Label variant="muted">{typeLabel}</Label>
+      )}
+      <div className={useStackedLayout ? '' : 'col-span-2'}>
         {linkedLinkVariable ? (
           <Button
             asChild
@@ -776,10 +817,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
     <>
       {/* URL Input */}
       {linkType === 'url' && (
-        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
-          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">URL</Label>}
-          {isStandaloneMode && <Label variant="muted" className="mb-1.5">URL</Label>}
-          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+        <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!useStackedLayout && <Label variant="muted">URL</Label>}
+          {useStackedLayout && <Label variant="muted" className="mb-1.5">URL</Label>}
+          <div className={useStackedLayout ? '' : 'col-span-2'}>
             <RichTextEditor
               value={urlValue}
               onChange={handleUrlChange}
@@ -796,10 +837,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
 
       {/* Email Input */}
       {linkType === 'email' && (
-        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
-          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Email</Label>}
-          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Email</Label>}
-          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+        <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!useStackedLayout && <Label variant="muted">Email</Label>}
+          {useStackedLayout && <Label variant="muted" className="mb-1.5">Email</Label>}
+          <div className={useStackedLayout ? '' : 'col-span-2'}>
             <RichTextEditor
               value={emailValue}
               onChange={handleEmailChange}
@@ -816,10 +857,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
 
       {/* Phone Input */}
       {linkType === 'phone' && (
-        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
-          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Phone</Label>}
-          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Phone</Label>}
-          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+        <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!useStackedLayout && <Label variant="muted">Phone</Label>}
+          {useStackedLayout && <Label variant="muted" className="mb-1.5">Phone</Label>}
+          <div className={useStackedLayout ? '' : 'col-span-2'}>
             <RichTextEditor
               value={phoneValue}
               onChange={handlePhoneChange}
@@ -836,10 +877,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
 
       {/* Asset Selection */}
       {linkType === 'asset' && (
-        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
-          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Asset</Label>}
-          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Asset</Label>}
-          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+        <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!useStackedLayout && <Label variant="muted">Asset</Label>}
+          {useStackedLayout && <Label variant="muted" className="mb-1.5">Asset</Label>}
+          <div className={useStackedLayout ? '' : 'col-span-2'}>
             <Button
               variant="secondary"
               size="sm"
@@ -857,10 +898,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
       {/* Page Selection */}
       {linkType === 'page' && (
         <>
-          <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
-            {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Page</Label>}
-            {isStandaloneMode && <Label variant="muted" className="mb-1.5">Page</Label>}
-            <div className={isStandaloneMode ? '' : 'col-span-2'}>
+          <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+            {!useStackedLayout && <Label variant="muted">Page</Label>}
+            {useStackedLayout && <Label variant="muted" className="mb-1.5">Page</Label>}
+            <div className={useStackedLayout ? '' : 'col-span-2'}>
               <PageSelector
                 value={pageId}
                 onValueChange={handlePageChange}
@@ -871,10 +912,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
 
           {/* Collection Item Selection (for dynamic pages) */}
           {isDynamicPage && pageId && (
-            <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
-              {!isStandaloneMode && <Label className="text-xs text-muted-foreground">CMS item</Label>}
-              {isStandaloneMode && <Label variant="muted" className="mb-1.5">CMS item</Label>}
-              <div className={isStandaloneMode ? '' : 'col-span-2'}>
+            <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+              {!useStackedLayout && <Label variant="muted">CMS item</Label>}
+              {useStackedLayout && <Label variant="muted" className="mb-1.5">CMS item</Label>}
+              <div className={useStackedLayout ? '' : 'col-span-2'}>
                 <Select
                   value={collectionItemId || ''}
                   onValueChange={handleCollectionItemChange}
@@ -916,10 +957,10 @@ export default function LinkSettings(props: LinkSettingsProps) {
 
       {/* Field Selection */}
       {linkType === 'field' && (
-        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
-          {!isStandaloneMode && <Label className="text-xs text-muted-foreground">Field</Label>}
-          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Field</Label>}
-          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+        <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+          {!useStackedLayout && <Label variant="muted">Field</Label>}
+          {useStackedLayout && <Label variant="muted" className="mb-1.5">Field</Label>}
+          <div className={useStackedLayout ? '' : 'col-span-2'}>
             <FieldSelectDropdown
               fieldGroups={linkFieldGroups}
               allFields={allFields || {}}
@@ -936,65 +977,66 @@ export default function LinkSettings(props: LinkSettingsProps) {
     </>
   );
 
-  // Behavior options content (anchor, target, download, nofollow)
-  const behaviorContent = linkType !== 'none' && (
-    <>
-      {/* Anchor (for page and URL types) */}
-      {(linkType === 'page' || linkType === 'url') && (
-        <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
-          {!isStandaloneMode && (
-            <div className="flex items-center gap-1">
-              <Label className="text-xs text-muted-foreground">Anchor</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Icon name="info" className="size-3 text-foreground/80" />
-                </TooltipTrigger>
-                <TooltipContent>Layers with ID attributes are used as anchors</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-          {isStandaloneMode && <Label variant="muted" className="mb-1.5">Anchor</Label>}
-
-          <div className={isStandaloneMode ? '' : 'col-span-2'}>
-            <Select
-              value={anchorLayerId || 'none'}
-              onValueChange={handleAnchorLayerIdChange}
-              disabled={isLockedByOther}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select anchor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">
-                  <div className="flex items-center gap-2">
-                    <Icon name="none" className="size-3" />
-                    <span>No anchor</span>
-                  </div>
-                </SelectItem>
-                {anchorLayers.map(({ layer: anchorLayer, id }) => (
-                  <SelectItem key={id} value={id}>
-                    <div className="flex items-center gap-2">
-                      <Icon name={getLayerIcon(anchorLayer)} className="size-3" />
-                      <span>{getLayerName(anchorLayer)}</span>
-                      <span className="text-xs text-muted-foreground">#{id}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+  // Anchor content (for page type always, for URL type only when behavior is shown)
+  const anchorContent = linkType !== 'none' && (linkType === 'page' || (linkType === 'url' && !hideBehavior)) && (
+    <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 items-center gap-2'}>
+      {!isStandaloneMode && (
+        <div className="flex items-center gap-1">
+          <Label className="text-xs text-muted-foreground">Anchor</Label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Icon name="info" className="size-3 text-foreground/80" />
+            </TooltipTrigger>
+            <TooltipContent>Layers with ID attributes are used as anchors</TooltipContent>
+          </Tooltip>
         </div>
       )}
+      {isStandaloneMode && !useStackedLayout && <Label variant="muted">Anchor</Label>}
+      {useStackedLayout && <Label variant="muted" className="mb-1.5">Anchor</Label>}
 
+      <div className={useStackedLayout ? '' : 'col-span-2'}>
+        <Select
+          value={anchorLayerId || 'none'}
+          onValueChange={handleAnchorLayerIdChange}
+          disabled={isLockedByOther}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select anchor" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">
+              <div className="flex items-center gap-2">
+                <Icon name="none" className="size-3" />
+                <span>No anchor</span>
+              </div>
+            </SelectItem>
+            {anchorLayers.map(({ layer: anchorLayer, id }) => (
+              <SelectItem key={id} value={id}>
+                <div className="flex items-center gap-2">
+                  <Icon name={getLayerIcon(anchorLayer)} className="size-3" />
+                  <span>{getLayerName(anchorLayer)}</span>
+                  <span className="text-xs text-muted-foreground">#{id}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
+  // Behavior options content (target, download, nofollow)
+  const behaviorContent = linkType !== 'none' && (
+    <>
       {/* Link Behavior (when link is set) */}
-      <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 gap-2 py-1'}>
-        {!isStandaloneMode && (
+      <div className={useStackedLayout ? 'mt-2.5' : 'grid grid-cols-3 gap-2 py-1'}>
+        {!useStackedLayout && (
           <div>
             <Label variant="muted">Behavior</Label>
           </div>
         )}
-        {isStandaloneMode && <Label variant="muted" className="mb-1.5">Behavior</Label>}
-        <div className={`${isStandaloneMode ? '' : 'col-span-2'} flex flex-col gap-3`}>
+        {useStackedLayout && <Label variant="muted" className="mb-1.5">Behavior</Label>}
+        <div className={`${useStackedLayout ? '' : 'col-span-2'} flex flex-col gap-3`}>
           <div className="flex items-center gap-2">
             <Switch
               id="newTab"
@@ -1053,7 +1095,8 @@ export default function LinkSettings(props: LinkSettingsProps) {
       <div className="flex flex-col gap-3">
         {linkTypeContent}
         {typeSpecificContent}
-        {behaviorContent}
+        {anchorContent}
+        {!hideBehavior && behaviorContent}
       </div>
     );
   }
@@ -1068,6 +1111,7 @@ export default function LinkSettings(props: LinkSettingsProps) {
       <div className="flex flex-col gap-3">
         {linkTypeContent}
         {!linkedLinkVariable && typeSpecificContent}
+        {!linkedLinkVariable && anchorContent}
         {!linkedLinkVariable && behaviorContent}
       </div>
     </SettingsPanel>
