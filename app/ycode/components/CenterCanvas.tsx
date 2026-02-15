@@ -709,6 +709,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const prevViewportMode = useRef(viewportMode);
   useEffect(() => {
     if (prevViewportMode.current !== viewportMode) {
+      // Notify SelectionOverlay to hide outlines during viewport transition
+      window.dispatchEvent(new CustomEvent('viewportChange'));
+
       // Small delay to ensure container dimensions are updated
       setTimeout(() => {
         autofit();

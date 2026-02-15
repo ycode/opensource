@@ -153,9 +153,27 @@ export function SelectionOverlay({
     };
 
     // MutationObserver for DOM changes inside iframe
-    const mutationObserver = new MutationObserver(() => {
-      // Skip solid borders if dragging
-      updateAllOutlines(isDraggingRef.current);
+    let mutationTimeout: ReturnType<typeof setTimeout> | null = null;
+    const mutationObserver = new MutationObserver((mutations) => {
+      // Check if any mutation is a structural change (element added/removed)
+      const hasStructuralChange = mutations.some(m => m.type === 'childList');
+
+      if (hasStructuralChange) {
+        // Hide outlines immediately during structural DOM changes (new element added/removed)
+        if (selectedRef.current) selectedRef.current.style.display = 'none';
+        if (hoveredRef.current) hoveredRef.current.style.display = 'none';
+        if (parentRef.current) parentRef.current.style.display = 'none';
+
+        if (mutationTimeout) clearTimeout(mutationTimeout);
+
+        // Show outlines after DOM settles
+        mutationTimeout = setTimeout(() => {
+          updateAllOutlines(isDraggingRef.current);
+        }, 150);
+      } else {
+        // Attribute-only changes (class/style) - update immediately
+        updateAllOutlines(isDraggingRef.current);
+      }
     });
 
     // Observe the iframe body for changes
@@ -168,18 +186,38 @@ export function SelectionOverlay({
       });
     }
 
+    // Hide outlines during viewport switch, show after transition settles
+    let viewportTimeout: ReturnType<typeof setTimeout> | null = null;
+    const handleViewportChange = () => {
+      // Hide outlines immediately
+      if (selectedRef.current) selectedRef.current.style.display = 'none';
+      if (hoveredRef.current) hoveredRef.current.style.display = 'none';
+      if (parentRef.current) parentRef.current.style.display = 'none';
+
+      if (viewportTimeout) clearTimeout(viewportTimeout);
+
+      // Show outlines after viewport transition settles
+      viewportTimeout = setTimeout(() => {
+        updateAllOutlines(isDraggingRef.current);
+      }, 150);
+    };
+
     // Add event listeners
     containerElement.addEventListener('scroll', handleScroll, { passive: true });
     iframeDoc.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleScroll, { passive: true });
+    window.addEventListener('viewportChange', handleViewportChange);
 
     // Cleanup
     return () => {
       if (scrollTimeout) clearTimeout(scrollTimeout);
+      if (viewportTimeout) clearTimeout(viewportTimeout);
+      if (mutationTimeout) clearTimeout(mutationTimeout);
       mutationObserver.disconnect();
       containerElement.removeEventListener('scroll', handleScroll);
       iframeDoc.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleScroll);
+      window.removeEventListener('viewportChange', handleViewportChange);
     };
   }, [iframeElement, containerElement, updateAllOutlines]);
 
