@@ -508,10 +508,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const [containerHeight, setContainerHeight] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
 
-  // Store initial canvas height and zoom on load - this sets the iframe height once
+  // Store initial canvas height on load - used as baseline for iframe height
   const initialCanvasHeightRef = useRef<number | null>(null);
-  const initialZoomRef = useRef<number | null>(null);
-  const [initialZoomSet, setInitialZoomSet] = useState(false);
 
   // Track whether zoom calculation is ready (prevents flash of wrong zoom on initial load)
   const [isCanvasReady, setIsCanvasReady] = useState(false);
@@ -694,28 +692,18 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Determine if we should center (zoomed out beyond "zoom to fit" level)
   const shouldCenter = zoom < zoomToFitLevel;
 
-  // Set initial zoom once after autofit runs (when zoom changes from default 100)
-  useEffect(() => {
-    if (initialZoomRef.current === null && zoom > 0 && zoom !== 100) {
-      initialZoomRef.current = zoom;
-      setInitialZoomSet(true); // Trigger recalculation of finalIframeHeight
-    }
-  }, [zoom]);
-
-  // Calculate final iframe height - compensate for initial zoom if needed
+  // Calculate final iframe height - ensure it fills the visible canvas at any zoom level
+  // When zoomed out (e.g. 52%), the iframe must be taller so that scaled it still fills the canvas
+  // When switching viewports (Desktop → Phone), zoom changes and this recalculates automatically
   const finalIframeHeight = useMemo(() => {
-    const initialZoom = initialZoomRef.current;
+    if (!containerHeight || zoom <= 0) return iframeContentHeight;
 
-    // If initial zoom < 100%, calculate the compensated height
-    if (initialZoom && initialZoom < 100) {
-      const compensatedHeight = defaultCanvasHeight / (initialZoom / 100);
-      // Use the larger of: compensated height or content height
-      // This ensures iframe doesn't shrink when adding small content
-      return Math.max(compensatedHeight, iframeContentHeight);
-    }
+    // Minimum iframe height so that scaled iframe fills the visible canvas area
+    const minHeightForZoom = (containerHeight - CANVAS_PADDING) / (zoom / 100);
 
-    return iframeContentHeight;
-  }, [iframeContentHeight, defaultCanvasHeight]);
+    // Use the larger of: content height or minimum height for current zoom
+    return Math.max(iframeContentHeight, minHeightForZoom);
+  }, [iframeContentHeight, containerHeight, zoom]);
 
   // Recalculate autofit when viewport/breakpoint changes
   const prevViewportMode = useRef(viewportMode);
