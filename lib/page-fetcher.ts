@@ -2934,10 +2934,22 @@ function layerToHtml(
   }
 
   // Add custom attributes
+  // Map JSX attribute names back to HTML equivalents for published output
+  const jsxToHtmlAttrMap: Record<string, string> = {
+    'htmlFor': 'for',
+    'className': 'class',
+    'autoFocus': 'autofocus',
+  };
   if (layer.attributes) {
     for (const [key, value] of Object.entries(layer.attributes)) {
       if (value !== undefined && value !== null) {
-        attrs.push(`${escapeHtml(key)}="${escapeHtml(String(value))}"`);
+        const htmlKey = jsxToHtmlAttrMap[key] || key;
+        // Boolean HTML attributes should be rendered without a value
+        if (value === true) {
+          attrs.push(escapeHtml(htmlKey));
+        } else if (value !== false) {
+          attrs.push(`${escapeHtml(htmlKey)}="${escapeHtml(String(value))}"`);
+        }
       }
     }
   }

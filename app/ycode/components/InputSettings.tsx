@@ -62,15 +62,15 @@ export default function InputSettings({ layer, onLayerUpdate }: InputSettingsPro
   const value = attributes.value || '';
   const name = attributes.name || '';
   const isRequired = attributes.required === true || attributes.required === 'true';
-  const isAutofocus = attributes.autofocus === true || attributes.autofocus === 'true';
+  const isAutofocus = attributes.autoFocus === true || attributes.autoFocus === 'true';
 
   const handleAttributeChange = useCallback(
     (key: string, newValue: any) => {
       if (!layer) return;
 
-      // Handle boolean attributes (required, autofocus)
+      // Handle boolean attributes (required, autoFocus)
       // If false/unchecked, remove the attribute entirely
-      if (key === 'required' || key === 'autofocus') {
+      if (key === 'required' || key === 'autoFocus') {
         const newAttributes = { ...layer.attributes };
         if (newValue) {
           newAttributes[key] = true;
@@ -110,7 +110,7 @@ export default function InputSettings({ layer, onLayerUpdate }: InputSettingsPro
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {/* Radio specific settings */}
         {isRadioInput ? (
           <>
@@ -150,7 +150,7 @@ export default function InputSettings({ layer, onLayerUpdate }: InputSettingsPro
                   />
                   <Label
                     htmlFor="required"
-                    className="text-xs font-normal cursor-pointer"
+                    className="text-xs font-normal cursor-pointer text-muted-foreground"
                   >
                     Required
                   </Label>
@@ -184,7 +184,7 @@ export default function InputSettings({ layer, onLayerUpdate }: InputSettingsPro
                   />
                   <Label
                     htmlFor="required"
-                    className="text-xs font-normal cursor-pointer"
+                    className="text-xs font-normal cursor-pointer text-muted-foreground"
                   >
                     Required
                   </Label>
@@ -260,7 +260,7 @@ export default function InputSettings({ layer, onLayerUpdate }: InputSettingsPro
                   />
                   <Label
                     htmlFor="required"
-                    className="text-xs font-normal cursor-pointer"
+                    className="text-xs font-normal cursor-pointer text-muted-foreground"
                   >
                     Required
                   </Label>
@@ -269,11 +269,11 @@ export default function InputSettings({ layer, onLayerUpdate }: InputSettingsPro
                   <Checkbox
                     id="autofocus"
                     checked={isAutofocus}
-                    onCheckedChange={(checked) => handleAttributeChange('autofocus', checked)}
+                    onCheckedChange={(checked) => handleAttributeChange('autoFocus', checked)}
                   />
                   <Label
                     htmlFor="autofocus"
-                    className="text-xs font-normal cursor-pointer"
+                    className="text-xs font-normal cursor-pointer text-muted-foreground"
                   >
                     Autofocus
                   </Label>

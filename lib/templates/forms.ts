@@ -149,7 +149,8 @@ export const formTemplates: Record<string, BlockTemplate> = {
               attributes: {
                 type: 'text',
                 name: 'name',
-                placeholder: 'Full Name'
+                placeholder: 'Full Name',
+                required: true
               },
               settings: {
                 id: 'name'
@@ -201,7 +202,8 @@ export const formTemplates: Record<string, BlockTemplate> = {
               attributes: {
                 type: 'email',
                 name: 'email',
-                placeholder: 'Email'
+                placeholder: 'Email',
+                required: true
               },
               settings: {
                 id: 'email'
@@ -253,7 +255,8 @@ export const formTemplates: Record<string, BlockTemplate> = {
               attributes: {
                 name: 'message',
                 placeholder: 'Message',
-                rows: 4
+                rows: 4,
+                required: true
               },
               settings: {
                 id: 'message'

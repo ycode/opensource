@@ -47,7 +47,7 @@ export default function HTMLEmbedSettings({ layer, onLayerUpdate }: HTMLEmbedSet
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3">
         <Textarea
           value={currentCode}
           onChange={(e) => handleCodeChange(e.target.value)}

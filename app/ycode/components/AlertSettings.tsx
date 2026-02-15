@@ -43,7 +43,7 @@ export default function AlertSettings({ layer, onLayerUpdate }: AlertSettingsPro
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <div className="grid grid-cols-3 items-center">
           <Label variant="muted">Preview</Label>
           <div className="col-span-2">

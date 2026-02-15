@@ -121,7 +121,7 @@ export default function IconSettings({ layer, onLayerUpdate }: IconSettingsProps
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3">
         {/* File Manager Upload */}
         <div className="grid grid-cols-3 items-start">
           <Label variant="muted" className="pt-2">File</Label>

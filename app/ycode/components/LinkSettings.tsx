@@ -1050,7 +1050,7 @@ export default function LinkSettings(props: LinkSettingsProps) {
   // Standalone mode: render without SettingsPanel wrapper
   if (isStandaloneMode) {
     return (
-      <div className="space-y-2">
+      <div className="flex flex-col gap-3">
         {linkTypeContent}
         {typeSpecificContent}
         {behaviorContent}
@@ -1065,7 +1065,7 @@ export default function LinkSettings(props: LinkSettingsProps) {
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
-      <div className="space-y-2">
+      <div className="flex flex-col gap-3">
         {linkTypeContent}
         {!linkedLinkVariable && typeSpecificContent}
         {!linkedLinkVariable && behaviorContent}

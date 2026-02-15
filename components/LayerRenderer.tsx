@@ -1056,6 +1056,7 @@ const LayerItem: React.FC<{
     const htmlToJsxAttrMap: Record<string, string> = {
       'for': 'htmlFor',
       'class': 'className',
+      'autofocus': 'autoFocus',
     };
 
     // Convert string boolean values to actual booleans and map HTML attrs to JSX
