@@ -1317,6 +1317,13 @@ const LayerItem: React.FC<{
           elementProps.value = 'true';
         }
       }
+      // Use defaultValue instead of value to keep inputs uncontrolled
+      // This allows users to type in preview/published mode and avoids
+      // React's "uncontrolled to controlled" warning when value is added later
+      if ('value' in elementProps && normalizedAttributes.type !== 'checkbox' && normalizedAttributes.type !== 'radio') {
+        elementProps.defaultValue = elementProps.value;
+        delete elementProps.value;
+      }
       return <Tag {...elementProps} />;
     }
 
@@ -1324,6 +1331,11 @@ const LayerItem: React.FC<{
     if (htmlTag === 'textarea') {
       if (isInsideForm && !elementProps.name) {
         elementProps.name = layer.settings?.id || layer.id;
+      }
+      // Use defaultValue instead of value to keep textareas uncontrolled
+      if ('value' in elementProps) {
+        elementProps.defaultValue = elementProps.value;
+        delete elementProps.value;
       }
       return <Tag {...elementProps} />;
     }
