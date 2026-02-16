@@ -1744,8 +1744,7 @@ export default function InteractionsPanel({
 
                     {isAtMode && (
                       <Input
-                        type="number"
-                        step="0.1"
+                        stepper
                         min="0"
                         className="w-full"
                         value={typeof selectedTween.position === 'number'
@@ -1768,8 +1767,8 @@ export default function InteractionsPanel({
               <div className="col-span-2 *:w-full">
                 <InputGroup>
                   <InputGroupInput
-                    type="number"
-                    step="0.1"
+                    stepper
+                    min="0"
                     value={selectedTween.duration}
                     onChange={(e) =>
                       handleUpdateTween(selectedTween.id, {
@@ -1887,8 +1886,7 @@ export default function InteractionsPanel({
                   <div className="col-span-2">
                     <InputGroup>
                       <InputGroupInput
-                        type="number"
-                        step="0.1"
+                        stepper
                         min="0"
                         value={selectedTween.splitText.stagger.amount}
                         onChange={(e) => {
