@@ -373,7 +373,7 @@ export default async function PageRenderer({
 
       <div
         id="ybody"
-        className="min-h-screen bg-white"
+        className="h-full min-h-screen bg-white"
         data-layer-id="body"
         data-layer-type="div"
         data-is-empty={hasLayers ? 'false' : 'true'}

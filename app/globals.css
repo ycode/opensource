@@ -127,9 +127,15 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+
+  html {
+    @apply h-full;
   }
+
+  body {
+    @apply bg-background text-foreground h-full;
+  }
+
   /* Remove focus outline from iframes */
   iframe:focus {
     outline: none;
