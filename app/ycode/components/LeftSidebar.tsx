@@ -17,6 +17,9 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 
+// 6. Utils
+import { resetBindingsAfterMove } from '@/lib/layer-utils';
+
 // 5.5 Hooks
 import { useEditorUrl, useEditorActions } from '@/hooks/use-editor-url';
 import type { EditorTab } from '@/hooks/use-editor-url';
@@ -164,16 +167,22 @@ const LeftSidebar = React.memo(function LeftSidebar({
   }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
   // Handle layer reordering from drag & drop
-  const handleLayersReorder = useCallback((newLayers: Layer[]) => {
+  const handleLayersReorder = useCallback((newLayers: Layer[], movedLayerId?: string) => {
+    // Reset invalid CMS bindings if a layer was moved to a different parent
+    let layers = newLayers;
+    if (movedLayerId) {
+      layers = resetBindingsAfterMove(layers, movedLayerId);
+    }
+
     // If editing component, update component draft
     if (editingComponentId) {
-      updateComponentDraft(editingComponentId, newLayers);
+      updateComponentDraft(editingComponentId, layers);
       return;
     }
 
     // Otherwise update page draft
     if (!currentPageId) return;
-    setDraftLayers(currentPageId, newLayers);
+    setDraftLayers(currentPageId, layers);
   }, [editingComponentId, updateComponentDraft, currentPageId, setDraftLayers]);
 
   // Helper to find layer in tree
