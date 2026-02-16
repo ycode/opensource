@@ -5,6 +5,7 @@
 import { IconProps } from '@/components/ui/icon';
 import type { Page, PageFolder, PageSettings, FieldVariable, Translation, Locale } from '../types';
 import { getTranslatableKey } from './localisation-utils';
+import { getTiptapTextContent } from '@/lib/text-format-utils';
 
 /**
  * Reserved slugs that cannot be used at the root level (null parent folder)
@@ -1416,18 +1417,22 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'font-[700] text-[#111827] text-[30px]',
                         children: [],
                         customName: 'Heading',
+                        restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: '401'
+                              content: getTiptapTextContent('401')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '14', color: '#111827', fontWeight: '500', isActive: true },
                         },
@@ -1437,16 +1442,19 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'Password protected'
+                              content: getTiptapTextContent('Password protected')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '14', color: '#6b7280', isActive: true },
                         },
@@ -1456,9 +1464,9 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'Enter the password to access this page.'
+                              content: getTiptapTextContent('Enter the password to access this page.')
                             }
                           }
                         },
@@ -1534,18 +1542,22 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'font-[700] text-[#111827] text-[30px]',
                         children: [],
                         customName: 'Heading',
+                        restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: '404'
+                              content: getTiptapTextContent('404')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
@@ -1555,16 +1567,19 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'Page not found'
+                              content: getTiptapTextContent('Page not found')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
@@ -1574,9 +1589,9 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'The page you are looking for does not exist.'
+                              content: getTiptapTextContent('The page you are looking for does not exist.')
                             }
                           }
                         },
@@ -1652,18 +1667,22 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'font-[700] text-[#111827] text-[30px]',
                         children: [],
                         customName: 'Heading',
+                        restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: '500'
+                              content: getTiptapTextContent('500')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
@@ -1673,16 +1692,19 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'Server error'
+                              content: getTiptapTextContent('Server error')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
@@ -1692,9 +1714,9 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'An unexpected error occurred. Please try again later.'
+                              content: getTiptapTextContent('An unexpected error occurred. Please try again later.')
                             }
                           }
                         },
