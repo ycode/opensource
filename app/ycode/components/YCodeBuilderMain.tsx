@@ -78,7 +78,7 @@ import { useVersionsStore } from '@/stores/useVersionsStore';
 
 // 6. Utils/lib
 import { findHomepage } from '@/lib/page-utils';
-import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping } from '@/lib/layer-utils';
+import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping, findParentAndIndex, insertLayerAfter, updateLayerProps } from '@/lib/layer-utils';
 import { cloneDeep } from 'lodash';
 
 // 5. Types
@@ -1374,7 +1374,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             if (clipboardLayer && selectedLayerId) {
               // In component edit mode, paste into component drafts
               if (editingComponentId) {
-                // Check for circular reference before pasting
                 const circularError = checkCircularReference(editingComponentId, clipboardLayer, components);
                 if (circularError) {
                   toast.error('Infinite component loop detected', { description: circularError });
@@ -1383,49 +1382,9 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 
                 const layers = getCurrentLayers();
                 const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
-                
-                // Find parent and index of target layer
-                const findParentAndIndex = (
-                  layersList: Layer[],
-                  targetId: string,
-                  parent: Layer | null = null
-                ): { parent: Layer | null; index: number } | null => {
-                  for (let i = 0; i < layersList.length; i++) {
-                    if (layersList[i].id === targetId) {
-                      return { parent, index: i };
-                    }
-                    if (layersList[i].children && layersList[i].children!.length > 0) {
-                      const found = findParentAndIndex(layersList[i].children!, targetId, layersList[i]);
-                      if (found) return found;
-                    }
-                  }
-                  return null;
-                };
-                
                 const result = findParentAndIndex(layers, selectedLayerId);
                 if (result) {
-                  // Insert after the target layer
-                  const insertAfterLayer = (layersList: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
-                    if (parentLayer === null) {
-                      const newList = [...layersList];
-                      newList.splice(insertIndex + 1, 0, newLayer);
-                      return newList;
-                    }
-                    return layersList.map(l => {
-                      if (l.id === parentLayer.id) {
-                        const children = [...(l.children || [])];
-                        children.splice(insertIndex + 1, 0, newLayer);
-                        return { ...l, children };
-                      }
-                      if (l.children && l.children.length > 0) {
-                        return { ...l, children: insertAfterLayer(l.children, parentLayer, insertIndex) };
-                      }
-                      return l;
-                    });
-                  };
-                  
-                  const newLayers = insertAfterLayer(layers, result.parent, result.index);
-                  updateCurrentLayers(newLayers);
+                  updateCurrentLayers(insertLayerAfter(layers, result.parent, result.index, newLayer));
                 }
               } else if (currentPageId) {
                 // If body is selected, paste inside body (not after it)
@@ -1576,34 +1535,17 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             e.preventDefault();
             const style = pasteStyleFromClipboard();
             if (style) {
+              const styleProps = {
+                classes: style.classes,
+                design: style.design,
+                styleId: style.styleId,
+                styleOverrides: style.styleOverrides,
+              };
+
               if (editingComponentId) {
-                // Update style in component
-                const layers = getCurrentLayers();
-                const updateLayerStyle = (layers: Layer[]): Layer[] => {
-                  return layers.map(layer => {
-                    if (layer.id === selectedLayerId) {
-                      return {
-                        ...layer,
-                        classes: style.classes,
-                        design: style.design,
-                        styleId: style.styleId,
-                        styleOverrides: style.styleOverrides,
-                      };
-                    }
-                    if (layer.children) {
-                      return { ...layer, children: updateLayerStyle(layer.children) };
-                    }
-                    return layer;
-                  });
-                };
-                updateCurrentLayers(updateLayerStyle(layers));
+                updateCurrentLayers(updateLayerProps(getCurrentLayers(), selectedLayerId, styleProps));
               } else if (currentPageId) {
-                updateLayer(currentPageId, selectedLayerId, {
-                  classes: style.classes,
-                  design: style.design,
-                  styleId: style.styleId,
-                  styleOverrides: style.styleOverrides,
-                });
+                updateLayer(currentPageId, selectedLayerId, styleProps);
               }
             }
           }

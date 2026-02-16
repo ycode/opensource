@@ -19,7 +19,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
-import { canHaveChildren, findLayerById, getClassesString, regenerateInteractionIds, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping, removeLayerById } from '@/lib/layer-utils';
+import { canHaveChildren, findLayerById, getClassesString, regenerateInteractionIds, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping, removeLayerById, findParentAndIndex, insertLayerAfter, updateLayerProps } from '@/lib/layer-utils';
 import { cloneDeep } from 'lodash';
 import { toast } from 'sonner';
 import { detachSpecificLayerFromComponent, checkCircularReference } from '@/lib/component-utils';
@@ -125,13 +125,25 @@ export default function LayerContextMenu({
     return canDeleteLayer(layer);
   }, [layer]);
 
+  /** Update component draft layers and broadcast to collaborators */
+  const updateComponentAndBroadcast = (newLayers: Layer[]) => {
+    if (!editingComponentId) return;
+    updateComponentDraft(editingComponentId, newLayers);
+    if (liveComponentUpdates) {
+      liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
+    }
+  };
+
+  /** Get current component layers for the editing context */
+  const getComponentLayers = () =>
+    editingComponentId ? (componentDrafts[editingComponentId] || []) : [];
+
   const handleCopy = () => {
     if (!canCopy) return;
     
     // In component context, copy from component drafts
     if (isComponentContext && editingComponentId) {
-      const componentLayers = componentDrafts[editingComponentId] || [];
-      const layerToCopy = findLayerById(componentLayers, layerId);
+      const layerToCopy = findLayerById(getComponentLayers(), layerId);
       if (layerToCopy) {
         copyToClipboard(cloneDeep(layerToCopy), pageId);
       }
@@ -148,19 +160,11 @@ export default function LayerContextMenu({
     
     // In component context, cut from component drafts
     if (isComponentContext && editingComponentId) {
-      const componentLayers = componentDrafts[editingComponentId] || [];
-      const layerToCopy = findLayerById(componentLayers, layerId);
+      const layerToCopy = findLayerById(getComponentLayers(), layerId);
       if (layerToCopy) {
         cutToClipboard(cloneDeep(layerToCopy), pageId);
-        const newLayers = removeLayerById(componentLayers, layerId);
-        updateComponentDraft(editingComponentId, newLayers);
+        updateComponentAndBroadcast(removeLayerById(getComponentLayers(), layerId));
         
-        // Broadcast delete to other collaborators
-        if (liveComponentUpdates) {
-          liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
-        }
-        
-        // Clear selection after cut
         if (onLayerSelect) {
           onLayerSelect(null as any);
         }
@@ -187,69 +191,21 @@ export default function LayerContextMenu({
   const handlePasteAfter = () => {
     if (!clipboardLayer) return;
     
-    // In component context, paste into component drafts
     if (isComponentContext && editingComponentId) {
-      // Check for circular reference before pasting
       const circularError = checkCircularReference(editingComponentId, clipboardLayer, components);
       if (circularError) {
         toast.error('Infinite component loop detected', { description: circularError });
         return;
       }
       
-      const componentLayers = componentDrafts[editingComponentId] || [];
+      const componentLayers = getComponentLayers();
       const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
-      
-      // Find parent and index of target layer
-      const findParentAndIndex = (
-        layersList: Layer[],
-        targetId: string,
-        parent: Layer | null = null
-      ): { parent: Layer | null; index: number } | null => {
-        for (let i = 0; i < layersList.length; i++) {
-          if (layersList[i].id === targetId) {
-            return { parent, index: i };
-          }
-          if (layersList[i].children && layersList[i].children!.length > 0) {
-            const found = findParentAndIndex(layersList[i].children!, targetId, layersList[i]);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-      
       const result = findParentAndIndex(componentLayers, layerId);
       if (!result) return;
       
-      // Insert after the target layer
-      const insertAfter = (layersList: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
-        if (parentLayer === null) {
-          const newList = [...layersList];
-          newList.splice(insertIndex + 1, 0, newLayer);
-          return newList;
-        }
-        return layersList.map(l => {
-          if (l.id === parentLayer.id) {
-            const children = [...(l.children || [])];
-            children.splice(insertIndex + 1, 0, newLayer);
-            return { ...l, children };
-          }
-          if (l.children && l.children.length > 0) {
-            return { ...l, children: insertAfter(l.children, parentLayer, insertIndex) };
-          }
-          return l;
-        });
-      };
-      
-      const newLayers = insertAfter(componentLayers, result.parent, result.index);
-      updateComponentDraft(editingComponentId, newLayers);
-      
-      // Broadcast update to other collaborators
-      if (liveComponentUpdates) {
-        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
-      }
+      updateComponentAndBroadcast(insertLayerAfter(componentLayers, result.parent, result.index, newLayer));
     } else {
       const pastedLayer = pasteAfter(pageId, layerId, clipboardLayer);
-      // Broadcast the pasted layer
       if (liveLayerUpdates && pastedLayer) {
         liveLayerUpdates.broadcastLayerAdd(pageId, null, 'paste', pastedLayer);
       }
@@ -259,41 +215,20 @@ export default function LayerContextMenu({
   const handlePasteInside = () => {
     if (!clipboardLayer || !canPasteInside) return;
     
-    // In component context, paste inside in component drafts
     if (isComponentContext && editingComponentId) {
-      // Check for circular reference before pasting
       const circularError = checkCircularReference(editingComponentId, clipboardLayer, components);
       if (circularError) {
         toast.error('Infinite component loop detected', { description: circularError });
         return;
       }
       
-      const componentLayers = componentDrafts[editingComponentId] || [];
+      const componentLayers = getComponentLayers();
       const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
-      
-      // Insert as last child of target layer
-      const insertInside = (layersList: Layer[]): Layer[] => {
-        return layersList.map(l => {
-          if (l.id === layerId) {
-            return { ...l, children: [...(l.children || []), newLayer] };
-          }
-          if (l.children && l.children.length > 0) {
-            return { ...l, children: insertInside(l.children) };
-          }
-          return l;
-        });
-      };
-      
-      const newLayers = insertInside(componentLayers);
-      updateComponentDraft(editingComponentId, newLayers);
-      
-      // Broadcast update to other collaborators
-      if (liveComponentUpdates) {
-        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
-      }
+      updateComponentAndBroadcast(
+        updateLayerProps(componentLayers, layerId, { children: [...(findLayerById(componentLayers, layerId)?.children || []), newLayer] })
+      );
     } else {
       const pastedLayer = pasteInside(pageId, layerId, clipboardLayer);
-      // Broadcast the pasted layer
       if (liveLayerUpdates && pastedLayer) {
         liveLayerUpdates.broadcastLayerAdd(pageId, layerId, 'paste', pastedLayer);
       }
@@ -303,62 +238,16 @@ export default function LayerContextMenu({
   const handleDuplicate = () => {
     if (!canCopy) return;
     
-    // In component context, duplicate in component drafts
     if (isComponentContext && editingComponentId) {
-      const componentLayers = componentDrafts[editingComponentId] || [];
+      const componentLayers = getComponentLayers();
       const layerToCopy = findLayerById(componentLayers, layerId);
       if (!layerToCopy) return;
       
       const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(layerToCopy));
-      
-      // Find parent and index of target layer
-      const findParentAndIndex = (
-        layersList: Layer[],
-        targetId: string,
-        parent: Layer | null = null
-      ): { parent: Layer | null; index: number } | null => {
-        for (let i = 0; i < layersList.length; i++) {
-          if (layersList[i].id === targetId) {
-            return { parent, index: i };
-          }
-          if (layersList[i].children && layersList[i].children!.length > 0) {
-            const found = findParentAndIndex(layersList[i].children!, targetId, layersList[i]);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-      
       const result = findParentAndIndex(componentLayers, layerId);
       if (!result) return;
       
-      // Insert after the target layer
-      const insertAfter = (layersList: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
-        if (parentLayer === null) {
-          const newList = [...layersList];
-          newList.splice(insertIndex + 1, 0, newLayer);
-          return newList;
-        }
-        return layersList.map(l => {
-          if (l.id === parentLayer.id) {
-            const children = [...(l.children || [])];
-            children.splice(insertIndex + 1, 0, newLayer);
-            return { ...l, children };
-          }
-          if (l.children && l.children.length > 0) {
-            return { ...l, children: insertAfter(l.children, parentLayer, insertIndex) };
-          }
-          return l;
-        });
-      };
-      
-      const newLayers = insertAfter(componentLayers, result.parent, result.index);
-      updateComponentDraft(editingComponentId, newLayers);
-      
-      // Broadcast update to other collaborators
-      if (liveComponentUpdates) {
-        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
-      }
+      updateComponentAndBroadcast(insertLayerAfter(componentLayers, result.parent, result.index, newLayer));
     } else {
       const duplicatedLayer = duplicateLayer(pageId, layerId);
       // Broadcast the duplicated layer
@@ -371,18 +260,9 @@ export default function LayerContextMenu({
   const handleDelete = () => {
     if (isLocked || !canDelete) return;
     
-    // In component context, delete from component drafts
     if (isComponentContext && editingComponentId) {
-      const componentLayers = componentDrafts[editingComponentId] || [];
-      const newLayers = removeLayerById(componentLayers, layerId);
-      updateComponentDraft(editingComponentId, newLayers);
+      updateComponentAndBroadcast(removeLayerById(getComponentLayers(), layerId));
       
-      // Broadcast update to other collaborators
-      if (liveComponentUpdates) {
-        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
-      }
-      
-      // Clear selection after delete
       if (onLayerSelect) {
         onLayerSelect(null as any);
       }
@@ -402,13 +282,8 @@ export default function LayerContextMenu({
   };
 
   const handleCopyStyle = () => {
-    const draft = draftsByPageId[pageId];
-    if (!draft) return;
-
-    const layer = findLayerById(draft.layers, layerId);
     if (!layer) return;
 
-    // Copy complete style information using utility
     const classes = getClassesString(layer);
     copyStyleToClipboard(classes, layer.design, layer.styleId, layer.styleOverrides);
   };
@@ -417,20 +292,21 @@ export default function LayerContextMenu({
     const style = pasteStyleFromClipboard();
     if (!style) return;
 
-    // Apply all copied style properties to the current layer
-    updateLayer(pageId, layerId, {
+    const styleProps = {
       classes: style.classes,
       design: style.design,
       styleId: style.styleId,
       styleOverrides: style.styleOverrides,
-    });
+    };
+
+    if (isComponentContext && editingComponentId) {
+      updateComponentAndBroadcast(updateLayerProps(getComponentLayers(), layerId, styleProps));
+    } else {
+      updateLayer(pageId, layerId, styleProps);
+    }
   };
 
   const handleCopyInteractions = () => {
-    const draft = draftsByPageId[pageId];
-    if (!draft) return;
-
-    const layer = findLayerById(draft.layers, layerId);
     if (!layer || !layer.interactions || layer.interactions.length === 0) return;
 
     copyInteractionsToClipboard(layer.interactions, layerId);
@@ -442,17 +318,15 @@ export default function LayerContextMenu({
 
     const { interactions, sourceLayerId } = copiedData;
 
-    // Create layer ID map for remapping source layer to target layer
     const layerIdMap = new Map<string, string>();
     layerIdMap.set(sourceLayerId, layerId);
-
-    // Regenerate IDs and remap layer_id references
     const updatedInteractions = regenerateInteractionIds(interactions, layerIdMap);
 
-    // Apply interactions to the current layer
-    updateLayer(pageId, layerId, {
-      interactions: updatedInteractions,
-    });
+    if (isComponentContext && editingComponentId) {
+      updateComponentAndBroadcast(updateLayerProps(getComponentLayers(), layerId, { interactions: updatedInteractions }));
+    } else {
+      updateLayer(pageId, layerId, { interactions: updatedInteractions });
+    }
   };
 
   const handleCreateComponent = () => {

@@ -3014,3 +3014,70 @@ function replaceLayerInTree(layers: Layer[], layerId: string, replacement: Layer
     return layer;
   });
 }
+
+/**
+ * Find the parent layer and sibling index for a target layer ID
+ * @returns Parent layer (null if root-level) and the index within the parent's children
+ */
+export function findParentAndIndex(
+  layers: Layer[],
+  targetId: string,
+  parent: Layer | null = null
+): { parent: Layer | null; index: number } | null {
+  for (let i = 0; i < layers.length; i++) {
+    if (layers[i].id === targetId) {
+      return { parent, index: i };
+    }
+    if (layers[i].children && layers[i].children!.length > 0) {
+      const found = findParentAndIndex(layers[i].children!, targetId, layers[i]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Insert a layer after a target position identified by parent and index
+ */
+export function insertLayerAfter(
+  layers: Layer[],
+  parentLayer: Layer | null,
+  insertIndex: number,
+  newLayer: Layer
+): Layer[] {
+  if (parentLayer === null) {
+    const newList = [...layers];
+    newList.splice(insertIndex + 1, 0, newLayer);
+    return newList;
+  }
+  return layers.map(l => {
+    if (l.id === parentLayer.id) {
+      const children = [...(l.children || [])];
+      children.splice(insertIndex + 1, 0, newLayer);
+      return { ...l, children };
+    }
+    if (l.children && l.children.length > 0) {
+      return { ...l, children: insertLayerAfter(l.children, parentLayer, insertIndex, newLayer) };
+    }
+    return l;
+  });
+}
+
+/**
+ * Recursively update a layer's properties by ID
+ */
+export function updateLayerProps(
+  layers: Layer[],
+  targetId: string,
+  props: Partial<Layer>
+): Layer[] {
+  return layers.map(layer => {
+    if (layer.id === targetId) {
+      return { ...layer, ...props };
+    }
+    if (layer.children && layer.children.length > 0) {
+      return { ...layer, children: updateLayerProps(layer.children, targetId, props) };
+    }
+    return layer;
+  });
+}
