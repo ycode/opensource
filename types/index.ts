@@ -139,7 +139,7 @@ export interface FormSettings {
   success_action?: 'message' | 'redirect'; // What happens on successful submission (default: 'message')
   success_message?: string; // Message shown on successful submission (deprecated - now uses alert child)
   error_message?: string; // Message shown on failed submission (deprecated - now uses alert child)
-  redirect_url?: string; // URL to redirect after successful submission
+  redirect_url?: LinkSettingsValue; // Link settings for redirect after successful submission
   email_notification?: {
     enabled: boolean;
     to: string; // Email address to send notifications to

@@ -1427,8 +1427,21 @@ const LayerItem: React.FC<{
             const successAction = formSettings?.success_action || 'message';
 
             if (successAction === 'redirect' && formSettings?.redirect_url) {
-              // Redirect to the specified URL
-              window.location.href = formSettings.redirect_url;
+              // Resolve link settings to actual URL
+              const redirectHref = generateLinkHref(formSettings.redirect_url, {
+                pages,
+                folders,
+                collectionItemSlugs,
+                isPreview,
+                locale: currentLocale,
+                translations,
+                getAsset,
+                anchorMap,
+                resolvedAssets,
+              });
+              if (redirectHref) {
+                window.location.href = redirectHref;
+              }
             } else {
               // Show success alert
               if (successAlert) {

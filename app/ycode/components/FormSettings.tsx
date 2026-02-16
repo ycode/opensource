@@ -72,10 +72,7 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
           ...layer.settings,
           form: {
             ...layer.settings?.form,
-            redirect_link: value,
-            // Clear deprecated fields
-            redirect_url: undefined,
-            redirect_page_id: undefined,
+            redirect_url: value,
           },
         },
       });
@@ -186,7 +183,7 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
         {successAction === 'redirect' && (
           <LinkSettings
             mode="standalone"
-            value={formSettings.redirect_link}
+            value={formSettings.redirect_url}
             onChange={handleRedirectLinkChange}
             gridLayout
             typeLabel="Redirect to"
