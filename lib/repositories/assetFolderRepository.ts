@@ -278,7 +278,8 @@ export async function reorderFolders(updates: Array<{ id: string; order: number 
 // =============================================================================
 
 /**
- * Get all unpublished (draft) asset folders
+ * Get all unpublished (draft) asset folders that have changes.
+ * A folder needs publishing if no published version exists or its data differs.
  */
 export async function getUnpublishedAssetFolders(): Promise<AssetFolder[]> {
   const client = await getSupabaseAdmin();
@@ -287,19 +288,46 @@ export async function getUnpublishedAssetFolders(): Promise<AssetFolder[]> {
     throw new Error('Supabase not configured');
   }
 
-  const { data, error } = await client
+  // Fetch all draft folders
+  const { data: draftFolders, error } = await client
     .from('asset_folders')
     .select('*')
     .eq('is_published', false)
     .is('deleted_at', null)
-    .order('depth', { ascending: true }) // Parents first
+    .order('depth', { ascending: true })
     .order('order', { ascending: true });
 
   if (error) {
-    throw new Error(`Failed to fetch unpublished asset folders: ${error.message}`);
+    throw new Error(`Failed to fetch draft asset folders: ${error.message}`);
   }
 
-  return data || [];
+  if (!draftFolders || draftFolders.length === 0) {
+    return [];
+  }
+
+  // Batch fetch published folders for comparison
+  const draftIds = draftFolders.map(f => f.id);
+  const { data: publishedFolders, error: publishedError } = await client
+    .from('asset_folders')
+    .select('*')
+    .in('id', draftIds)
+    .eq('is_published', true);
+
+  if (publishedError) {
+    throw new Error(`Failed to fetch published asset folders: ${publishedError.message}`);
+  }
+
+  const publishedById = new Map<string, AssetFolder>();
+  publishedFolders?.forEach(f => publishedById.set(f.id, f));
+
+  // Return only folders that are new or have changed
+  return draftFolders.filter(draft => {
+    const published = publishedById.get(draft.id);
+    if (!published) {
+      return true; // Never published
+    }
+    return hasAssetFolderChanged(draft, published);
+  });
 }
 
 /**

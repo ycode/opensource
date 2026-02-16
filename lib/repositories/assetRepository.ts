@@ -620,8 +620,9 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
 // =============================================================================
 
 /**
- * Get all unpublished (draft) assets that have changes
- * Uses pagination to handle more than 1000 assets (Supabase default limit)
+ * Get all unpublished (draft) assets that have changes.
+ * An asset needs publishing if no published version exists or content_hash differs.
+ * Uses pagination to handle more than 1000 assets (Supabase default limit).
  */
 export async function getUnpublishedAssets(): Promise<Asset[]> {
   const client = await getSupabaseAdmin();
@@ -630,7 +631,8 @@ export async function getUnpublishedAssets(): Promise<Asset[]> {
     throw new Error('Supabase not configured');
   }
 
-  const allAssets: Asset[] = [];
+  // Fetch all draft assets (paginated)
+  const draftAssets: Asset[] = [];
   let offset = 0;
   let hasMore = true;
 
@@ -644,11 +646,11 @@ export async function getUnpublishedAssets(): Promise<Asset[]> {
       .range(offset, offset + SUPABASE_QUERY_LIMIT - 1);
 
     if (error) {
-      throw new Error(`Failed to fetch unpublished assets: ${error.message}`);
+      throw new Error(`Failed to fetch draft assets: ${error.message}`);
     }
 
     if (data && data.length > 0) {
-      allAssets.push(...data);
+      draftAssets.push(...data);
       offset += data.length;
       hasMore = data.length === SUPABASE_QUERY_LIMIT;
     } else {
@@ -656,7 +658,36 @@ export async function getUnpublishedAssets(): Promise<Asset[]> {
     }
   }
 
-  return allAssets;
+  if (draftAssets.length === 0) {
+    return [];
+  }
+
+  // Batch fetch published content_hash values for comparison
+  const publishedHashById = new Map<string, string | null>();
+  const draftIds = draftAssets.map(a => a.id);
+
+  for (let i = 0; i < draftIds.length; i += SUPABASE_QUERY_LIMIT) {
+    const batchIds = draftIds.slice(i, i + SUPABASE_QUERY_LIMIT);
+    const { data: publishedAssets, error: publishedError } = await client
+      .from('assets')
+      .select('id, content_hash')
+      .in('id', batchIds)
+      .eq('is_published', true);
+
+    if (publishedError) {
+      throw new Error(`Failed to fetch published assets: ${publishedError.message}`);
+    }
+
+    publishedAssets?.forEach(a => publishedHashById.set(a.id, a.content_hash));
+  }
+
+  // Return only assets that are new or have changed content_hash
+  return draftAssets.filter(draft => {
+    if (!publishedHashById.has(draft.id)) {
+      return true; // Never published
+    }
+    return draft.content_hash !== publishedHashById.get(draft.id);
+  });
 }
 
 /**

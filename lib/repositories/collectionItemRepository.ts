@@ -937,7 +937,7 @@ export async function publishItem(id: string): Promise<CollectionItem> {
 
 /**
  * Get total count of collection items needing publishing across all collections.
- * Uses 3 bulk queries (collections + draft items + published items) instead of N+1.
+ * Checks both metadata (manual_order) and value changes.
  */
 export async function getTotalPublishableItemsCount(): Promise<number> {
   const client = await getSupabaseAdmin();
@@ -985,13 +985,103 @@ export async function getTotalPublishableItemsCount(): Promise<number> {
     publishedMap.set(pub.id, pub.manual_order);
   }
 
+  // Count items with metadata changes (new or order changed)
   let count = 0;
+  const matchingOrderItemIds: string[] = [];
+
   for (const draft of draftResult.data || []) {
     const pubOrder = publishedMap.get(draft.id);
     if (pubOrder === undefined || draft.manual_order !== pubOrder) {
       count++;
+    } else {
+      matchingOrderItemIds.push(draft.id);
     }
   }
 
+  // For items with matching metadata, check value changes in batches
+  if (matchingOrderItemIds.length > 0) {
+    count += await countItemsWithValueChanges(client, matchingOrderItemIds);
+  }
+
   return count;
+}
+
+/**
+ * Count items that have value-level changes between draft and published.
+ * Processes in batches to stay within Supabase query limits.
+ */
+async function countItemsWithValueChanges(
+  client: Exclude<Awaited<ReturnType<typeof getSupabaseAdmin>>, null>,
+  itemIds: string[]
+): Promise<number> {
+  const BATCH_SIZE = 50;
+  let changedCount = 0;
+
+  for (let i = 0; i < itemIds.length; i += BATCH_SIZE) {
+    const batchIds = itemIds.slice(i, i + BATCH_SIZE);
+
+    const [draftValsResult, pubValsResult] = await Promise.all([
+      client
+        .from('collection_item_values')
+        .select('item_id, field_id, value')
+        .in('item_id', batchIds)
+        .eq('is_published', false)
+        .is('deleted_at', null)
+        .limit(SUPABASE_QUERY_LIMIT),
+      client
+        .from('collection_item_values')
+        .select('item_id, field_id, value')
+        .in('item_id', batchIds)
+        .eq('is_published', true)
+        .is('deleted_at', null)
+        .limit(SUPABASE_QUERY_LIMIT),
+    ]);
+
+    if (draftValsResult.error || pubValsResult.error) {
+      continue; // Skip batch on error, don't break the count
+    }
+
+    // Build published values lookup: item_id -> (field_id -> value)
+    const pubValsByItem = new Map<string, Map<string, string | null>>();
+    for (const v of pubValsResult.data || []) {
+      if (!pubValsByItem.has(v.item_id)) {
+        pubValsByItem.set(v.item_id, new Map());
+      }
+      pubValsByItem.get(v.item_id)!.set(v.field_id, v.value);
+    }
+
+    // Build draft values grouped by item_id
+    const draftValsByItem = new Map<string, Map<string, string | null>>();
+    for (const v of draftValsResult.data || []) {
+      if (!draftValsByItem.has(v.item_id)) {
+        draftValsByItem.set(v.item_id, new Map());
+      }
+      draftValsByItem.get(v.item_id)!.set(v.field_id, v.value);
+    }
+
+    // Compare each item's values
+    for (const itemId of batchIds) {
+      const draftVals = draftValsByItem.get(itemId) || new Map();
+      const pubVals = pubValsByItem.get(itemId) || new Map();
+
+      if (draftVals.size !== pubVals.size) {
+        changedCount++;
+        continue;
+      }
+
+      let hasChange = false;
+      for (const [fieldId, draftValue] of draftVals) {
+        if (!pubVals.has(fieldId) || draftValue !== pubVals.get(fieldId)) {
+          hasChange = true;
+          break;
+        }
+      }
+
+      if (hasChange) {
+        changedCount++;
+      }
+    }
+  }
+
+  return changedCount;
 }

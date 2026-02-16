@@ -275,7 +275,7 @@ async function publishCollectionMetadata(collectionId: string): Promise<boolean>
   // Skip if published version exists and all fields match
   if (published &&
     published.name === draft.name &&
-    published.sorting === draft.sorting &&
+    JSON.stringify(published.sorting) === JSON.stringify(draft.sorting) &&
     published.order === draft.order) {
     return false;
   }
