@@ -112,6 +112,8 @@ export default function LayerContextMenu({
     return canHaveChildren(targetLayer);
   }, [layers, layerId]);
 
+  const isBody = layerId === 'body';
+
   // Check layer restrictions
   const canCopy = useMemo(() => {
     if (!layer) return false;
@@ -690,7 +692,7 @@ export default function LayerContextMenu({
         <ContextMenuSub>
           <ContextMenuSubTrigger>Paste</ContextMenuSubTrigger>
           <ContextMenuSubContent>
-            <ContextMenuItem onClick={handlePasteAfter} disabled={!hasClipboard}>
+            <ContextMenuItem onClick={handlePasteAfter} disabled={!hasClipboard || isBody}>
               Paste after
               <ContextMenuShortcut>⌘V</ContextMenuShortcut>
             </ContextMenuItem>

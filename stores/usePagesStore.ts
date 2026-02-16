@@ -1440,6 +1440,28 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return null;
     }
 
+    // Don't allow pasting at root level (outside body) — redirect into body
+    if (result.parent === null) {
+      const bodyLayer = draft.layers.find(l => l.id === 'body' || l.name === 'body');
+      if (bodyLayer) {
+        const newLayers = draft.layers.map(layer => {
+          if (layer.id === bodyLayer.id) {
+            return { ...layer, children: [...(layer.children || []), newLayer] };
+          }
+          return layer;
+        });
+
+        const finalLayers = resetBindingsAfterMove(newLayers, newLayer.id);
+        set((state) => ({
+          draftsByPageId: {
+            ...state.draftsByPageId,
+            [pageId]: { ...state.draftsByPageId[pageId], layers: finalLayers },
+          },
+        }));
+        return newLayer;
+      }
+    }
+
     // Insert after the target layer
     const insertAfter = (
       layers: Layer[],

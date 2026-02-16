@@ -138,6 +138,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const duplicateLayer = usePagesStore((state) => state.duplicateLayer);
   const duplicateLayersFromStore = usePagesStore((state) => state.duplicateLayers);
   const pasteAfter = usePagesStore((state) => state.pasteAfter);
+  const pasteInside = usePagesStore((state) => state.pasteInside);
   const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
   const loadPages = usePagesStore((state) => state.loadPages);
   const createComponentFromLayer = usePagesStore((state) => state.createComponentFromLayer);
@@ -1427,7 +1428,12 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   updateCurrentLayers(newLayers);
                 }
               } else if (currentPageId) {
-                pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
+                // If body is selected, paste inside body (not after it)
+                if (selectedLayerId === 'body') {
+                  pasteInside(currentPageId, selectedLayerId, clipboardLayer);
+                } else {
+                  pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
+                }
               }
             }
           }
@@ -1691,6 +1697,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     cutToClipboard,
     clipboardLayer,
     pasteAfter,
+    pasteInside,
     duplicateLayersFromStore,
     duplicateLayer,
     deleteLayers,
