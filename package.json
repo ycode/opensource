@@ -55,6 +55,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "gsap": "^3.13.0",
+    "html-to-image": "^1.11.13",
     "knex": "^3.1.0",
     "lodash": "^4.17.21",
     "lodash.debounce": "^4.0.8",

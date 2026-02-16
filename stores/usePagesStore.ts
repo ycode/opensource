@@ -23,7 +23,7 @@ import { generateId } from '../lib/utils';
 import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
-import { useComponentsStore } from './useComponentsStore';
+import { useComponentsStore, triggerThumbnailGeneration } from './useComponentsStore';
 
 interface PagesState {
   pages: Page[];
@@ -2836,6 +2836,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...draft, layers: newLayers },
       },
     });
+
+    // Generate thumbnail in the background (fire-and-forget)
+    triggerThumbnailGeneration(newComponent.id, newComponent.layers, componentsState.components);
 
     return newComponent.id;
   },

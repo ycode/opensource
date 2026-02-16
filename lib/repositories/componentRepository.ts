@@ -645,6 +645,26 @@ export async function deleteComponent(id: string): Promise<void> {
 }
 
 /**
+ * Update a component's thumbnail URL (draft only)
+ */
+export async function updateComponentThumbnail(id: string, thumbnailUrl: string | null): Promise<void> {
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Failed to initialize Supabase client');
+  }
+
+  const { error } = await client
+    .from('components')
+    .update({ thumbnail_url: thumbnailUrl })
+    .eq('id', id)
+    .eq('is_published', false);
+
+  if (error) {
+    throw new Error(`Failed to update component thumbnail: ${error.message}`);
+  }
+}
+
+/**
  * Helper function to recursively remove componentId from layers
  */
 /**

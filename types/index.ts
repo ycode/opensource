@@ -474,6 +474,9 @@ export interface Component {
   content_hash?: string; // SHA-256 hash for change detection
   is_published: boolean;
 
+  // Auto-generated preview thumbnail URL (stored in Supabase Storage)
+  thumbnail_url?: string | null;
+
   created_at: string;
   updated_at: string;
   deleted_at?: string | null; // Soft delete timestamp

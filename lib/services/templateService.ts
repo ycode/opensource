@@ -1,5 +1,6 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
 import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
 
@@ -21,8 +22,6 @@ const TABLES_TO_TRUNCATE = [
   'pages',
   'page_folders',
 ];
-
-const STORAGE_BUCKET = 'assets';
 
 export interface TemplateCategory {
   id: string;
@@ -173,7 +172,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
       const timestamp = Date.now();
       const random = Math.random().toString(36).substring(2, 15);
       const extension = asset.filename.split('.').pop() || 'bin';
-      const storagePath = `${timestamp}-${random}.${extension}`;
+      const storagePath = `${STORAGE_FOLDERS.WEBSITE}/${timestamp}-${random}.${extension}`;
 
       // Upload to user's storage
       const { data, error } = await supabase.storage

@@ -65,7 +65,7 @@ export default function CreateComponentDialog({
         aria-describedby={undefined}
       >
         <DialogHeader>
-          <DialogTitle>Create Component</DialogTitle>
+          <DialogTitle>Create component</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4.5">

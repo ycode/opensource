@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
+import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { generateAssetContentHash } from '../hash-utils';
 import type { Asset } from '../../types';
 
@@ -372,7 +373,7 @@ export async function deleteAsset(id: string): Promise<void> {
   // If never published, delete the physical file immediately
   if (!publishedAsset && draftAsset.storage_path) {
     const { error: storageError } = await client.storage
-      .from('assets')
+      .from(STORAGE_BUCKET)
       .remove([draftAsset.storage_path]);
 
     if (storageError) {
@@ -457,7 +458,7 @@ export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string
     for (let i = 0; i < storagePaths.length; i += SUPABASE_WRITE_BATCH_SIZE) {
       const batch = storagePaths.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
       const { error: storageError } = await client.storage
-        .from('assets')
+        .from(STORAGE_BUCKET)
         .remove(batch);
 
       if (storageError) {
@@ -591,11 +592,11 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
 
   // Sanitize filename to remove spaces and special characters
   const sanitizedName = sanitizeFilename(file.name);
-  const filename = `${Date.now()}-${sanitizedName}`;
+  const storagePath = `${STORAGE_FOLDERS.WEBSITE}/${Date.now()}-${sanitizedName}`;
 
   const { data, error } = await client.storage
-    .from('assets')
-    .upload(filename, file, {
+    .from(STORAGE_BUCKET)
+    .upload(storagePath, file, {
       cacheControl: '3600',
       upsert: false,
     });
@@ -605,7 +606,7 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
   }
 
   const { data: urlData } = client.storage
-    .from('assets')
+    .from(STORAGE_BUCKET)
     .getPublicUrl(data.path);
 
   return {
@@ -826,7 +827,7 @@ export async function hardDeleteSoftDeletedAssets(): Promise<{ count: number }> 
     for (let i = 0; i < storagePaths.length; i += SUPABASE_WRITE_BATCH_SIZE) {
       const batch = storagePaths.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
       const { error: storageError } = await client.storage
-        .from('assets')
+        .from(STORAGE_BUCKET)
         .remove(batch);
 
       if (storageError) {

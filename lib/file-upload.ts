@@ -5,11 +5,10 @@
 
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createAsset } from '@/lib/repositories/assetRepository';
-import { isAssetOfType, ASSET_CATEGORIES } from './asset-utils';
+import { isAssetOfType } from './asset-utils';
+import { ASSET_CATEGORIES, STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import sharp from 'sharp';
 import type { Asset } from '@/types';
-
-const STORAGE_BUCKET = 'assets';
 
 /**
  * Validate SVG content
@@ -256,7 +255,7 @@ export async function uploadFile(
       dimensions = await getImageDimensions(file);
     }
 
-    const storagePath = `${timestamp}-${random}.${fileExtension}`;
+    const storagePath = `${STORAGE_FOLDERS.WEBSITE}/${timestamp}-${random}.${fileExtension}`;
 
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKET)

@@ -18,6 +18,7 @@ import { createRoot, Root } from 'react-dom/client';
 import LayerRenderer from '@/components/LayerRenderer';
 import { serializeLayers } from '@/lib/layer-utils';
 import { collectEditorHiddenLayerIds } from '@/lib/animation-utils';
+import { getCanvasIframeHtml } from '@/lib/canvas-utils';
 import { cn } from '@/lib/utils';
 
 import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, Asset, ComponentVariable } from '@/types';
@@ -279,46 +280,29 @@ export default function Canvas({
       // Double-check we haven't already initialized
       if (rootRef.current) return;
 
-      // Write the initial HTML with Tailwind Browser CDN
+      // Write the initial HTML with Tailwind Browser CDN (shared template)
       doc.open();
-      doc.write(`
-<!DOCTYPE html>
-<html style="height: 100%;">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <style type="text/tailwindcss">
-    @theme {
-      /* Use default Tailwind theme */
-    }
-  </style>
-  <style>
-    /* Custom dropdown chevron for styled select elements */
-    select.appearance-none {
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
-      background-repeat: no-repeat !important;
-      background-position: right 12px center !important;
-      background-size: 16px 16px !important;
-    }
-  </style>
-  <link rel="stylesheet" href="/canvas.css">
-  <!-- GSAP for animations (now free thanks to Webflow) -->
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/SplitText.min.js"></script>
-  <script>
-    // Register SplitText plugin in iframe context
-    if (typeof gsap !== 'undefined' && typeof SplitText !== 'undefined') {
-      gsap.registerPlugin(SplitText);
-    }
-  </script>
-</head>
-<body style="margin: 0; padding: 0; height: 100%;">
-  <div id="canvas-mount" style="height: 100%;"></div>
-</body>
-</html>
-      `);
+      doc.write(getCanvasIframeHtml('canvas-mount'));
       doc.close();
+
+      // Load GSAP for animations in the canvas iframe
+      const gsapScript = doc.createElement('script');
+      gsapScript.src = 'https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js';
+      gsapScript.onload = () => {
+        const splitTextScript = doc.createElement('script');
+        splitTextScript.src = 'https://cdn.jsdelivr.net/npm/gsap@3/dist/SplitText.min.js';
+        splitTextScript.onload = () => {
+          const initScript = doc.createElement('script');
+          initScript.textContent = `
+            if (typeof gsap !== 'undefined' && typeof SplitText !== 'undefined') {
+              gsap.registerPlugin(SplitText);
+            }
+          `;
+          doc.head.appendChild(initScript);
+        };
+        doc.head.appendChild(splitTextScript);
+      };
+      doc.head.appendChild(gsapScript);
 
       // Wait for Tailwind to initialize
       setTimeout(() => {

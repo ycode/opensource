@@ -15,6 +15,32 @@ import { detachStyleFromLayers, updateLayersWithStyle } from '@/lib/layer-style-
 import { generateId } from '@/lib/utils';
 import type { Component, Layer } from '@/types';
 
+/**
+ * Fire-and-forget thumbnail generation for a component.
+ * Dynamically imports the capture module to avoid bundling it in the initial load.
+ * Updates the components store when the thumbnail is ready.
+ */
+export function triggerThumbnailGeneration(
+  componentId: string,
+  layers: Layer[],
+  allComponents: Component[]
+): void {
+  if (typeof window === 'undefined') return;
+
+  import('@/lib/client/thumbnail-capture').then(({ generateComponentThumbnail }) => {
+    generateComponentThumbnail(componentId, layers, allComponents).then((thumbnailUrl) => {
+      if (thumbnailUrl) {
+        const state = useComponentsStore.getState();
+        state.setComponents(
+          state.components.map((c) =>
+            c.id === componentId ? { ...c, thumbnail_url: thumbnailUrl } : c
+          )
+        );
+      }
+    });
+  }).catch((err) => console.error('Failed to generate thumbnail:', err));
+}
+
 interface ComponentsState {
   components: Component[];
   isLoading: boolean;
@@ -169,6 +195,9 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => {
           components: [newComponent, ...state.components],
           isLoading: false,
         }));
+
+        // Generate thumbnail in the background (fire-and-forget)
+        triggerThumbnailGeneration(newComponent.id, newComponent.layers, get().components);
 
         return newComponent;
       } catch (error) {
@@ -501,6 +530,9 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => {
           window.dispatchEvent(new CustomEvent('componentUpdated', {
             detail: { componentId, layers: draftLayers }
           }));
+
+          // Regenerate thumbnail in the background (fire-and-forget)
+          triggerThumbnailGeneration(componentId, draftLayers, get().components);
         }
 
         // Regenerate CSS to include updated component classes
@@ -579,6 +611,9 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => {
       // Replace layer with component instance
       const newLayers = replaceLayerWithComponentInstance(layers, layerId, newComponent.id);
       get().updateComponentDraft(componentId, newLayers);
+
+      // Generate thumbnail in the background (fire-and-forget)
+      triggerThumbnailGeneration(newComponent.id, newComponent.layers, get().components);
 
       return newComponent.id;
     },

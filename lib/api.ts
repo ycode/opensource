@@ -623,6 +623,27 @@ export const componentsApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // Upload a component thumbnail (FormData, not JSON)
+  async uploadThumbnail(id: string, blob: Blob): Promise<ApiResponse<{ thumbnail_url: string }>> {
+    const formData = new FormData();
+    formData.append('image', blob, 'thumbnail.png');
+
+    const response = await fetch(`/ycode/api/components/${id}/thumbnail`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      try {
+        const json = await response.json();
+        if (json.error) return { error: json.error };
+      } catch { /* fall through */ }
+      return { error: `HTTP ${response.status}: ${response.statusText}` };
+    }
+
+    return response.json();
+  },
 };
 
 // Layer Styles API
