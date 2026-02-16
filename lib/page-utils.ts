@@ -1382,28 +1382,30 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
             id: 'layer-1762789137823-g2cdo46ld',
             name: 'section',
             design: {
-              layout: { display: 'Flex', isActive: true, flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
-              spacing: { isActive: true, paddingTop: '6rem', paddingBottom: '2rem' },
+              layout: { display: 'Flex', isActive: true, flexDirection: 'column' },
+              sizing: { height: '100vh', isActive: true },
+              spacing: { isActive: true, paddingTop: '3rem', paddingBottom: '3rem' },
             },
-            classes: 'flex flex-col items-center justify-center gap-[1rem] pt-[6rem] pb-[2rem]',
+            classes: 'flex flex-col gap-[1rem] py-[3rem] h-[100vh]',
             children: [
               {
                 id: 'layer-1762789141753-zpz5jyobc',
                 name: 'div',
                 design: {
-                  sizing: { maxWidth: '80rem', isActive: true },
+                  sizing: { height: '100vh', isActive: true, maxWidth: '80rem' },
                   spacing: { isActive: true, marginLeft: 'auto', marginRight: 'auto', paddingLeft: '1rem', paddingRight: '1rem' },
                 },
-                classes: 'max-w-[80rem] mx-auto px-[1rem]',
+                classes: 'max-w-[80rem] mx-auto px-[1rem] h-[100vh]',
                 children: [
                   {
                     id: 'layer-1762789168560-icft8ynp5',
                     name: 'div',
                     design: {
-                      layout: { gap: '12', display: 'flex', isActive: true, alignItems: 'center', flexDirection: 'column' },
+                      layout: { gap: '6', display: 'flex', isActive: true, alignItems: 'center', flexDirection: 'column', justifyContent: 'center' },
+                      sizing: { height: '100%', isActive: true },
                       typography: { isActive: true, textAlign: 'center' },
                     },
-                    classes: 'items-center text-center flex flex-col gap-[12px]',
+                    classes: 'items-center text-center h-full flex flex-col justify-center gap-[6px]',
                     children: [
                       {
                         id: 'layer-1762789150944-5qezgblbe',
@@ -1434,9 +1436,9 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                           tag: 'p',
                         },
                         design: {
-                          typography: { fontSize: '14', color: '#111827', fontWeight: '500', isActive: true },
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
-                        classes: 'text-[14px] text-[#111827] font-[500]',
+                        classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
                         restrictions: { editText: true },
@@ -1456,9 +1458,9 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                           tag: 'p',
                         },
                         design: {
-                          typography: { fontSize: '14', color: '#6b7280', isActive: true },
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
-                        classes: 'text-[14px] text-[#6b7280]',
+                        classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
                         restrictions: { editText: true },
