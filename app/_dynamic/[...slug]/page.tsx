@@ -108,15 +108,18 @@ export default async function DynamicSlugPage({ params, searchParams }: DynamicS
       }
 
       return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'white', fontFamily: 'system-ui, sans-serif' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '8px', color: '#111' }}>Password Protected</h1>
-          <p style={{ color: '#666', marginBottom: '24px' }}>Enter the password to continue.</p>
-          <PasswordForm
-            pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
-            folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
-            redirectUrl={currentPath}
-            isPublished={true}
-          />
+        <div className="min-h-screen flex items-center justify-center bg-white">
+          <div className="text-center max-w-md px-4">
+            <h1 className="text-6xl font-bold text-gray-900 mb-4">401</h1>
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Password Protected</h2>
+            <p className="text-gray-600 mb-8">Enter the password to continue.</p>
+            <PasswordForm
+              pageId={protection.protectedBy === 'page' ? protection.protectedById : undefined}
+              folderId={protection.protectedBy === 'folder' ? protection.protectedById : undefined}
+              redirectUrl={currentPath}
+              isPublished={true}
+            />
+          </div>
         </div>
       );
     }
