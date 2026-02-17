@@ -2132,10 +2132,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   width: viewportSizes[viewportMode].width,
                   // Compensate height for zoom so visual size = 100% after scaling
                   height: `${((containerHeight - CANVAS_PADDING) / (zoom / 100))}px`,
-                  transform: `scale(${zoom / 100})`,
-                  transformOrigin: 'top center',
-                  willChange: 'transform',
-                  backfaceVisibility: 'hidden',
+                  zoom: zoom / 100,
                   transition: 'none',
                 }}
               >
@@ -2197,14 +2194,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <div
                   className="bg-white shadow-3xl relative"
                   style={{
-                    transform: `scale(${zoom / 100})`,
-                    transformOrigin: 'top center', // Always scale from top
+                    zoom: zoom / 100,
                     width: viewportSizes[viewportMode].width,
                     height: `${finalIframeHeight}px`,
                     flexShrink: 0, // Prevent shrinking - maintain fixed size
-                    // GPU optimization hints
-                    willChange: 'transform',
-                    backfaceVisibility: 'hidden',
                     // No transition to prevent shifts
                     transition: 'none',
                   }}
