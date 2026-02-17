@@ -106,6 +106,9 @@ const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: 
   mobile: { width: '375px', label: 'Mobile', icon: '📱' },
 };
 
+// Component editing canvas sizing
+const COMPONENT_CANVAS_PADDING = 0;
+
 // Import the drop target type from the store
 import type { CanvasDropTarget } from '@/stores/useEditorStore';
 
@@ -501,8 +504,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // State for iframe element (for SelectionOverlay)
   const [canvasIframeElement, setCanvasIframeElement] = useState<HTMLIFrameElement | null>(null);
 
-  // Track iframe content height from iframe reports
+  // Track iframe content size from iframe reports
   const [reportedContentHeight, setReportedContentHeight] = useState(0);
+  const [reportedContentWidth, setReportedContentWidth] = useState(0);
 
   // Track container height for dynamic alignment
   const [containerHeight, setContainerHeight] = useState(0);
@@ -591,6 +595,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
     setReportedContentHeight(0);
   }, [currentPageId]);
 
+  // Reset content width when switching components
+  useEffect(() => {
+    setReportedContentWidth(0);
+  }, [editingComponentId]);
+
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
   const collectionItemsFromStore = useCollectionsStore((state) => state.items);
   const collectionsFromStore = useCollectionsStore((state) => state.collections);
@@ -652,11 +661,24 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Effective iframe height: max of reported content and canvas height
   // This ensures Body fills canvas (min-height: 100%), but iframe shrinks when content is removed
   const iframeContentHeight = useMemo(() => {
+    // When editing a component, use content height + padding (don't force-fill container)
+    if (editingComponentId && reportedContentHeight > 0) {
+      return reportedContentHeight + COMPONENT_CANVAS_PADDING;
+    }
     // Use max of reported content and canvas height
     // When content is small: iframe = canvas height, Body fills it with min-height: 100%
     // When content is large: iframe = content height, and shrinks when content is deleted
     return Math.max(reportedContentHeight, defaultCanvasHeight);
-  }, [reportedContentHeight, defaultCanvasHeight]);
+  }, [reportedContentHeight, defaultCanvasHeight, editingComponentId]);
+
+  // Effective canvas width: content-based for component editing, viewport-based for pages
+  const effectiveCanvasWidth = useMemo(() => {
+    if (editingComponentId && reportedContentWidth > 0) {
+      const padded = reportedContentWidth + COMPONENT_CANVAS_PADDING;
+      return Math.min(padded, viewportWidth);
+    }
+    return viewportWidth;
+  }, [editingComponentId, reportedContentWidth, viewportWidth]);
 
   // Calculate "zoom to fit" level - where scaled height equals container height
   const zoomToFitLevel = useMemo(() => {
@@ -682,7 +704,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     handleZoomGesture,
   } = useZoom({
     containerRef: canvasContainerRef,
-    contentWidth: viewportWidth,
+    contentWidth: effectiveCanvasWidth,
     contentHeight: zoomContentHeight,
     minZoom: 10,
     maxZoom: 1000,
@@ -696,6 +718,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // When zoomed out (e.g. 52%), the iframe must be taller so that scaled it still fills the canvas
   // When switching viewports (Desktop → Phone), zoom changes and this recalculates automatically
   const finalIframeHeight = useMemo(() => {
+    // For component editing, use content-based height directly (don't force-fill container)
+    if (editingComponentId) return iframeContentHeight;
+
     if (!containerHeight || zoom <= 0) return iframeContentHeight;
 
     // Minimum iframe height so that scaled iframe fills the visible canvas area
@@ -703,7 +728,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
     // Use the larger of: content height or minimum height for current zoom
     return Math.max(iframeContentHeight, minHeightForZoom);
-  }, [iframeContentHeight, containerHeight, zoom]);
+  }, [iframeContentHeight, containerHeight, zoom, editingComponentId]);
 
   // Recalculate autofit when viewport/breakpoint changes
   const prevViewportMode = useRef(viewportMode);
@@ -2174,7 +2199,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               <div
                 style={{
                   // Width: exact scaled size, min 100% to fill viewport horizontally
-                  width: `${viewportWidth * (zoom / 100) + CANVAS_PADDING}px`,
+                  width: `${effectiveCanvasWidth * (zoom / 100) + CANVAS_PADDING}px`,
                   minWidth: '100%',
                   // Height: exact viewport height when centered, scaled size when top-aligned
                   height: shouldCenter
@@ -2192,16 +2217,27 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 }}
               >
                 <div
-                  className="bg-white shadow-3xl relative"
+                  className={editingComponentId ? 'relative' : 'bg-white shadow-3xl relative'}
                   style={{
                     zoom: zoom / 100,
-                    width: viewportSizes[viewportMode].width,
+                    width: `${effectiveCanvasWidth}px`,
                     height: `${finalIframeHeight}px`,
                     flexShrink: 0, // Prevent shrinking - maintain fixed size
                     // No transition to prevent shifts
                     transition: 'none',
+                    // Clip overflow when canvas is smaller than iframe (component editing)
+                    overflow: editingComponentId ? 'hidden' : undefined,
                   }}
                 >
+                  {/* Inner wrapper: keep iframe at viewport width for natural content rendering */}
+                  <div
+                    style={{
+                      width: editingComponentId && effectiveCanvasWidth < viewportWidth
+                        ? `${viewportWidth}px`
+                        : '100%',
+                      height: '100%',
+                    }}
+                  >
                   {/* Canvas for editor */}
                   {layers.length > 0 ? (
                     <>
@@ -2225,6 +2261,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         onLayerUpdate={handleCanvasLayerUpdate}
                         onDeleteLayer={handleCanvasDeleteLayer}
                         onContentHeightChange={setReportedContentHeight}
+                        onContentWidthChange={editingComponentId ? setReportedContentWidth : undefined}
                         onGapUpdate={handleCanvasGapUpdate}
                         onZoomGesture={handleZoomGesture}
                         onZoomIn={zoomIn}
@@ -2438,6 +2475,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                       </div>
                     </div>
                   )}
+                  </div>
                 </div>
               </div>
             </div>
