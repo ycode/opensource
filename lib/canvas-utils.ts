@@ -31,6 +31,9 @@ export function getCanvasIframeHtml(mountId: string = 'canvas-mount'): string {
       /* Use default Tailwind theme */
     }
   </style>
+  <style id="ycode-fonts-style">
+    /* Font CSS (Google @import + custom @font-face) injected dynamically */
+  </style>
   <style>
     /* Custom dropdown chevron for styled select elements */
     select.appearance-none {

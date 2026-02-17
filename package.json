@@ -17,6 +17,7 @@
     "migrate:rollback": "NODE_NO_WARNINGS=1 knex migrate:rollback --knexfile knexfile.ts",
     "migrate:status": "NODE_NO_WARNINGS=1 knex migrate:status --knexfile knexfile.ts",
     "migrate:credentials": "npx ts-node scripts/migrate-credentials.ts",
+    "fonts:update": "npx ts-node scripts/fetch-google-fonts.ts",
     "prepare": "husky"
   },
   "dependencies": {

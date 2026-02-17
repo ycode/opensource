@@ -12,7 +12,7 @@ import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { getSampleCollectionById } from '@/lib/sample-collections';
 import type { SampleCollectionDefinition, SampleFieldDefinition, SampleItemDefinition } from '@/lib/sample-collections';
 import type { Asset, Collection, CollectionField, CollectionItemWithValues } from '@/types';
-const SAMPLES_DIR = path.join(process.cwd(), 'samples');
+const SAMPLES_DIR = path.join(process.cwd(), 'storage', 'collections');
 
 /**
  * Sample Collection Service

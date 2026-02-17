@@ -222,3 +222,24 @@ export function generateAssetContentHash(assetData: {
     source: assetData.source,
   });
 }
+
+/**
+ * Generate a content hash for a font for change detection
+ */
+export function generateFontContentHash(fontData: {
+  name: string;
+  family: string;
+  type: string;
+  variants?: string[];
+  weights?: string[];
+  category?: string;
+}): string {
+  return generateContentHash({
+    name: fontData.name,
+    family: fontData.family,
+    type: fontData.type,
+    variants: fontData.variants,
+    weights: fontData.weights,
+    category: fontData.category,
+  });
+}

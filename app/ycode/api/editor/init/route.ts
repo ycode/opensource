@@ -9,6 +9,7 @@ import { getAllCollections } from '@/lib/repositories/collectionRepository';
 import { getAllLocales } from '@/lib/repositories/localeRepository';
 import { getAllAssets } from '@/lib/repositories/assetRepository';
 import { getAllAssetFolders } from '@/lib/repositories/assetFolderRepository';
+import { getAllFonts } from '@/lib/repositories/fontRepository';
 
 /**
  * GET /ycode/api/editor/init
@@ -23,11 +24,12 @@ import { getAllAssetFolders } from '@/lib/repositories/assetFolderRepository';
  * - All locales
  * - All assets
  * - All asset folders
+ * - All fonts
  */
 export async function GET() {
   try {
     // Load all data in parallel (only drafts for editor)
-    const [pages, drafts, folders, components, styles, settings, collections, locales, assets, assetFolders] = await Promise.all([
+    const [pages, drafts, folders, components, styles, settings, collections, locales, assets, assetFolders, fonts] = await Promise.all([
       getAllDraftPages(),
       getAllDraftLayers(),
       getAllPageFolders({ is_published: false }),
@@ -38,6 +40,7 @@ export async function GET() {
       getAllLocales(),
       getAllAssets(),
       getAllAssetFolders(false),
+      getAllFonts(),
     ]);
 
     return NextResponse.json({
@@ -52,6 +55,7 @@ export async function GET() {
         locales,
         assets,
         assetFolders,
+        fonts,
       },
     });
   } catch (error) {
