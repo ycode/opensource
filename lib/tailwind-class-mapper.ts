@@ -429,8 +429,10 @@ export function propertyToClass(
         // Always use arbitrary values for numeric weights
         return value.match(/^\d/) ? `font-[${value}]` : `font-${value}`;
       case 'fontFamily':
-        // Use arbitrary values for custom fonts (containing spaces, commas, etc)
-        return value.match(/[,\s]|^["']/) ? `font-[${value}]` : `font-${value}`;
+        // Built-in fonts: sans, serif, mono → font-sans, font-serif, font-mono
+        if (['sans', 'serif', 'mono'].includes(value)) return `font-${value}`;
+        // Google/custom fonts: replace spaces with underscores for Tailwind arbitrary values
+        return `font-[${value.replace(/\s+/g, '_')}]`;
       case 'lineHeight':
         return value.match(/^\d/) ? `leading-[${value}]` : `leading-${value}`;
       case 'letterSpacing':
@@ -1009,15 +1011,18 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls === 'font-extrabold') design.typography!.fontWeight = '800';
     if (cls === 'font-black') design.typography!.fontWeight = '900';
 
-    // Font Family (arbitrary values)
-    if (cls.startsWith('font-[') && (cls.includes('sans') || cls.includes('serif') || cls.includes('mono') || cls.includes(','))) {
+    // Font Family (arbitrary values - Google/custom fonts with underscores as space replacements)
+    if (cls.startsWith('font-[') && !cls.match(/^font-\[\d/)) {
       const value = extractArbitraryValue(cls);
-      if (value) design.typography!.fontFamily = value;
+      if (value) {
+        // Convert underscores back to spaces for font family names
+        design.typography!.fontFamily = value.replace(/_/g, ' ');
+      }
     }
     // Font Family (named values)
-    if (cls === 'font-sans') design.typography!.fontFamily = 'sans-serif';
+    if (cls === 'font-sans') design.typography!.fontFamily = 'sans';
     if (cls === 'font-serif') design.typography!.fontFamily = 'serif';
-    if (cls === 'font-mono') design.typography!.fontFamily = 'monospace';
+    if (cls === 'font-mono') design.typography!.fontFamily = 'mono';
 
     // Text Align
     if (cls === 'text-left') design.typography!.textAlign = 'left';

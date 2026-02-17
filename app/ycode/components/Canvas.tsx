@@ -20,6 +20,7 @@ import { serializeLayers } from '@/lib/layer-utils';
 import { collectEditorHiddenLayerIds } from '@/lib/animation-utils';
 import { getCanvasIframeHtml } from '@/lib/canvas-utils';
 import { cn } from '@/lib/utils';
+import { useFontsStore } from '@/stores/useFontsStore';
 
 import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, Asset, ComponentVariable } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
@@ -357,6 +358,16 @@ export default function Canvas({
       onIframeReady(iframeRef.current);
     }
   }, [iframeReady, onIframeReady]);
+
+  // Inject font CSS into the canvas iframe when fonts change
+  const fontsCss = useFontsStore((state) => state.fontsCss);
+  const injectFontsCss = useFontsStore((state) => state.injectFontsCss);
+
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+    const iframeDoc = iframeRef.current.contentDocument;
+    injectFontsCss(iframeDoc);
+  }, [iframeReady, fontsCss, injectFontsCss]);
 
   // Render content into iframe
   useEffect(() => {

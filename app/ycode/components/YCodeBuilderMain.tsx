@@ -70,6 +70,7 @@ import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } fro
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
+import { useFontsStore } from '@/stores/useFontsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useMigrationStore } from '@/stores/useMigrationStore';
 import { useVersionsStore } from '@/stores/useVersionsStore';
@@ -486,6 +487,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             const { setSettings } = useSettingsStore.getState();
             const { setLocales } = useLocalisationStore.getState();
             const { setAssets, setFolders: setAssetFolders } = useAssetsStore.getState();
+            const { setFonts } = useFontsStore.getState();
             const { preloadCollectionsAndItems } = useCollectionsStore.getState();
 
             // Set synchronous data first
@@ -497,6 +499,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             setLocales(response.data.locales || []);
             setAssets(response.data.assets || []);
             setAssetFolders(response.data.assetFolders || []);
+            setFonts(response.data.fonts || []);
 
             // Load async data in parallel
             const asyncTasks = [];

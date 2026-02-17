@@ -1272,6 +1272,49 @@ export interface FormSummary {
   latest_submission: string | null;
 }
 
+// Font Types
+export type FontType = 'google' | 'custom' | 'default';
+
+export interface Font {
+  id: string;
+  name: string; // Slug-friendly name (e.g., "open-sans")
+  family: string; // Display family name (e.g., "Open Sans")
+  type: FontType;
+  variants: string[]; // Available variants (e.g., ["regular", "italic", "700"])
+  weights: string[]; // Available weights (e.g., ["400", "700"])
+  category: string; // Font category (e.g., "sans-serif", "serif")
+  kind?: string | null; // Font format for custom fonts (e.g., "woff2", "truetype")
+  url?: string | null; // Public URL for custom font file
+  storage_path?: string | null; // Storage path for custom font file
+  file_hash?: string | null; // File content hash for custom fonts
+  content_hash?: string | null;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface CreateFontData {
+  name: string;
+  family: string;
+  type: FontType;
+  variants: string[];
+  weights: string[];
+  category: string;
+  kind?: string | null;
+  url?: string | null;
+  storage_path?: string | null;
+  file_hash?: string | null;
+}
+
+export interface UpdateFontData {
+  name?: string;
+  family?: string;
+  variants?: string[];
+  weights?: string[];
+  category?: string;
+}
+
 // Sitemap Settings
 export type SitemapMode = 'none' | 'auto' | 'custom';
 export type SitemapChangeFrequency = 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
