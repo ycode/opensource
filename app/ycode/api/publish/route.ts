@@ -361,11 +361,9 @@ export async function POST(request: NextRequest) {
       // Fonts
       {
         try {
-          const fontsResult = await publishFonts();
-          // Font stats tracked under a simple log (no dedicated stats table column)
-          console.log('[Publish] Fonts:', fontsResult);
+          await publishFonts();
         } catch {
-          // Silently handle - non-fatal
+          // Non-fatal — fonts are best-effort during publish
         }
       }
 
