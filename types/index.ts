@@ -102,6 +102,11 @@ export interface BackgroundsDesign {
   backgroundSize?: string;
   backgroundPosition?: string;
   backgroundRepeat?: string;
+  backgroundClip?: string;
+  /** CSS variable values for background image per breakpoint/state, e.g. { '--bg-img': 'url(...)' } */
+  bgImageVars?: Record<string, string>;
+  /** CSS variable values for background gradient per breakpoint/state, e.g. { '--bg-img': 'linear-gradient(...)' } */
+  bgGradientVars?: Record<string, string>;
 }
 
 export interface EffectsDesign {
@@ -337,6 +342,9 @@ export interface LayerVariables {
   };
   iframe?: {
     src: DynamicTextVariable; // Embed URL (allow inline variables)
+  };
+  backgroundImage?: {
+    src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL)
   };
   link?: LinkSettings;
 

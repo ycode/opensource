@@ -15,6 +15,7 @@ import {
   setBreakpointClass,
   getInheritedValue,
   getConflictingClassPattern,
+  extractBgImgVarName,
 } from '@/lib/tailwind-class-mapper';
 import { updateStyledLayer } from '@/lib/layer-style-utils';
 import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
@@ -332,6 +333,10 @@ export function useDesignSync({
       if (arbitraryMatch) {
         return arbitraryMatch[1];
       }
+
+      // CSS variable reference for background-image
+      const bgVarName = extractBgImgVarName(inheritedClass);
+      if (bgVarName) return bgVarName;
 
       return mapClassToDesignValue(inheritedClass, property);
     },

@@ -120,6 +120,36 @@ export function updateStyledLayer(
 }
 
 /**
+ * Build a partial update that routes classes/design through the style system.
+ * Extra fields (e.g. variables) are passed through unchanged.
+ * Use this for atomic updates that combine style-tracked and non-tracked fields.
+ */
+export function buildStyledUpdate(
+  layer: Layer,
+  updates: Partial<Layer>,
+): Partial<Layer> {
+  const { classes: rawClasses, design, ...rest } = updates;
+  const classes = Array.isArray(rawClasses) ? rawClasses.join(' ') : rawClasses;
+
+  if (classes === undefined && design === undefined) {
+    return updates;
+  }
+
+  const styledLayer = updateStyledLayer(layer, { classes, design });
+  const result: Partial<Layer> = {
+    ...rest,
+    design: styledLayer.design,
+    classes: styledLayer.classes,
+  };
+
+  if (styledLayer.styleOverrides !== layer.styleOverrides) {
+    result.styleOverrides = styledLayer.styleOverrides;
+  }
+
+  return result;
+}
+
+/**
  * Update all layers using a specific style
  * Recursively traverses layer tree and updates layers that have the style applied
  * Only updates layers WITHOUT overrides (overridden layers keep their custom values)

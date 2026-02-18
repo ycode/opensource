@@ -463,9 +463,9 @@ export function resolveDesignStyles(
     const resolved = resolveDesignColorBinding(binding, resolveField);
     const cssProp = DESIGN_COLOR_CSS_MAP[designProp];
     if (resolved && cssProp) {
-      // For gradient values, use 'background' instead of 'backgroundColor'
-      const finalProp = cssProp === 'backgroundColor' && resolved.includes('gradient') ? 'background' : cssProp;
-      styles[finalProp] = resolved;
+      // Gradients route through 'background' so renderers can merge with --bg-img variable
+      const isGradient = cssProp === 'backgroundColor' && resolved.includes('gradient');
+      styles[isGradient ? 'background' : cssProp] = resolved;
     }
   }
 

@@ -5,7 +5,7 @@ import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepos
 import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer, CollectionPaginationMeta, Translation, Locale } from '@/types';
 import { getCollectionVariable, resolveFieldValue, evaluateVisibility } from '@/lib/layer-utils';
 import { isFieldVariable, isAssetVariable, createDynamicTextVariable, createDynamicRichTextVariable, createAssetVariable, getDynamicTextContent, getVariableStringValue, getAssetId, resolveDesignStyles } from '@/lib/variable-utils';
-import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
+import { generateImageSrcset, getImageSizes, getOptimizedImageUrl, DEFAULT_ASSETS } from '@/lib/asset-utils';
 import { resolveComponents } from '@/lib/resolve-components';
 import { extractInlineNodesFromRichText, isTiptapDoc, hasBlockElementsWithResolver } from '@/lib/tiptap-utils';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
@@ -24,6 +24,7 @@ import { formatDateFieldsInItemValues } from '@/lib/date-format-utils';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
 import { parseMultiReferenceValue } from '@/lib/collection-utils';
+import { combineBgValues, mergeStaticBgVars } from '@/lib/tailwind-class-mapper';
 import { getAssetsByIds } from '@/lib/repositories/assetRepository';
 import { isVirtualAssetField } from '@/lib/collection-field-utils';
 import type { FieldVariable, AssetVariable, DynamicTextVariable } from '@/types';
@@ -1082,6 +1083,19 @@ async function injectCollectionData(
       audio: {
         ...layer.variables?.audio,
         src: createResolvedAssetVariable(audioSrc.data.field_id, resolvedValue, audioSrc),
+      },
+    };
+  }
+
+  // Background image src field binding (variables structure)
+  const bgImageSrc = layer.variables?.backgroundImage?.src;
+  if (bgImageSrc && isFieldVariable(bgImageSrc) && bgImageSrc.data.field_id) {
+    const resolvedValue = resolveFieldValueWithRelationships(bgImageSrc, enhancedValues, layerDataMap);
+    updates.variables = {
+      ...updates.variables,
+      ...layer.variables,
+      backgroundImage: {
+        src: createResolvedAssetVariable(bgImageSrc.data.field_id, resolvedValue, bgImageSrc),
       },
     };
   }
@@ -2214,6 +2228,19 @@ async function injectCollectionDataForHtml(
     };
   }
 
+  // Background image src field binding (variables structure)
+  const bgImageSrc = layer.variables?.backgroundImage?.src;
+  if (bgImageSrc && isFieldVariable(bgImageSrc) && bgImageSrc.data.field_id) {
+    const resolvedValue = resolveFieldPath(bgImageSrc);
+    updates.variables = {
+      ...updates.variables,
+      ...layer.variables,
+      backgroundImage: {
+        src: createResolvedAssetVariable(bgImageSrc.data.field_id, resolvedValue, bgImageSrc),
+      },
+    };
+  }
+
   // Design color field bindings → inline styles (supports solid + gradient)
   const designBindingsHtml = layer.variables?.design as Record<string, DesignColorVariable> | undefined;
   if (designBindingsHtml) {
@@ -2284,6 +2311,13 @@ async function resolveAllAssets(layers: Layer[], isPublished: boolean = true): P
     const iconSrc = layer.variables?.icon?.src;
     if (iconSrc && isAssetVariable(iconSrc)) {
       const assetId = getAssetId(iconSrc);
+      if (assetId) assetIds.add(assetId);
+    }
+
+    // Collect background image asset IDs
+    const bgImageSrc = layer.variables?.backgroundImage?.src;
+    if (bgImageSrc && isAssetVariable(bgImageSrc)) {
+      const assetId = getAssetId(bgImageSrc);
       if (assetId) assetIds.add(assetId);
     }
 
@@ -2363,6 +2397,28 @@ async function resolveAllAssets(layers: Layer[], isPublished: boolean = true): P
         const asset = assetMap[assetId];
         const resolvedUrl = asset?.public_url || '';
         variableUpdates.audio = {
+          src: createDynamicTextVariable(resolvedUrl),
+        };
+      }
+    }
+
+    // Resolve AssetVariable in background image src
+    const bgImageSrc = layer.variables?.backgroundImage?.src;
+    if (bgImageSrc && isAssetVariable(bgImageSrc)) {
+      const assetId = getAssetId(bgImageSrc);
+      let resolvedUrl = '';
+      if (assetId) {
+        const asset = assetMap[assetId];
+        if (asset?.public_url) {
+          resolvedUrl = asset.public_url;
+        } else if (asset?.content) {
+          resolvedUrl = `data:image/svg+xml,${encodeURIComponent(asset.content)}`;
+        }
+      } else {
+        resolvedUrl = DEFAULT_ASSETS.IMAGE;
+      }
+      if (resolvedUrl) {
+        variableUpdates.backgroundImage = {
           src: createDynamicTextVariable(resolvedUrl),
         };
       }
@@ -2634,9 +2690,37 @@ function layerToHtml(
     attrs.push(`id="${escapeHtml(layer.attributes.id)}"`);
   }
 
-  // Apply dynamic inline styles from CMS color field bindings
-  if (layer._dynamicStyles && Object.keys(layer._dynamicStyles).length > 0) {
-    const styleStr = Object.entries(layer._dynamicStyles)
+  // Build inline styles from dynamic sources (CMS color bindings + background image variable)
+  // Route CMS-bound gradients through --bg-img variable instead of 'background'
+  const rawDynamic = layer._dynamicStyles || {};
+  const cmsGradient = rawDynamic.background?.includes('gradient(') ? rawDynamic.background : undefined;
+  const inlineStyles: Record<string, string> = cmsGradient
+    ? Object.fromEntries(Object.entries(rawDynamic).filter(([k]) => k !== 'background'))
+    : { ...rawDynamic };
+
+  // Combine static bgImageVars + bgGradientVars per CSS variable key
+  const bgImageVars = layer.design?.backgrounds?.bgImageVars;
+  const bgGradientVars = layer.design?.backgrounds?.bgGradientVars;
+  Object.assign(inlineStyles, mergeStaticBgVars(bgImageVars, bgGradientVars));
+
+  // Resolve background image from variable → set --bg-img CSS custom property (combined with gradient)
+  const bgImageSrc = layer.variables?.backgroundImage?.src;
+  if (bgImageSrc && bgImageSrc.type === 'dynamic_text') {
+    const bgUrl = bgImageSrc.data.content;
+    if (bgUrl && bgUrl.trim()) {
+      const cssUrl = bgUrl.startsWith('url(') ? bgUrl : `url(${bgUrl})`;
+      inlineStyles['--bg-img'] = combineBgValues(cssUrl, bgGradientVars?.['--bg-img']);
+    }
+  }
+
+  // CMS-bound gradient routes through --bg-img variable
+  if (cmsGradient) {
+    const existingImg = inlineStyles['--bg-img']?.split(', ').find(v => v.startsWith('url(')) || bgImageVars?.['--bg-img'];
+    inlineStyles['--bg-img'] = combineBgValues(existingImg, cmsGradient);
+  }
+
+  if (Object.keys(inlineStyles).length > 0) {
+    const styleStr = Object.entries(inlineStyles)
       .map(([prop, val]) => {
         // Convert camelCase to kebab-case for CSS (except CSS variables)
         const cssProp = prop.startsWith('--') ? prop : prop.replace(/([A-Z])/g, '-$1').toLowerCase();

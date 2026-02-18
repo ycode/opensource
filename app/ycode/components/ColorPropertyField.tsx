@@ -25,7 +25,6 @@ interface ColorPropertyFieldProps {
   defaultValue?: string;
   placeholder?: string;
   solidOnly?: boolean;
-  backgroundImageProps?: React.ComponentProps<typeof ColorPicker>['backgroundImageProps'];
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   designProperty: ColorDesignProperty;
@@ -67,7 +66,6 @@ export default function ColorPropertyField({
   defaultValue,
   placeholder,
   solidOnly,
-  backgroundImageProps,
   layer,
   onLayerUpdate,
   designProperty,
@@ -270,7 +268,6 @@ export default function ColorPropertyField({
       defaultValue={defaultValue}
       placeholder={placeholder}
       solidOnly={solidOnly}
-      backgroundImageProps={backgroundImageProps}
       binding={binding}
       onClear={handleClearAll}
     />

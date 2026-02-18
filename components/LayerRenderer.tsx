@@ -32,6 +32,7 @@ import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
+import { combineBgValues, mergeStaticBgVars } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
@@ -1105,8 +1106,37 @@ const LayerItem: React.FC<{
       ) || layer._dynamicStyles
       : layer._dynamicStyles;
 
-    // Merge styles: base style + attribute style + dynamic CMS color bindings
-    const mergedStyle = { ...style, ...parsedAttrStyle, ...resolvedDesignStyles };
+    // Build background-image CSS custom properties by combining bgImageVars + bgGradientVars
+    const bgImageVariable = layer.variables?.backgroundImage?.src;
+    const staticImgVars = layer.design?.backgrounds?.bgImageVars;
+    const staticGradVars = layer.design?.backgrounds?.bgGradientVars;
+    const bgImageStyle: Record<string, string> = mergeStaticBgVars(staticImgVars, staticGradVars);
+
+    // For dynamic sources (asset/CMS field), resolve URL and combine with any gradient
+    if (bgImageVariable) {
+      const bgImageUrl = getImageUrlFromVariable(
+        bgImageVariable,
+        getAsset,
+        collectionLayerData,
+        pageCollectionItemData
+      );
+      if (bgImageUrl) {
+        const cssUrl = bgImageUrl.startsWith('url(') ? bgImageUrl : `url(${bgImageUrl})`;
+        bgImageStyle['--bg-img'] = combineBgValues(cssUrl, staticGradVars?.['--bg-img']);
+      }
+    }
+
+    // Extract CMS-bound gradient from resolved design styles so it routes through the CSS variable
+    const resolvedGradient = resolvedDesignStyles?.background;
+    const filteredDesignStyles = resolvedDesignStyles
+      ? Object.fromEntries(Object.entries(resolvedDesignStyles).filter(([k]) => k !== 'background'))
+      : resolvedDesignStyles;
+    if (resolvedGradient?.includes('gradient(')) {
+      bgImageStyle['--bg-img'] = combineBgValues(bgImageStyle['--bg-img']?.split(', ').find(v => v.startsWith('url(')) || staticImgVars?.['--bg-img'], resolvedGradient);
+    }
+
+    // Merge styles: base style + attribute style + dynamic CMS color bindings + background image vars
+    const mergedStyle = { ...style, ...parsedAttrStyle, ...filteredDesignStyles, ...bgImageStyle };
 
     // Check if element is truly empty (no text, no children)
     const isEmpty = !textContent && (!children || children.length === 0);
@@ -1900,10 +1930,28 @@ const LayerItem: React.FC<{
               [layer.id]: enhancedItemValues,
             };
 
+            // Resolve per-item background image from CMS field variable → CSS variable (combined with gradient)
+            let itemElementProps = elementProps;
+            if (bgImageVariable && isFieldVariable(bgImageVariable) && bgImageVariable.data.field_id) {
+              const resolvedBgAssetId = resolveFieldValue(bgImageVariable, mergedItemData, pageCollectionItemData, updatedLayerDataMap);
+              if (resolvedBgAssetId) {
+                const bgAsset = assetsById[resolvedBgAssetId] || getAsset(resolvedBgAssetId);
+                const bgUrl = bgAsset?.public_url || resolvedBgAssetId;
+                const cssUrl = bgUrl.startsWith('url(') ? bgUrl : `url(${bgUrl})`;
+                itemElementProps = {
+                  ...elementProps,
+                  style: {
+                    ...(elementProps.style as Record<string, unknown> || {}),
+                    '--bg-img': combineBgValues(cssUrl, staticGradVars?.['--bg-img']),
+                  },
+                };
+              }
+            }
+
             return (
               <Tag
                 key={item.id}
-                {...elementProps}
+                {...itemElementProps}
                 data-collection-item-id={item.id}
                 data-layer-id={layer.id} // Keep same layer ID for all instances
               >

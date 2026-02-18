@@ -467,10 +467,9 @@ const RightSidebar = React.memo(function RightSidebar({
         return isTextLayer(layer) || isButtonLayer(layer) || isIconLayer(layer) || isFormInputLayer(layer);
 
       case 'backgrounds':
-        // Background controls: hide for text elements (show for buttons and containers)
-        // Also show in text style mode for text highlighting
+        // Background controls: show for all elements (text layers need it for clip-text effects)
         if (showTextStyleControls) return true;
-        return !isTextLayer(layer) || isButtonLayer(layer);
+        return true;
 
       case 'borders':
         // Border controls: hide for pure text elements (show for buttons and containers)

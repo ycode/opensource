@@ -272,6 +272,10 @@ export default async function PageRenderer({
       if (isAssetVar(layer.variables?.icon?.src)) {
         assetIds.add(layer.variables.icon.src.data.asset_id);
       }
+      // Background image source
+      if (isAssetVar(layer.variables?.backgroundImage?.src)) {
+        assetIds.add(layer.variables.backgroundImage.src.data.asset_id);
+      }
 
       // Direct asset link (type = 'asset')
       const linkAssetId = layer.variables?.link?.asset?.id;
