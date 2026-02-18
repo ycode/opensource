@@ -21,16 +21,12 @@ export async function POST(
   const tenantId = request.headers.get('x-tenant-id') || undefined;
 
   try {
-    console.log(`[POST /api/templates/${id}/apply] Applying template...`);
-
     const result = await applyTemplate(id, tenantId);
 
     if (!result.success) {
       console.error(`[POST /api/templates/${id}/apply] Failed:`, result.error);
       return noCache({ error: result.error }, 500);
     }
-
-    console.log(`[POST /api/templates/${id}/apply] Success: ${result.templateName}`);
 
     return noCache({
       success: true,

@@ -599,8 +599,6 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => {
 
           // If component doesn't exist or is deleted, restore it
           if (!result.data || result.error) {
-            console.log(`[Store] Restoring required component: ${componentId}`);
-
             // Restore the component via API
             const restoreResponse = await fetch(`/ycode/api/components/${componentId}`, {
               method: 'PATCH',
@@ -612,7 +610,6 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => {
 
             if (restoreResult.data) {
               restoredIds.push(componentId);
-              console.log(`[Store] Successfully restored component: ${componentId}`);
             }
           }
         } catch (error) {

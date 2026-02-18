@@ -222,7 +222,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   setSelectedLayerId: (id) => {
-    console.log(`[EDITOR] setSelectedLayerId: ${id}`);
     // Legacy support - also update selectedLayerIds
     // Clear active text style when changing layers
     set({

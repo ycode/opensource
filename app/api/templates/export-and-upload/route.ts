@@ -35,10 +35,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(
-      `[POST /api/templates/export-and-upload] Exporting and uploading: ${templateId}`
-    );
-
     const result = await exportAndUploadTemplate(
       templateId,
       templateName,

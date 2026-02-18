@@ -1196,10 +1196,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
       }
     } else if (source === 'layouts') {
       // TODO: Add layout using similar logic
-      console.log('Layout drop not yet implemented:', elementType);
     } else if (source === 'components') {
       // TODO: Add component using similar logic
-      console.log('Component drop not yet implemented:', elementType);
     }
   }, [currentPageId, addLayerFromTemplate, setSelectedLayerId, liveLayerUpdates]);
 
@@ -1219,7 +1217,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
     // If editing component, would need to update component draft instead
     if (editingComponentId) {
       // TODO: Support component editing
-      console.log('Sibling reorder in component not yet implemented');
       return;
     }
 

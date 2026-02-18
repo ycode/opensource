@@ -196,8 +196,8 @@ export async function uploadFile(
             height: metadata.height,
           };
         }
-      } catch (error) {
-        console.log('Could not extract SVG dimensions:', error);
+      } catch {
+        // SVG dimension extraction is best-effort
       }
 
       // Create asset with inline SVG content

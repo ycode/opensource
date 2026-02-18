@@ -167,9 +167,7 @@ async function deliverToWebhook(webhook: Webhook, event: WebhookEvent): Promise<
     // Update webhook trigger status
     await markWebhookTriggered(webhook.id, response.ok);
 
-    if (response.ok) {
-      console.log(`Webhook delivered to ${webhook.name} (${webhook.id})`);
-    } else {
+    if (!response.ok) {
       console.error(`Webhook failed for ${webhook.name}: ${response.status}`);
     }
   } catch (error) {

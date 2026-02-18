@@ -150,7 +150,6 @@ export async function DELETE(
 
     // Clean up all references to this asset in pages, components, and CMS items
     const cleanupResult = await cleanupAssetReferences(id);
-    console.log(`[DELETE /ycode/api/assets/${id}] Cleaned up references:`, cleanupResult);
 
     // Delete the asset (removes from storage and database)
     await deleteAsset(id);

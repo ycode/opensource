@@ -21,12 +21,6 @@ export const revalidate = 0;
  */
 export async function GET(request: NextRequest) {
   try {
-    console.log('[GET /ycode/api/pages] Starting request');
-    console.log('[GET /ycode/api/pages] Vercel env:', process.env.VERCEL);
-    console.log('[GET /ycode/api/pages] Supabase URL set:', !!process.env.SUPABASE_URL);
-    console.log('[GET /ycode/api/pages] Supabase Publishable Key set:', !!process.env.SUPABASE_PUBLISHABLE_KEY);
-    console.log('[GET /ycode/api/pages] Supabase Secret Key set:', !!process.env.SUPABASE_SECRET_KEY);
-
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const filters: Record<string, any> = {};
@@ -51,11 +45,7 @@ export async function GET(request: NextRequest) {
       filters.depth = parseInt(depth, 10);
     }
 
-    console.log('[GET /ycode/api/pages] Filters:', filters);
-
     const pages = await getAllPages(filters);
-
-    console.log('[GET /ycode/api/pages] Found pages:', pages.length);
 
     return noCache({
       data: pages,
@@ -80,7 +70,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    console.log('[POST /ycode/api/pages] Request body:', body);
 
     const {
       name,
@@ -141,15 +130,6 @@ export async function POST(request: NextRequest) {
 
     const normalizedPageFolderId = normalizeFolderId(page_folder_id);
 
-    console.log('[POST /ycode/api/pages] Creating page:', {
-      name,
-      slug: finalSlug,
-      is_published,
-      page_folder_id: normalizedPageFolderId,
-      order,
-      depth,
-    });
-
     // Increment sibling orders if inserting (safe to call when appending - only updates order >= startOrder)
     const { incrementSiblingOrders } = await import('@/lib/services/pageService');
     await incrementSiblingOrders(order, depth, normalizedPageFolderId);
@@ -176,9 +156,7 @@ export async function POST(request: NextRequest) {
       children: [],
     };
 
-    console.log('[POST /ycode/api/pages] Creating initial draft with Body layer...');
     await upsertDraftLayers(page.id, [bodyLayer]);
-    console.log('[POST /ycode/api/pages] Draft created successfully');
 
     return noCache({
       data: page,

@@ -554,7 +554,6 @@ export default function LayerContextMenu({
 
   const handleShowJSON = () => {
     if (!layer) return;
-    console.log('Layer object:', layer);
   };
 
   const handleSaveAsLayout = () => {
@@ -645,10 +644,6 @@ export default function LayerContextMenu({
       if (!response.ok) {
         throw new Error(result.error || 'Failed to save layout');
       }
-
-      console.log('✅ Layout saved successfully:', layoutName);
-      console.log('Layout key:', layoutKey);
-      console.log('Category:', category);
     } catch (error) {
       console.error('Failed to save layout:', error);
       throw error;
@@ -661,11 +656,6 @@ export default function LayerContextMenu({
     if (open && onLayerSelect && layer && selectedLayerId !== layerId) {
       onLayerSelect(layerId);
     }
-  };
-
-  const handleLogLayer = () => {
-    if (!layer) return;
-    console.log('Layer:', layer);
   };
 
   // Check if we're on localhost

@@ -432,10 +432,8 @@ export async function publishValues(item_id: string): Promise<number> {
 
   // Get all draft values for this item
   const draftValues = await getValuesByItemId(item_id, false);
-  console.log(`[publishValues] Found ${draftValues.length} draft values for item ${item_id}`);
 
   if (draftValues.length === 0) {
-    console.log(`[publishValues] No draft values to publish for item ${item_id}`);
     return 0;
   }
 
@@ -462,7 +460,6 @@ export async function publishValues(item_id: string): Promise<number> {
     throw new Error(`Failed to publish values: ${error.message}`);
   }
 
-  console.log(`[publishValues] Successfully published ${draftValues.length} values for item ${item_id}`);
   return draftValues.length;
 }
 

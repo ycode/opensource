@@ -194,7 +194,6 @@ async function getLatestMigrationName(
     // Check if migrations table exists
     const tableExists = await knex.schema.hasTable('migrations');
     if (!tableExists) {
-      console.log('[getLatestMigrationName] migrations table does not exist');
       return null;
     }
 
@@ -260,7 +259,6 @@ export async function exportTemplateSQL(
       // Check if table exists
       const tableExists = await knex.schema.hasTable(table);
       if (!tableExists) {
-        console.log(`[exportTemplateSQL] Table ${table} does not exist, skipping`);
         continue;
       }
 
@@ -378,7 +376,6 @@ export async function exportTemplateSQL(
 
     // Get the latest migration name for template versioning
     const lastMigration = await getLatestMigrationName(knex);
-    console.log(`[exportTemplateSQL] Latest migration: ${lastMigration || 'none'}`);
 
     // Build manifest
     const manifest: TemplateManifest = {
@@ -491,7 +488,6 @@ export async function exportAndUploadTemplate(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // 1. Generate export
-    console.log('[exportAndUpload] Generating SQL export...');
     const exportResult = await exportTemplateSQL(
       templateId,
       templateName,
@@ -504,12 +500,9 @@ export async function exportAndUploadTemplate(
     }
 
     // 2. Collect assets
-    console.log('[exportAndUpload] Collecting assets...');
     const assets = await collectTemplateAssets();
-    console.log(`[exportAndUpload] Collected ${assets.length} assets`);
 
     // 3. Upload to template service
-    console.log('[exportAndUpload] Uploading to template service...');
     const response = await fetch(`${YCODE_EXTERNAL_API_URL}/api/templates/upload`, {
       method: 'POST',
       headers: {
@@ -527,11 +520,6 @@ export async function exportAndUploadTemplate(
       const error = await response.json();
       return { success: false, error: error.error || 'Upload failed' };
     }
-
-    const result = await response.json();
-    console.log(
-      `[exportAndUpload] Success: ${result.templateId} (${result.assetsUploaded} assets)`
-    );
 
     return { success: true };
   } catch (error) {

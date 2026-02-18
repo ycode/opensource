@@ -101,21 +101,13 @@ function inlineComponents(
 
   // If this is a component instance, inline its layers
   if (newLayer.componentId) {
-    console.log(`[inlineComponents] Found component instance: ${newLayer.componentId}`);
     const component = componentsMap[newLayer.componentId];
     if (component && component.layers?.length > 0) {
-      // Check if layers have interactions
-      const checkInteractions = (layers: any[]): boolean => {
-        return layers.some(l => l.interactions?.length > 0 || (l.children && checkInteractions(l.children)));
-      };
-      const hasInteractions = checkInteractions(component.layers);
-      console.log(`[inlineComponents] Inlining component "${component.name}" with ${component.layers.length} layers, hasInteractions: ${hasInteractions}`);
       // Store the component name for recreation later
       (newLayer as any)._inlinedComponentName = component.name;
       // Store component variables if they exist
       if (component.variables?.length) {
         (newLayer as any)._inlinedComponentVariables = component.variables;
-        console.log(`[inlineComponents] Stored ${component.variables.length} component variables`);
       }
       // Remove the componentId (it won't be valid in other projects)
       delete newLayer.componentId;
@@ -123,8 +115,6 @@ function inlineComponents(
       newLayer.children = component.layers.map(child =>
         inlineComponents({ ...child }, componentsMap)
       );
-    } else {
-      console.log(`[inlineComponents] Component not found in map or has no layers`);
     }
   }
 
@@ -157,13 +147,10 @@ export async function POST(request: NextRequest) {
 
     // Make components portable: inline component layers with metadata for recreation
     const componentIds = collectComponentIds(template);
-    console.log(`[layouts API] Found ${componentIds.length} component(s) to inline:`, componentIds);
     if (componentIds.length > 0) {
       try {
         const componentsMap = await getComponentsByIds(componentIds);
-        console.log(`[layouts API] Fetched components:`, Object.keys(componentsMap));
         template = inlineComponents(template, componentsMap);
-        console.log(`✅ Inlined ${componentIds.length} component(s) for portability`);
 
         // After inlining components, re-collect icon asset IDs since components may have icons
         // We need to inline those icons too
@@ -181,7 +168,6 @@ export async function POST(request: NextRequest) {
       try {
         const assetsMap = await getAssetsByIds(iconAssetIds, false);
         template = inlineIconAssets(template, assetsMap);
-        console.log(`✅ Inlined ${iconAssetIds.length} icon(s) for portability`);
       } catch (error) {
         console.warn('Warning: Could not inline icon assets:', error);
         // Continue without inlining - layout will still save but may not be portable
@@ -208,8 +194,6 @@ export async function POST(request: NextRequest) {
       const bytes = await imageFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
       await fs.writeFile(imagePath, buffer);
-
-      console.log('✅ Image saved:', imagePath);
     }
 
     // Read the existing file

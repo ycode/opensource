@@ -13,9 +13,6 @@ import { revalidateTag, revalidatePath } from 'next/cache';
  * @param routePath - Route path
  */
 export async function invalidatePage(routePath: string): Promise<boolean> {
-  console.log(`[Cache] Invalidation path: "${routePath}"`);
-  console.log(`[Cache] Revalidating tag: "route-/${routePath}"`);
-
   try {
     // Revalidate using the cache tag (matches unstable_cache tags)
     revalidateTag(`route-/${routePath}`, 'max');

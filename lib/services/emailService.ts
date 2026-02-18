@@ -159,7 +159,6 @@ export async function sendFormSubmissionEmail(
     const settings = await getSettingByKey('email') as EmailSettings | null;
 
     if (!settings?.enabled) {
-      console.log('Email notifications disabled - skipping email send');
       return false;
     }
 
@@ -184,7 +183,6 @@ export async function sendFormSubmissionEmail(
       html: generateEmailHtml(data),
     });
 
-    console.log(`Form submission email sent successfully to ${to}`);
     return true;
   } catch (error) {
     console.error('Failed to send form submission email:', error);

@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import type { Page, PageFolder } from '@/types';
-import { createHmac } from 'crypto';
+import { createHmac, randomUUID } from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 
 /**
@@ -13,11 +13,24 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 /** Cookie name for page authentication - exported for use in API routes */
 export const PAGE_AUTH_COOKIE_NAME = 'ycode_page_auth';
 
+const fallbackSecret = randomUUID();
+let hasWarnedMissingSecret = false;
+
 /**
- * Get the signing secret from environment or use a fallback
+ * Get the signing secret from environment.
+ * Falls back to a per-process random value if PAGE_AUTH_SECRET is not set,
+ * which means auth cookies won't persist across server restarts.
  */
 function getSigningSecret(): string {
-  return process.env.PAGE_AUTH_SECRET || 'ycode-page-auth-default-secret';
+  const secret = process.env.PAGE_AUTH_SECRET;
+  if (!secret) {
+    if (!hasWarnedMissingSecret && process.env.NODE_ENV === 'production') {
+      console.warn('[page-auth] PAGE_AUTH_SECRET is not set. Page password protection is using a temporary secret that resets on each deploy. Set PAGE_AUTH_SECRET in your environment variables (generate with: openssl rand -hex 32).');
+      hasWarnedMissingSecret = true;
+    }
+    return fallbackSecret;
+  }
+  return secret;
 }
 
 /**

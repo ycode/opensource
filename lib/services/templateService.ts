@@ -137,19 +137,14 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
     .select('id', 'filename', 'public_url', 'mime_type');
 
   if (templateAssets.length === 0) {
-    console.log('[copyTemplateAssets] No template assets to copy');
     return;
   }
-
-  console.log(`[copyTemplateAssets] Copying ${templateAssets.length} assets to user storage...`);
 
   for (const asset of templateAssets) {
     try {
       // Download from template-service CDN with timeout
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
-      console.log(`[copyTemplateAssets] Downloading ${asset.filename} from ${asset.public_url}...`);
 
       let response: Response;
       try {
@@ -201,14 +196,10 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
           storage_path: data.path,
           public_url: urlData.publicUrl,
         });
-
-      console.log(`[copyTemplateAssets] Copied ${asset.filename} -> ${data.path}`);
     } catch (err) {
       console.warn(`[copyTemplateAssets] Error copying ${asset.filename}:`, err);
     }
   }
-
-  console.log('[copyTemplateAssets] Asset copy complete');
 }
 
 /**
@@ -223,7 +214,6 @@ function getPendingMigrationsForTemplate(
 ): typeof migrations {
   // If no lastMigration, return all migrations (template predates tracking)
   if (!templateLastMigration) {
-    console.log('[getPendingMigrations] No lastMigration, will run all migrations');
     return migrations;
   }
 
@@ -235,14 +225,11 @@ function getPendingMigrationsForTemplate(
   if (templateIndex === -1) {
     // Migration not found - could be a newer version or renamed
     // Conservative approach: assume template is up-to-date
-    console.log(`[getPendingMigrations] Migration ${templateLastMigration} not found, assuming up-to-date`);
     return [];
   }
 
   // Return all migrations AFTER the template's last migration
-  const pendingMigrations = migrations.slice(templateIndex + 1);
-  console.log(`[getPendingMigrations] Found ${pendingMigrations.length} pending migrations after ${templateLastMigration}`);
-  return pendingMigrations;
+  return migrations.slice(templateIndex + 1);
 }
 
 /**
@@ -259,17 +246,12 @@ async function runPendingMigrationsForTemplate(
   const pendingMigrations = getPendingMigrationsForTemplate(templateLastMigration);
 
   if (pendingMigrations.length === 0) {
-    console.log('[runPendingMigrations] No pending migrations to run');
     return;
   }
 
-  console.log(`[runPendingMigrations] Running ${pendingMigrations.length} pending migrations...`);
-
   for (const migration of pendingMigrations) {
     try {
-      console.log(`[runPendingMigrations] Running migration: ${migration.name}`);
       await migration.up(knex);
-      console.log(`[runPendingMigrations] Completed migration: ${migration.name}`);
     } catch (error) {
       // Log the error but continue - migrations should be idempotent
       // Schema changes (ADD COLUMN IF NOT EXISTS) will no-op
@@ -277,8 +259,6 @@ async function runPendingMigrationsForTemplate(
       console.warn(`[runPendingMigrations] Migration ${migration.name} failed (may be expected for schema-only migrations):`, error);
     }
   }
-
-  console.log('[runPendingMigrations] Pending migrations complete');
 }
 
 /**
@@ -332,15 +312,12 @@ export async function applyTemplate(
 
     // 2. Execute in a transaction for atomicity
     await knex.transaction(async (trx) => {
-      console.log('[applyTemplate] Starting template application...');
-
       // Disable FK constraints temporarily for truncation
       await trx.raw('SET session_replication_role = replica');
 
       // 2a. Clear previous template assets (keep user uploads) - only if table exists
       const assetsTableExists = await trx.schema.hasTable('assets');
       if (assetsTableExists) {
-        console.log('[applyTemplate] Clearing previous template assets...');
         await trx.raw(sql.clearPreviousTemplate);
       }
 
@@ -361,7 +338,6 @@ export async function applyTemplate(
       }
 
       // 2c. Truncate content tables (only tables that exist)
-      console.log('[applyTemplate] Truncating content tables...');
       const existingTables: string[] = [];
       for (const table of TABLES_TO_TRUNCATE) {
         const exists = await trx.schema.hasTable(table);
@@ -374,28 +350,21 @@ export async function applyTemplate(
       }
 
       // 2d. Insert template data
-      console.log('[applyTemplate] Inserting template data...');
       await trx.raw(sql.insert);
 
       // Re-enable FK constraints
       await trx.raw('SET session_replication_role = DEFAULT');
-
-      console.log('[applyTemplate] Template data inserted successfully');
     });
 
     // 3. Copy template assets to user's storage (outside transaction)
     // This happens after template data is committed, so partial asset failures
     // won't roll back the template
-    console.log('[applyTemplate] Copying template assets to user storage...');
     await copyTemplateAssetsToUserStorage(knex);
 
     // 4. Run any pending migrations for this template
     // This transforms template data to match the current schema
     // (migrations should be idempotent - schema changes no-op, data changes use safe WHERE clauses)
-    console.log('[applyTemplate] Running pending migrations for template...');
     await runPendingMigrationsForTemplate(knex, template.lastMigration);
-
-    console.log('[applyTemplate] Template applied successfully');
 
     return {
       success: true,

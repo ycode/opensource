@@ -180,14 +180,7 @@ export function useLiveLayerUpdates(
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
 
-    console.log('[LAYER-ADD] Received layer addition:', {
-      payload,
-      currentUserId: freshCurrentUserId,
-      pageId
-    });
-
     if (!freshCurrentUserId || payload.user_id === freshCurrentUserId) {
-      console.log('[LAYER-ADD] Ignoring own layer addition');
       return;
     }
 
@@ -196,11 +189,6 @@ export function useLiveLayerUpdates(
 
     // Apply the layer addition with the exact same layer object
     if (pageId && payload.page_id === pageId) {
-      console.log('[LAYER-ADD] Applying layer addition:', {
-        pageId,
-        parentId: payload.parent_layer_id,
-        layer: payload.new_layer
-      });
       freshAddLayerWithId(pageId, payload.parent_layer_id, payload.new_layer);
     }
   }, [pageId]);

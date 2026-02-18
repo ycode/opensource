@@ -697,12 +697,9 @@ export async function deletePage(id: string): Promise<void> {
     throw new Error(`Failed to delete page: ${error.message}`);
   }
 
-  console.log(`[deletePage] Successfully deleted page ${id} and its layers`);
-
   // Reorder remaining siblings (both pages and folders) with the same parent_id and depth
   try {
     await reorderSiblings(pageToDelete.page_folder_id, pageToDelete.depth);
-    console.log(`[deletePage] Reordered siblings under parent ${pageToDelete.page_folder_id || 'root'} at depth ${pageToDelete.depth}`);
   } catch (reorderError) {
     console.error('[deletePage] Failed to reorder siblings:', reorderError);
     // Don't fail the deletion if reordering fails

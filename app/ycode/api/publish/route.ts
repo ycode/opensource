@@ -402,9 +402,6 @@ export async function POST(request: NextRequest) {
     // Calculate total duration
     stats.totalDurationMs = Math.round(performance.now() - startTime);
 
-    // Log stats once
-    console.log('[Publish] Stats:', JSON.stringify(stats, null, 2));
-
     const totalPublished =
       result.changes.folders +
       result.changes.pages +
@@ -422,7 +419,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     stats.totalDurationMs = Math.round(performance.now() - startTime);
-    console.log('[Publish] Failed. Stats:', JSON.stringify(stats, null, 2));
 
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to publish' },

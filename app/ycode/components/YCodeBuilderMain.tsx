@@ -323,8 +323,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       const layerExists = findLayerById(layers, urlState.layerId);
 
       if (layerExists) {
-        // Layer found - use it
-        console.log('[Editor] Setting layer from URL (initial load):', urlState.layerId);
         setSelectedLayerId(urlState.layerId);
       } else {
         // Layer not found - clear selection
@@ -398,7 +396,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     }
 
     // Generate initial CSS if it doesn't exist
-    console.log('[Editor] draft_css is empty, generating initial CSS');
     const generateInitialCSS = async () => {
       try {
         const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');

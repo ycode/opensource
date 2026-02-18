@@ -955,9 +955,8 @@ export default function ColorPicker({
       // Mark as internal update
       isInternalUpdate.current = true;
       immediateOnChange(rgbaToHex(parsed));
-    } catch (error) {
+    } catch {
       // User cancelled or error occurred
-      console.log('EyeDropper cancelled or failed:', error);
     }
   };
 
@@ -997,9 +996,8 @@ export default function ColorPicker({
         const currentRgba = parseColor(currentStop.color);
         updateColorStop(type, selectedStopId, { color: rgbaToHex({ ...parsed, a: currentRgba.a }) });
       }
-    } catch (error) {
+    } catch {
       // User cancelled or error occurred
-      console.log('EyeDropper cancelled or failed:', error);
     }
   };
 

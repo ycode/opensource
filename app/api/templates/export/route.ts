@@ -32,8 +32,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[POST /api/templates/export] Exporting: ${templateId}`);
-
     const result = await exportTemplateSQL(
       templateId,
       templateName,

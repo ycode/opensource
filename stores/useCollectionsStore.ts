@@ -971,9 +971,6 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           const nameValue = item.values?.[nameField.id];
           if (nameValue !== null && nameValue !== undefined && String(nameValue).trim() !== '') {
             label = String(nameValue);
-          } else {
-            // Debug: log when name value is missing
-            console.debug(`Item ${item.id} has no name value. Name field ID: ${nameField.id}, Available values:`, Object.keys(item.values || {}));
           }
         }
 

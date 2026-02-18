@@ -185,7 +185,6 @@ export async function DELETE(
         const imagePath = path.join(layoutsDir, `${layoutKey}${ext}`);
         try {
           await fs.unlink(imagePath);
-          console.log('✅ Deleted image:', imagePath);
           break; // Stop after successfully deleting one
         } catch {
           // File doesn't exist with this extension, try next

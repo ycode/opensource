@@ -402,8 +402,6 @@ export async function deletePageFolder(id: string): Promise<void> {
   const descendantFolderIds = await getDescendantFolderIdsFromDB(id);
   const allFolderIds = [id, ...descendantFolderIds];
 
-  console.log(`[deletePageFolder] Deleting folder ${id} and ${descendantFolderIds.length} descendant folders`);
-
   // Query 2: Get all draft page IDs within these folders
   const { data: affectedPages, error: fetchPagesError } = await client
     .from('pages')
@@ -456,12 +454,9 @@ export async function deletePageFolder(id: string): Promise<void> {
     throw new Error(`Failed to delete folders: ${foldersError.message}`);
   }
 
-  console.log(`[deletePageFolder] Successfully deleted folder ${id}, ${affectedPageIds.length} pages, and their layers`);
-
   // Reorder remaining siblings (both pages and folders) with the same parent_id and depth
   try {
     await reorderSiblings(folderToDelete.page_folder_id, folderToDelete.depth);
-    console.log(`[deletePageFolder] Reordered siblings under parent ${folderToDelete.page_folder_id || 'root'} at depth ${folderToDelete.depth}`);
   } catch (reorderError) {
     console.error('[deletePageFolder] Failed to reorder siblings:', reorderError);
     // Don't fail the deletion if reordering fails

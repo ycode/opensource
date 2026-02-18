@@ -106,7 +106,6 @@ export default function UpdatesSettingsPage() {
       const response = await fetch('/ycode/api/updates/releases');
       if (response.ok) {
         const data: ReleasesResponse = await response.json();
-        console.log('Releases API response:', data);
         setReleases(data.releases || []);
         if (data.error) {
           setReleasesError(data.error);

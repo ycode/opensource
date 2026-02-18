@@ -187,8 +187,6 @@ async function restoreInlinedComponents(
 
   // Check if this layer has inlined component data
   if (newLayer._inlinedComponentName && newLayer.children?.length) {
-    console.log(`[restoreInlinedComponents] Found inlined component: "${newLayer._inlinedComponentName}"`);
-
     const componentName = newLayer._inlinedComponentName;
     const componentVariables = newLayer._inlinedComponentVariables;
 
@@ -232,8 +230,6 @@ async function restoreInlinedComponents(
           const interactionTargets = collectInteractionTargets(newLayer.children || []);
           const missingTargets = interactionTargets.filter(t => !layerIds.includes(t));
 
-          console.log(`[restoreInlinedComponents] Layer IDs in component:`, layerIds);
-          console.log(`[restoreInlinedComponents] Interaction targets:`, interactionTargets);
           if (missingTargets.length > 0) {
             console.warn(`[restoreInlinedComponents] ⚠️ Missing layer targets:`, missingTargets);
           }
@@ -247,7 +243,6 @@ async function restoreInlinedComponents(
           if (newId) {
             componentId = newId;
             createdComponents.set(componentName, newId);
-            console.log(`✅ Created component "${componentName}" from inlined layout data${componentVariables?.length ? ` with ${componentVariables.length} variables` : ''}`);
           }
         } catch (error) {
           console.error(`Failed to create component "${componentName}":`, error);
@@ -703,14 +698,12 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
 
       // Restore inlined components (create actual components from inlined data)
       if (hasInlinedComponents(newLayer)) {
-        console.log('[handleAddLayout] Layout contains inlined components, restoring...');
         const createdComponents = new Map<string, string>();
         newLayer = await restoreInlinedComponents(
           newLayer,
           components.map(c => ({ id: c.id, name: c.name })),
           createdComponents
         );
-        console.log('[handleAddLayout] Created components:', Array.from(createdComponents.entries()));
 
         // Refresh components store if new components were created
         if (createdComponents.size > 0) {
@@ -883,14 +876,12 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
 
     // Restore inlined components (create actual components from inlined data)
     if (hasInlinedComponents(newLayer)) {
-      console.log('[handleAddLayout] Layout contains inlined components, restoring...');
       const createdComponents = new Map<string, string>();
       newLayer = await restoreInlinedComponents(
         newLayer,
         components.map(c => ({ id: c.id, name: c.name })),
         createdComponents
       );
-      console.log('[handleAddLayout] Created components:', Array.from(createdComponents.entries()));
 
       // Refresh components store if new components were created
       if (createdComponents.size > 0) {
@@ -1042,8 +1033,6 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
         throw new Error(result.error || 'Failed to delete layout');
       }
 
-      console.log('✅ Layout deleted successfully:', layoutKey);
-
       // Refresh the page to reload layouts
       window.location.reload();
     } catch (error) {
@@ -1096,8 +1085,6 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       if (!response.ok) {
         throw new Error(result.error || 'Failed to update layout');
       }
-
-      console.log('✅ Layout updated successfully:', layoutName);
 
       // Refresh the page to reload layouts
       window.location.reload();

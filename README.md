@@ -39,7 +39,7 @@ All of these are free forever for small projects!
 3. Click the **"Fork"** button (it looks like a fork icon 🍴)
 4. Click **"Create fork"**
 
-**Done!** You now have your own copy at `github.com/YOUR-USERNAME/test`
+**Done!** You now have your own copy at `github.com/YOUR-USERNAME/ycode`
 
 > **Why do this?** This lets you update YCode easily in the future with just one click!
 
@@ -59,7 +59,7 @@ All of these are free forever for small projects!
 ### Part B: Deploy Your Fork
 
 3. You'll see a list of your GitHub repositories
-4. Find **"test"** in the list (the one you just forked)
+4. Find **"ycode"** in the list (the one you just forked)
 5. Click **"Import"** next to it
 6. Click the big blue **"Deploy"** button
 7. Wait 1-2 minutes while Vercel builds your site ☕
@@ -105,7 +105,7 @@ You'll see:
 ### Part A: Add Your Supabase Details to Vercel
 
 1. Go back to [Vercel Dashboard](https://vercel.com/dashboard)
-2. Click on your **"test"** project
+2. Click on your **"ycode"** project
 3. Click **"Settings"** (top menu)
 4. Click **"Environment Variables"** (left sidebar)
 
@@ -264,8 +264,8 @@ The box on the right uses **Tailwind classes** - think of them as shortcuts for 
 
 We'll regularly add new features and improvements. Here's how to get them:
 
-1. Go to your GitHub fork: `github.com/YOUR-USERNAME/test`
-2. You'll see a message: **"This branch is X commits behind liamwalder:test"**
+1. Go to your GitHub fork: `github.com/YOUR-USERNAME/ycode`
+2. You'll see a message: **"This branch is X commits behind ycode:main"**
 3. Click the **"Sync fork"** button
 4. Click **"Update branch"**
 5. **Done!** Vercel will automatically redeploy with the updates
@@ -305,8 +305,8 @@ Currently, you'll need to:
 
 ### Still stuck?
 
-- [Ask a question in Discussions](https://github.com/liamwalder/test/discussions)
-- [Report a bug](https://github.com/liamwalder/test/issues)
+- [Ask a question in Discussions](https://github.com/ycode/ycode/discussions)
+- [Report a bug](https://github.com/ycode/ycode/issues)
 
 ---
 
@@ -366,5 +366,5 @@ Looking for a fully managed solution where we handle everything for you?
   <sub>Build beautiful websites, visually. No code required.</sub>
   <br />
   <br />
-  <sub>Questions? <a href="https://github.com/liamwalder/test/discussions">Ask in Discussions</a></sub>
+  <sub>Questions? <a href="https://github.com/ycode/ycode/discussions">Ask in Discussions</a></sub>
 </div>

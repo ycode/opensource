@@ -55,10 +55,6 @@ async function processMailerLiteIntegration(
 
     if (activeConnections.length === 0) return;
 
-    console.log(
-      `[MailerLite] Processing ${activeConnections.length} connection(s) for form "${formId}"`
-    );
-
     // Process each connection in parallel
     const results = await Promise.allSettled(
       activeConnections.map((connection) =>
@@ -72,11 +68,7 @@ async function processMailerLiteIntegration(
       const connection = activeConnections[i];
 
       if (result.status === 'fulfilled') {
-        if (result.value.success) {
-          console.log(
-            `[MailerLite] Successfully processed form "${formId}" -> group "${connection.groupName}"`
-          );
-        } else {
+        if (!result.value.success) {
           console.error(
             `[MailerLite] Failed to process form "${formId}" -> group "${connection.groupName}":`,
             result.value.error
