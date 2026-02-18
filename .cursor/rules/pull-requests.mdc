@@ -1,0 +1,70 @@
+---
+description: Pull request conventions for all repositories
+alwaysApply: true
+---
+
+# Pull Request Conventions
+
+## Title
+
+Use the same format as commit messages:
+
+```
+<type>: <concise summary in imperative mood>
+```
+
+Examples: `feat: add custom domain management`, `fix: prevent primary domain deletion`
+
+## Body Format
+
+```markdown
+## Summary
+
+<1-3 sentences explaining WHAT changed and WHY>
+
+## Changes
+
+- Bullet list of specific changes grouped logically
+- Focus on behavior changes, not file-by-file diffs
+- Use imperative mood: "Add X" not "Added X"
+
+## Test plan
+
+- [ ] Actionable checklist of how to verify the changes
+- [ ] Include edge cases worth testing
+```
+
+## Rules
+
+- **No AI attribution**: never mention Cursor, AI, copilot, or assistant
+- **Summary over detail**: reviewers read the diff — the PR describes intent
+- **Imperative mood** throughout: "Add", "Fix", "Remove", not past tense
+- **No filler**: avoid "various improvements", "some fixes" — be specific
+- **Link issues** when applicable: "Closes #123" in the summary
+- **Keep it scannable**: bullets over paragraphs, short lines
+- **Test plan is mandatory**: always include at least one verification step
+
+## Example
+
+```markdown
+## Summary
+
+Add domain management UI and API for cloud tenants, allowing users to
+connect custom domains, verify DNS, and set a primary canonical URL.
+
+## Changes
+
+- Add settings page at `/settings/domains` with add/remove/verify flows
+- Add API routes for domain CRUD, status checking, and primary selection
+- Integrate Vercel SDK for domain registration and DNS verification
+- Add middleware redirect from non-primary domains to primary
+- Enforce 10-domain limit per tenant
+
+## Test plan
+
+- [ ] Add a custom domain and verify it appears in the list
+- [ ] Check DNS status shows correct records to configure
+- [ ] Set a domain as primary and confirm redirect works
+- [ ] Attempt to remove primary domain — should be blocked
+- [ ] Attempt to add 11th domain — should be rejected
+```

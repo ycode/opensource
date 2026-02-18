@@ -1,0 +1,61 @@
+---
+description: Commit message conventions for all repositories
+alwaysApply: true
+---
+
+# Commit Message Conventions
+
+## Format
+
+```
+<type>: <concise summary in imperative mood>
+
+<optional body — explain WHY, not WHAT>
+```
+
+## Types
+
+| Type | When |
+|------|------|
+| `feat` | New feature or capability |
+| `fix` | Bug fix |
+| `refactor` | Code restructuring with no behavior change |
+| `chore` | Maintenance, dependency updates, cleanup |
+| `docs` | Documentation only |
+| `style` | Formatting, whitespace (no logic change) |
+| `perf` | Performance improvement |
+| `test` | Adding or updating tests |
+
+## Rules
+
+- **Imperative mood**: "add user auth" not "added user auth" or "adding user auth"
+- **Lowercase** after the type prefix: `feat: add domain management`
+- **No period** at the end of the subject line
+- **50 chars max** for the subject line (type + summary)
+- **Body** (if needed): wrap at 72 chars, separated by a blank line
+- **Focus on WHY** in the body, not what — the diff shows what changed
+- **No AI attribution**: never mention Cursor, AI, copilot, or assistant
+- **No filler words**: avoid "various", "some", "minor", "misc" — be specific
+- **No WIP commits**: if the work is incomplete, describe what IS done
+
+## Examples
+
+```
+feat: add custom domain management to cloud settings
+
+refactor: extract tenant scoping into domain repository
+
+fix: prevent deletion of primary domain
+
+chore: remove orphaned management sync endpoint
+```
+
+## Multi-concern commits (use bullet body)
+
+```
+refactor: clean up domain management feature
+
+- Remove dead unset-primary code path
+- Add tenant scoping to verification updates
+- Enforce 10-domain limit per tenant
+```
