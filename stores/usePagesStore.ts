@@ -15,12 +15,15 @@ import {
   replaceLayerWithComponentInstance,
   collectAllSettingsIds,
   generateUniqueSettingsId,
+  resetBindingsAfterMove,
+  resetBindingsForDeletedCollection,
+  resetBindingsForDeletedField,
 } from '../lib/layer-utils';
 import { generateId } from '../lib/utils';
 import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
-import { useComponentsStore } from './useComponentsStore';
+import { useComponentsStore, triggerThumbnailGeneration } from './useComponentsStore';
 
 interface PagesState {
   pages: Page[];
@@ -91,6 +94,10 @@ interface PagesActions {
   createComponentFromLayer: (pageId: string, layerId: string, componentName: string) => Promise<string | null>;
   updateComponentOnLayers: (componentId: string, newLayers: Layer[]) => void;
   detachComponentFromAllLayers: (componentId: string) => void;
+
+  // CMS Binding Cleanup Actions
+  cleanupDeletedCollection: (collectionId: string) => void;
+  cleanupDeletedField: (fieldId: string) => void;
 
   // Page collection item actions (for dynamic pages)
   updatePageCollectionItem: (pageId: string, updatedItem: CollectionItemWithValues) => void;
@@ -1095,6 +1102,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     // Insert at new position
     newLayers = insertLayer(newLayers, targetParentId, targetIndex, layerToMove);
 
+    // Reset invalid CMS bindings after move
+    newLayers = resetBindingsAfterMove(newLayers, layerId);
+
     set({
       draftsByPageId: {
         ...draftsByPageId,
@@ -1430,6 +1440,28 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return null;
     }
 
+    // Don't allow pasting at root level (outside body) — redirect into body
+    if (result.parent === null) {
+      const bodyLayer = draft.layers.find(l => l.id === 'body' || l.name === 'body');
+      if (bodyLayer) {
+        const newLayers = draft.layers.map(layer => {
+          if (layer.id === bodyLayer.id) {
+            return { ...layer, children: [...(layer.children || []), newLayer] };
+          }
+          return layer;
+        });
+
+        const finalLayers = resetBindingsAfterMove(newLayers, newLayer.id);
+        set((state) => ({
+          draftsByPageId: {
+            ...state.draftsByPageId,
+            [pageId]: { ...state.draftsByPageId[pageId], layers: finalLayers },
+          },
+        }));
+        return newLayer;
+      }
+    }
+
     // Insert after the target layer
     const insertAfter = (
       layers: Layer[],
@@ -1461,7 +1493,10 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       });
     };
 
-    const newLayers = insertAfter(draft.layers, result.parent, result.index, result.propertyName);
+    let newLayers = insertAfter(draft.layers, result.parent, result.index, result.propertyName);
+
+    // Reset invalid CMS bindings on the pasted layer
+    newLayers = resetBindingsAfterMove(newLayers, newLayer.id);
 
     // Use functional update to ensure latest state
     set((state) => ({
@@ -2733,7 +2768,10 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       });
     };
 
-    const newLayers = insertInside(draft.layers);
+    let newLayers = insertInside(draft.layers);
+
+    // Reset invalid CMS bindings on the pasted layer
+    newLayers = resetBindingsAfterMove(newLayers, newLayer.id);
 
     // Use functional update to ensure latest state
     set((state) => ({
@@ -2821,6 +2859,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       },
     });
 
+    // Generate thumbnail in the background (fire-and-forget)
+    triggerThumbnailGeneration(newComponent.id, newComponent.layers, componentsState.components);
+
     return newComponent.id;
   },
 
@@ -2864,6 +2905,44 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         ...draft,
         layers: detachComponentFromLayers(draft.layers, componentId, component || undefined),
       };
+    });
+
+    set({ draftsByPageId: updatedDrafts });
+  },
+
+  /**
+   * Reset CMS bindings referencing a deleted collection across all page drafts.
+   * Clears collection sources and field variables that reference the collection.
+   */
+  cleanupDeletedCollection: (collectionId) => {
+    const { draftsByPageId } = get();
+    const updatedDrafts = { ...draftsByPageId };
+
+    Object.keys(updatedDrafts).forEach(pageId => {
+      const draft = updatedDrafts[pageId];
+      const cleaned = resetBindingsForDeletedCollection(draft.layers, collectionId);
+      if (cleaned !== draft.layers) {
+        updatedDrafts[pageId] = { ...draft, layers: cleaned };
+      }
+    });
+
+    set({ draftsByPageId: updatedDrafts });
+  },
+
+  /**
+   * Reset CMS bindings referencing a deleted field across all page drafts.
+   * Clears field variables, inline variables, and design bindings that use the field.
+   */
+  cleanupDeletedField: (fieldId) => {
+    const { draftsByPageId } = get();
+    const updatedDrafts = { ...draftsByPageId };
+
+    Object.keys(updatedDrafts).forEach(pageId => {
+      const draft = updatedDrafts[pageId];
+      const cleaned = resetBindingsForDeletedField(draft.layers, fieldId);
+      if (cleaned !== draft.layers) {
+        updatedDrafts[pageId] = { ...draft, layers: cleaned };
+      }
     });
 
     set({ draftsByPageId: updatedDrafts });

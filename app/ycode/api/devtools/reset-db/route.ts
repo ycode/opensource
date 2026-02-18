@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { getKnexClient } from '@/lib/knex-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { STORAGE_BUCKET } from '@/lib/asset-constants';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -33,7 +34,7 @@ export async function POST() {
 
       try {
         const { data: files, error: listError } = await supabase.storage
-          .from('assets')
+          .from(STORAGE_BUCKET)
           .list('', {
             limit: 1000,
             sortBy: { column: 'created_at', order: 'desc' }
@@ -46,7 +47,7 @@ export async function POST() {
 
           const filePaths = files.map(file => file.name);
           const { error: deleteError } = await supabase.storage
-            .from('assets')
+            .from(STORAGE_BUCKET)
             .remove(filePaths);
 
           if (deleteError) {
@@ -59,7 +60,7 @@ export async function POST() {
         }
 
         console.log('[POST /ycode/api/devtools/reset-db] Deleting assets bucket...');
-        const { error: deleteBucketError } = await supabase.storage.deleteBucket('assets');
+        const { error: deleteBucketError } = await supabase.storage.deleteBucket(STORAGE_BUCKET);
 
         if (deleteBucketError) {
           console.log('[POST /ycode/api/devtools/reset-db] Error deleting bucket (may not exist):', deleteBucketError.message);

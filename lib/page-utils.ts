@@ -5,6 +5,7 @@
 import { IconProps } from '@/components/ui/icon';
 import type { Page, PageFolder, PageSettings, FieldVariable, Translation, Locale } from '../types';
 import { getTranslatableKey } from './localisation-utils';
+import { getTiptapTextContent } from '@/lib/text-format-utils';
 
 /**
  * Reserved slugs that cannot be used at the root level (null parent folder)
@@ -1381,28 +1382,30 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
             id: 'layer-1762789137823-g2cdo46ld',
             name: 'section',
             design: {
-              layout: { display: 'Flex', isActive: true, flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
-              spacing: { isActive: true, paddingTop: '6rem', paddingBottom: '2rem' },
+              layout: { display: 'Flex', isActive: true, flexDirection: 'column' },
+              sizing: { height: '100vh', isActive: true },
+              spacing: { isActive: true, paddingTop: '3rem', paddingBottom: '3rem' },
             },
-            classes: 'flex flex-col items-center justify-center gap-[1rem] pt-[6rem] pb-[2rem]',
+            classes: 'flex flex-col gap-[1rem] py-[3rem] h-[100vh]',
             children: [
               {
                 id: 'layer-1762789141753-zpz5jyobc',
                 name: 'div',
                 design: {
-                  sizing: { maxWidth: '80rem', isActive: true },
+                  sizing: { height: '100vh', isActive: true, maxWidth: '80rem' },
                   spacing: { isActive: true, marginLeft: 'auto', marginRight: 'auto', paddingLeft: '1rem', paddingRight: '1rem' },
                 },
-                classes: 'max-w-[80rem] mx-auto px-[1rem]',
+                classes: 'max-w-[80rem] mx-auto px-[1rem] h-[100vh]',
                 children: [
                   {
                     id: 'layer-1762789168560-icft8ynp5',
                     name: 'div',
                     design: {
-                      layout: { gap: '12', display: 'flex', isActive: true, alignItems: 'center', flexDirection: 'column' },
+                      layout: { gap: '6', display: 'flex', isActive: true, alignItems: 'center', flexDirection: 'column', justifyContent: 'center' },
+                      sizing: { height: '100%', isActive: true },
                       typography: { isActive: true, textAlign: 'center' },
                     },
-                    classes: 'items-center text-center flex flex-col gap-[12px]',
+                    classes: 'items-center text-center h-full flex flex-col justify-center gap-[6px]',
                     children: [
                       {
                         id: 'layer-1762789150944-5qezgblbe',
@@ -1416,49 +1419,56 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'font-[700] text-[#111827] text-[30px]',
                         children: [],
                         customName: 'Heading',
+                        restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: '401'
+                              content: getTiptapTextContent('401')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
-                        name: 'span',
-                        design: {
-                          typography: { fontSize: '14', color: '#111827', fontWeight: '500', isActive: true },
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
                         },
-                        classes: 'text-[14px] text-[#111827] font-[500]',
+                        design: {
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
+                        },
+                        classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'Password protected'
+                              content: getTiptapTextContent('Password protected')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
-                        name: 'span',
-                        design: {
-                          typography: { fontSize: '14', color: '#6b7280', isActive: true },
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
                         },
-                        classes: 'text-[14px] text-[#6b7280]',
+                        design: {
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
+                        },
+                        classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'Enter the password to access this page.'
+                              content: getTiptapTextContent('Enter the password to access this page.')
                             }
                           }
                         },
@@ -1534,18 +1544,22 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'font-[700] text-[#111827] text-[30px]',
                         children: [],
                         customName: 'Heading',
+                        restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: '404'
+                              content: getTiptapTextContent('404')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
@@ -1555,16 +1569,19 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'Page not found'
+                              content: getTiptapTextContent('Page not found')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
@@ -1574,9 +1591,9 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'The page you are looking for does not exist.'
+                              content: getTiptapTextContent('The page you are looking for does not exist.')
                             }
                           }
                         },
@@ -1652,18 +1669,22 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'font-[700] text-[#111827] text-[30px]',
                         children: [],
                         customName: 'Heading',
+                        restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: '500'
+                              content: getTiptapTextContent('500')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
@@ -1673,16 +1694,19 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'Server error'
+                              content: getTiptapTextContent('Server error')
                             }
                           }
                         },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
-                        name: 'span',
+                        name: 'text',
+                        settings: {
+                          tag: 'p',
+                        },
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
@@ -1692,9 +1716,9 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         restrictions: { editText: true },
                         variables: {
                           text: {
-                            type: 'dynamic_text',
+                            type: 'dynamic_rich_text',
                             data: {
-                              content: 'An unexpected error occurred. Please try again later.'
+                              content: getTiptapTextContent('An unexpected error occurred. Please try again later.')
                             }
                           }
                         },

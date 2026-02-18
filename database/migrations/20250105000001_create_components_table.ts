@@ -28,6 +28,9 @@ export async function up(knex: Knex): Promise<void> {
     // Content hash for change detection
     table.string('content_hash', 64).nullable();
 
+    // Auto-generated preview thumbnail URL (stored in Supabase Storage)
+    table.text('thumbnail_url').nullable();
+
     // Timestamps
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());

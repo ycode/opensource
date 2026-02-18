@@ -13,7 +13,7 @@ import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
 import { resolveFieldFromSources } from '@/lib/cms-variables-utils';
-import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable } from '@/lib/variable-utils';
+import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable, resolveDesignStyles } from '@/lib/variable-utils';
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
 import { isValidLinkSettings } from '@/lib/link-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
@@ -32,6 +32,7 @@ import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
+import { combineBgValues, mergeStaticBgVars } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
@@ -40,6 +41,8 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 import type { HiddenLayerInfo } from '@/lib/animation-utils';
+
+import type { DesignColorVariable } from '@/types';
 
 /**
  * Transform component layers for a specific instance.
@@ -1054,6 +1057,7 @@ const LayerItem: React.FC<{
     const htmlToJsxAttrMap: Record<string, string> = {
       'for': 'htmlFor',
       'class': 'className',
+      'autofocus': 'autoFocus',
     };
 
     // Convert string boolean values to actual booleans and map HTML attrs to JSX
@@ -1094,8 +1098,45 @@ const LayerItem: React.FC<{
       )
       : attrStyle;
 
-    // Merge styles: base style + attribute style
-    const mergedStyle = { ...style, ...parsedAttrStyle };
+    // Resolve design color bindings from CMS fields (editor + published, supports gradients)
+    const designBindings = layer.variables?.design as Record<string, DesignColorVariable> | undefined;
+    const resolvedDesignStyles = designBindings
+      ? resolveDesignStyles(designBindings, (fieldVar) =>
+        resolveFieldValue(fieldVar, collectionLayerData, pageCollectionItemData, effectiveLayerDataMap)
+      ) || layer._dynamicStyles
+      : layer._dynamicStyles;
+
+    // Build background-image CSS custom properties by combining bgImageVars + bgGradientVars
+    const bgImageVariable = layer.variables?.backgroundImage?.src;
+    const staticImgVars = layer.design?.backgrounds?.bgImageVars;
+    const staticGradVars = layer.design?.backgrounds?.bgGradientVars;
+    const bgImageStyle: Record<string, string> = mergeStaticBgVars(staticImgVars, staticGradVars);
+
+    // For dynamic sources (asset/CMS field), resolve URL and combine with any gradient
+    if (bgImageVariable) {
+      const bgImageUrl = getImageUrlFromVariable(
+        bgImageVariable,
+        getAsset,
+        collectionLayerData,
+        pageCollectionItemData
+      );
+      if (bgImageUrl) {
+        const cssUrl = bgImageUrl.startsWith('url(') ? bgImageUrl : `url(${bgImageUrl})`;
+        bgImageStyle['--bg-img'] = combineBgValues(cssUrl, staticGradVars?.['--bg-img']);
+      }
+    }
+
+    // Extract CMS-bound gradient from resolved design styles so it routes through the CSS variable
+    const resolvedGradient = resolvedDesignStyles?.background;
+    const filteredDesignStyles = resolvedDesignStyles
+      ? Object.fromEntries(Object.entries(resolvedDesignStyles).filter(([k]) => k !== 'background'))
+      : resolvedDesignStyles;
+    if (resolvedGradient?.includes('gradient(')) {
+      bgImageStyle['--bg-img'] = combineBgValues(bgImageStyle['--bg-img']?.split(', ').find(v => v.startsWith('url(')) || staticImgVars?.['--bg-img'], resolvedGradient);
+    }
+
+    // Merge styles: base style + attribute style + dynamic CMS color bindings + background image vars
+    const mergedStyle = { ...style, ...parsedAttrStyle, ...filteredDesignStyles, ...bgImageStyle };
 
     // Check if element is truly empty (no text, no children)
     const isEmpty = !textContent && (!children || children.length === 0);
@@ -1306,6 +1347,13 @@ const LayerItem: React.FC<{
           elementProps.value = 'true';
         }
       }
+      // Use defaultValue instead of value to keep inputs uncontrolled
+      // This allows users to type in preview/published mode and avoids
+      // React's "uncontrolled to controlled" warning when value is added later
+      if ('value' in elementProps && normalizedAttributes.type !== 'checkbox' && normalizedAttributes.type !== 'radio') {
+        elementProps.defaultValue = elementProps.value;
+        delete elementProps.value;
+      }
       return <Tag {...elementProps} />;
     }
 
@@ -1313,6 +1361,11 @@ const LayerItem: React.FC<{
     if (htmlTag === 'textarea') {
       if (isInsideForm && !elementProps.name) {
         elementProps.name = layer.settings?.id || layer.id;
+      }
+      // Use defaultValue instead of value to keep textareas uncontrolled
+      if ('value' in elementProps) {
+        elementProps.defaultValue = elementProps.value;
+        delete elementProps.value;
       }
       return <Tag {...elementProps} />;
     }
@@ -1404,8 +1457,21 @@ const LayerItem: React.FC<{
             const successAction = formSettings?.success_action || 'message';
 
             if (successAction === 'redirect' && formSettings?.redirect_url) {
-              // Redirect to the specified URL
-              window.location.href = formSettings.redirect_url;
+              // Resolve link settings to actual URL
+              const redirectHref = generateLinkHref(formSettings.redirect_url, {
+                pages,
+                folders,
+                collectionItemSlugs,
+                isPreview,
+                locale: currentLocale,
+                translations,
+                getAsset,
+                anchorMap,
+                resolvedAssets,
+              });
+              if (redirectHref) {
+                window.location.href = redirectHref;
+              }
             } else {
               // Show success alert
               if (successAlert) {
@@ -1864,10 +1930,28 @@ const LayerItem: React.FC<{
               [layer.id]: enhancedItemValues,
             };
 
+            // Resolve per-item background image from CMS field variable → CSS variable (combined with gradient)
+            let itemElementProps = elementProps;
+            if (bgImageVariable && isFieldVariable(bgImageVariable) && bgImageVariable.data.field_id) {
+              const resolvedBgAssetId = resolveFieldValue(bgImageVariable, mergedItemData, pageCollectionItemData, updatedLayerDataMap);
+              if (resolvedBgAssetId) {
+                const bgAsset = assetsById[resolvedBgAssetId] || getAsset(resolvedBgAssetId);
+                const bgUrl = bgAsset?.public_url || resolvedBgAssetId;
+                const cssUrl = bgUrl.startsWith('url(') ? bgUrl : `url(${bgUrl})`;
+                itemElementProps = {
+                  ...elementProps,
+                  style: {
+                    ...(elementProps.style as Record<string, unknown> || {}),
+                    '--bg-img': combineBgValues(cssUrl, staticGradVars?.['--bg-img']),
+                  },
+                };
+              }
+            }
+
             return (
               <Tag
                 key={item.id}
-                {...elementProps}
+                {...itemElementProps}
                 data-collection-item-id={item.id}
                 data-layer-id={layer.id} // Keep same layer ID for all instances
               >

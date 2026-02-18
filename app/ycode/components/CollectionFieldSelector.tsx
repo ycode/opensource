@@ -286,8 +286,9 @@ export function CollectionFieldSelector({
         const displayableFields = group.fields.filter((f) => f.type !== 'multi_reference');
         if (displayableFields.length === 0) return null;
 
+        const groupKey = `${group.source || 'default'}-${group.layerId || index}`;
         return (
-          <div key={group.label || index}>
+          <div key={groupKey}>
             {/* Add separator between groups (not before first) */}
             {index > 0 && <DropdownMenuSeparator />}
             {(group.label || group.detail) && (

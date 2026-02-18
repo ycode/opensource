@@ -1502,8 +1502,8 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                         variant="card"
                       >
                         <Image
-                          src={DEFAULT_ASSETS.IMAGE}
-                          alt=""
+                          src={component.thumbnail_url || DEFAULT_ASSETS.IMAGE}
+                          alt={component.name}
                           width={640}
                           height={262}
                           unoptimized

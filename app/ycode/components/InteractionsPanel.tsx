@@ -202,6 +202,9 @@ export default function InteractionsPanel({
 }: InteractionsPanelProps) {
   const [selectedInteractionId, setSelectedInteractionId] = useState<string | null>(null);
   const [selectedTweenId, setSelectedTweenId] = useState<string | null>(null);
+  const [positionInput, setPositionInput] = useState('0');
+  const [durationInput, setDurationInput] = useState('0');
+  const [staggerInput, setStaggerInput] = useState('0');
   const previewedElementRef = React.useRef<{ layerId: string; element: HTMLElement; originalStyle: string; wasHidden: boolean } | null>(null);
   const previewTweenRef = React.useRef<gsap.core.Tween | null>(null);
   const previewTimelineRef = React.useRef<gsap.core.Timeline | null>(null);
@@ -572,6 +575,24 @@ export default function InteractionsPanel({
     selectedInteraction && selectedTweenId
       ? (selectedInteraction.tweens || []).find((t) => t.id === selectedTweenId) || null
       : null;
+
+  // Derived primitive values for syncing local time input state
+  const syncTweenId = selectedTween?.id;
+  const syncTweenDuration = selectedTween?.duration;
+  const syncTweenPosition = selectedTween?.position;
+  const syncTweenStagger = selectedTween?.splitText?.stagger?.amount;
+
+  // Sync local time input state when switching tweens or values change externally (e.g. stepper)
+  useEffect(() => {
+    if (syncTweenId === undefined) return;
+    setDurationInput(String(syncTweenDuration ?? 0));
+    if (typeof syncTweenPosition === 'number') {
+      setPositionInput(String(syncTweenPosition));
+    }
+    if (syncTweenStagger !== undefined) {
+      setStaggerInput(String(syncTweenStagger));
+    }
+  }, [syncTweenId, syncTweenDuration, syncTweenPosition, syncTweenStagger]);
 
   /** Play all animations in the selected interaction as a timeline */
   const playAllAnimations = useCallback(() => {
@@ -1744,18 +1765,30 @@ export default function InteractionsPanel({
 
                     {isAtMode && (
                       <Input
-                        type="number"
+                        stepper
                         step="0.1"
                         min="0"
                         className="w-full"
-                        value={typeof selectedTween.position === 'number'
-                          ? selectedTween.position.toFixed(1)
-                          : selectedTween.position}
-                        onChange={(e) =>
-                          handleUpdateTween(selectedTween.id, {
-                            position: Number(e.target.value),
-                          })
-                        }
+                        value={positionInput}
+                        onChange={(e) => {
+                          const str = e.target.value;
+                          setPositionInput(str);
+                          if (str !== '' && !str.endsWith('.')) {
+                            const num = parseFloat(str);
+                            if (!isNaN(num) && num >= 0) {
+                              handleUpdateTween(selectedTween.id, { position: num });
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          const num = parseFloat(positionInput);
+                          if (!isNaN(num) && num >= 0) {
+                            handleUpdateTween(selectedTween.id, { position: num });
+                            setPositionInput(String(num));
+                          } else if (typeof selectedTween.position === 'number') {
+                            setPositionInput(String(selectedTween.position));
+                          }
+                        }}
                       />
                     )}
                   </div>
@@ -1768,14 +1801,29 @@ export default function InteractionsPanel({
               <div className="col-span-2 *:w-full">
                 <InputGroup>
                   <InputGroupInput
-                    type="number"
+                    stepper
                     step="0.1"
-                    value={selectedTween.duration}
-                    onChange={(e) =>
-                      handleUpdateTween(selectedTween.id, {
-                        duration: Number(e.target.value),
-                      })
-                    }
+                    min="0"
+                    value={durationInput}
+                    onChange={(e) => {
+                      const str = e.target.value;
+                      setDurationInput(str);
+                      if (str !== '' && !str.endsWith('.')) {
+                        const num = parseFloat(str);
+                        if (!isNaN(num) && num >= 0) {
+                          handleUpdateTween(selectedTween.id, { duration: num });
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      const num = parseFloat(durationInput);
+                      if (!isNaN(num) && num >= 0) {
+                        handleUpdateTween(selectedTween.id, { duration: num });
+                        setDurationInput(String(num));
+                      } else {
+                        setDurationInput(String(selectedTween.duration));
+                      }
+                    }}
                     placeholder="0"
                   />
                   <InputGroupAddon align="inline-end" className="text-xs text-muted-foreground">
@@ -1887,18 +1935,38 @@ export default function InteractionsPanel({
                   <div className="col-span-2">
                     <InputGroup>
                       <InputGroupInput
-                        type="number"
+                        stepper
                         step="0.1"
                         min="0"
-                        value={selectedTween.splitText.stagger.amount}
+                        value={staggerInput}
                         onChange={(e) => {
-                          const value = parseFloat(e.target.value) || 0;
-                          handleUpdateTween(selectedTween.id, {
-                            splitText: {
-                              ...selectedTween.splitText!,
-                              stagger: { amount: value },
-                            },
-                          });
+                          const str = e.target.value;
+                          setStaggerInput(str);
+                          if (str !== '' && !str.endsWith('.')) {
+                            const num = parseFloat(str);
+                            if (!isNaN(num) && num >= 0) {
+                              handleUpdateTween(selectedTween.id, {
+                                splitText: {
+                                  ...selectedTween.splitText!,
+                                  stagger: { amount: num },
+                                },
+                              });
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          const num = parseFloat(staggerInput);
+                          if (!isNaN(num) && num >= 0) {
+                            handleUpdateTween(selectedTween.id, {
+                              splitText: {
+                                ...selectedTween.splitText!,
+                                stagger: { amount: num },
+                              },
+                            });
+                            setStaggerInput(String(num));
+                          } else {
+                            setStaggerInput(String(selectedTween.splitText?.stagger?.amount ?? 0));
+                          }
                         }}
                       />
                       <InputGroupAddon align="inline-end" className="text-xs text-muted-foreground">

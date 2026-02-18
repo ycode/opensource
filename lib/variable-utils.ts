@@ -386,6 +386,93 @@ export function getIframeUrlFromVariable(
 }
 
 /**
+ * Design Color Binding Utilities
+ */
+
+import type { DesignColorVariable } from '@/types';
+
+/**
+ * Convert Tailwind color format (#rrggbb/NN) to valid CSS rgba().
+ * Passes through standard hex and other formats unchanged.
+ */
+function tailwindColorToCss(color: string): string {
+  const match = color.match(/^#([0-9a-fA-F]{6})\/(\d+)$/);
+  if (!match) return color;
+  const r = parseInt(match[1].slice(0, 2), 16);
+  const g = parseInt(match[1].slice(2, 4), 16);
+  const b = parseInt(match[1].slice(4, 6), 16);
+  const a = parseInt(match[2], 10) / 100;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/** Maps design color binding keys to CSS property names for inline styles */
+export const DESIGN_COLOR_CSS_MAP: Record<string, string> = {
+  backgroundColor: 'backgroundColor',
+  color: 'color',
+  borderColor: 'borderColor',
+  divideColor: '--tw-divide-color',
+  textDecorationColor: 'textDecorationColor',
+};
+
+/**
+ * Resolve a DesignColorVariable to a CSS value string using a field resolver.
+ * Returns the resolved CSS value (solid color or gradient string) or null.
+ */
+export function resolveDesignColorBinding(
+  binding: DesignColorVariable,
+  resolveField: (fieldVar: FieldVariable) => string | null | undefined,
+): string | null {
+  // Solid mode
+  if (binding.mode === 'solid') {
+    return binding.field ? (resolveField(binding.field) ?? null) : null;
+  }
+
+  // Gradient mode — read stops from the active mode's storage
+  const modeData = binding.mode === 'linear' ? binding.linear : binding.radial;
+  const stops = modeData?.stops;
+  if (!stops || stops.length === 0) return null;
+
+  const resolvedStops = stops.map(stop => {
+    // Normalize static fallback from Tailwind format (#rrggbb/NN) to valid CSS
+    const fallback = tailwindColorToCss(stop.color);
+    const color = stop.field ? (resolveField(stop.field) || fallback) : fallback;
+    return `${color} ${stop.position}%`;
+  });
+
+  if (binding.mode === 'linear') {
+    const angle = modeData && 'angle' in modeData ? (modeData as { angle?: number }).angle ?? 90 : 90;
+    return `linear-gradient(${angle}deg, ${resolvedStops.join(', ')})`;
+  }
+
+  return `radial-gradient(circle, ${resolvedStops.join(', ')})`;
+}
+
+/**
+ * Resolve all design color bindings for a layer to inline CSS styles.
+ * Returns a Record of CSS property → value, or undefined if no bindings resolved.
+ */
+export function resolveDesignStyles(
+  designBindings: Record<string, DesignColorVariable> | undefined,
+  resolveField: (fieldVar: FieldVariable) => string | null | undefined,
+): Record<string, string> | undefined {
+  if (!designBindings) return undefined;
+
+  const styles: Record<string, string> = {};
+  for (const [designProp, binding] of Object.entries(designBindings)) {
+    if (!binding) continue;
+    const resolved = resolveDesignColorBinding(binding, resolveField);
+    const cssProp = DESIGN_COLOR_CSS_MAP[designProp];
+    if (resolved && cssProp) {
+      // Gradients route through 'background' so renderers can merge with --bg-img variable
+      const isGradient = cssProp === 'backgroundColor' && resolved.includes('gradient');
+      styles[isGradient ? 'background' : cssProp] = resolved;
+    }
+  }
+
+  return Object.keys(styles).length > 0 ? styles : undefined;
+}
+
+/**
  * Link Variable Utilities
  */
 

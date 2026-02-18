@@ -143,7 +143,7 @@ export default function LabelSettings({
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <div className="grid grid-cols-3">
           <Label variant="muted">For</Label>
           <div className="col-span-2 *:w-full">

@@ -102,6 +102,11 @@ export interface BackgroundsDesign {
   backgroundSize?: string;
   backgroundPosition?: string;
   backgroundRepeat?: string;
+  backgroundClip?: string;
+  /** CSS variable values for background image per breakpoint/state, e.g. { '--bg-img': 'url(...)' } */
+  bgImageVars?: Record<string, string>;
+  /** CSS variable values for background gradient per breakpoint/state, e.g. { '--bg-img': 'linear-gradient(...)' } */
+  bgGradientVars?: Record<string, string>;
 }
 
 export interface EffectsDesign {
@@ -139,7 +144,7 @@ export interface FormSettings {
   success_action?: 'message' | 'redirect'; // What happens on successful submission (default: 'message')
   success_message?: string; // Message shown on successful submission (deprecated - now uses alert child)
   error_message?: string; // Message shown on failed submission (deprecated - now uses alert child)
-  redirect_url?: string; // URL to redirect after successful submission
+  redirect_url?: LinkSettingsValue; // Link settings for redirect after successful submission
   email_notification?: {
     enabled: boolean;
     to: string; // Email address to send notifications to
@@ -310,6 +315,8 @@ export interface Layer {
   _masterComponentId?: string;
   // SSR-only property for pagination metadata (when pagination is enabled)
   _paginationMeta?: CollectionPaginationMeta;
+  // SSR-only property for dynamic inline styles from CMS color field bindings
+  _dynamicStyles?: Record<string, string>;
 }
 
 export interface LayerVariables {
@@ -336,7 +343,40 @@ export interface LayerVariables {
   iframe?: {
     src: DynamicTextVariable; // Embed URL (allow inline variables)
   };
+  backgroundImage?: {
+    src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL)
+  };
   link?: LinkSettings;
+
+  // Design property bindings (CMS color fields)
+  design?: {
+    backgroundColor?: DesignColorVariable;
+    color?: DesignColorVariable; // text color
+    borderColor?: DesignColorVariable;
+    divideColor?: DesignColorVariable;
+    textDecorationColor?: DesignColorVariable;
+  };
+}
+
+/** A gradient stop with optional CMS field binding */
+export interface BoundColorStop {
+  id: string;
+  position: number;
+  color: string; // static fallback color
+  field?: FieldVariable; // optional CMS binding for this stop
+}
+
+/** Design color variable supporting solid and gradient CMS bindings.
+ *  Each mode's state is stored separately so switching tabs preserves bindings. */
+export interface DesignColorVariable {
+  type: 'color';
+  mode: 'solid' | 'linear' | 'radial';
+  /** Solid mode: the CMS field binding */
+  field?: FieldVariable;
+  /** Linear gradient state (preserved across tab switches) */
+  linear?: { angle?: number; stops?: BoundColorStop[] };
+  /** Radial gradient state (preserved across tab switches) */
+  radial?: { stops?: BoundColorStop[] };
 }
 
 // Link type discriminator
@@ -441,6 +481,9 @@ export interface Component {
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
   is_published: boolean;
+
+  // Auto-generated preview thumbnail URL (stored in Supabase Storage)
+  thumbnail_url?: string | null;
 
   created_at: string;
   updated_at: string;
@@ -771,7 +814,7 @@ export interface ActivityNotification {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'audio' | 'video' | 'document' | 'link' | 'email' | 'phone';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'color' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'audio' | 'video' | 'document' | 'link' | 'email' | 'phone';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
@@ -1235,6 +1278,49 @@ export interface FormSummary {
   submission_count: number;
   new_count: number;
   latest_submission: string | null;
+}
+
+// Font Types
+export type FontType = 'google' | 'custom' | 'default';
+
+export interface Font {
+  id: string;
+  name: string; // Slug-friendly name (e.g., "open-sans")
+  family: string; // Display family name (e.g., "Open Sans")
+  type: FontType;
+  variants: string[]; // Available variants (e.g., ["regular", "italic", "700"])
+  weights: string[]; // Available weights (e.g., ["400", "700"])
+  category: string; // Font category (e.g., "sans-serif", "serif")
+  kind?: string | null; // Font format for custom fonts (e.g., "woff2", "truetype")
+  url?: string | null; // Public URL for custom font file
+  storage_path?: string | null; // Storage path for custom font file
+  file_hash?: string | null; // File content hash for custom fonts
+  content_hash?: string | null;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface CreateFontData {
+  name: string;
+  family: string;
+  type: FontType;
+  variants: string[];
+  weights: string[];
+  category: string;
+  kind?: string | null;
+  url?: string | null;
+  storage_path?: string | null;
+  file_hash?: string | null;
+}
+
+export interface UpdateFontData {
+  name?: string;
+  family?: string;
+  variants?: string[];
+  weights?: string[];
+  category?: string;
 }
 
 // Sitemap Settings

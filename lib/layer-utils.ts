@@ -2,7 +2,7 @@
  * Layer utilities for rendering and manipulation
  */
 
-import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField, Component, Breakpoint } from '@/types';
+import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField, Component, Breakpoint, LayerVariables, DesignColorVariable, BoundColorStop } from '@/types';
 import { cn, generateId } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
@@ -1842,6 +1842,1241 @@ export function replaceLayerWithComponentInstance(
         ...layer,
         children: replaceLayerWithComponentInstance(layer.children, layerId, componentId),
       };
+    }
+    return layer;
+  });
+}
+
+// ─── CMS Data-Binding Reset Utilities ─────────────────────────────────
+
+/** Regex for matching inline variable tags (duplicated from inline-variables to avoid circular imports) */
+const INLINE_VAR_REGEX = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+
+/**
+ * Represents the collection context available at a specific position in the layer tree.
+ * Maps collection layer IDs to their collection IDs.
+ */
+type CollectionContext = Map<string, string>;
+
+/**
+ * Build the collection context (available collection layers + their collection IDs)
+ * for a given position in the tree by traversing ancestors.
+ */
+function buildCollectionContext(layers: Layer[], layerId: string): CollectionContext {
+  const ctx: CollectionContext = new Map();
+  const parents = findAllParentCollectionLayers(layers, layerId);
+
+  for (const parent of parents) {
+    const cv = getCollectionVariable(parent);
+    if (cv?.id) {
+      ctx.set(parent.id, cv.id);
+    }
+  }
+
+  return ctx;
+}
+
+/**
+ * Check if a FieldVariable references a collection context (via collection_layer_id or source).
+ * Returns true if the binding is collection-sourced.
+ */
+function isCollectionBoundField(fv: FieldVariable): boolean {
+  return fv.data?.source === 'collection' || !!fv.data?.collection_layer_id;
+}
+
+/**
+ * Check if a FieldVariable is valid given the available collection context.
+ * A binding is invalid if it references a collection_layer_id not present in the context.
+ */
+function isFieldVariableValid(fv: FieldVariable, ctx: CollectionContext): boolean {
+  if (!isCollectionBoundField(fv)) return true;
+
+  // If it references a specific collection layer, that layer must be in context
+  if (fv.data?.collection_layer_id) {
+    return ctx.has(fv.data.collection_layer_id);
+  }
+
+  // source='collection' but no specific layer: valid if any collection ancestor exists
+  return ctx.size > 0;
+}
+
+/**
+ * Strip inline variable tags from a text string that reference invalid collection bindings.
+ * Returns the cleaned string or null if unchanged.
+ */
+function stripInvalidInlineVariables(text: string, ctx: CollectionContext): string | null {
+  if (!text) return null;
+
+  let changed = false;
+  const result = text.replace(INLINE_VAR_REGEX, (match, content) => {
+    try {
+      const parsed = JSON.parse(content.trim());
+      if (parsed.type === 'field' && parsed.data) {
+        const fv = parsed as FieldVariable;
+        if (isCollectionBoundField(fv) && !isFieldVariableValid(fv, ctx)) {
+          changed = true;
+          return '';
+        }
+      }
+    } catch {
+      // Not valid JSON, leave as-is
+    }
+    return match;
+  });
+
+  return changed ? result : null;
+}
+
+/**
+ * Strip invalid field variables from a DesignColorVariable.
+ * Returns cleaned variable or undefined to remove it entirely.
+ */
+function cleanDesignColorVariable(dcv: DesignColorVariable, ctx: CollectionContext): DesignColorVariable | undefined {
+  let changed = false;
+  const result = { ...dcv };
+
+  // Clean solid field
+  if (result.field && isCollectionBoundField(result.field) && !isFieldVariableValid(result.field, ctx)) {
+    result.field = undefined;
+    changed = true;
+  }
+
+  // Clean linear stops
+  if (result.linear?.stops) {
+    const cleanedStops = result.linear.stops.map((stop: BoundColorStop) => {
+      if (stop.field && isCollectionBoundField(stop.field) && !isFieldVariableValid(stop.field, ctx)) {
+        changed = true;
+        const { field: _, ...rest } = stop;
+        return rest;
+      }
+      return stop;
+    });
+    if (changed) result.linear = { ...result.linear, stops: cleanedStops };
+  }
+
+  // Clean radial stops
+  if (result.radial?.stops) {
+    let radialChanged = false;
+    const cleanedStops = result.radial.stops.map((stop: BoundColorStop) => {
+      if (stop.field && isCollectionBoundField(stop.field) && !isFieldVariableValid(stop.field, ctx)) {
+        radialChanged = true;
+        const { field: _, ...rest } = stop;
+        return rest;
+      }
+      return stop;
+    });
+    if (radialChanged) {
+      result.radial = { ...result.radial, stops: cleanedStops };
+      changed = true;
+    }
+  }
+
+  return changed ? result : dcv;
+}
+
+/**
+ * Reset invalid CMS bindings on a single layer's variables.
+ * Returns updated variables or null if nothing changed.
+ */
+function resetLayerVariableBindings(variables: LayerVariables | undefined, ctx: CollectionContext): LayerVariables | null {
+  if (!variables) return null;
+
+  let changed = false;
+  const updated = { ...variables };
+
+  // --- Collection variable itself: don't touch (the collection source stays) ---
+
+  // --- Conditional visibility: reset field conditions referencing unavailable collection layers ---
+  if (updated.conditionalVisibility?.groups) {
+    const cleanedGroups = updated.conditionalVisibility.groups.map(group => {
+      const cleanedConditions = group.conditions.filter(c => {
+        if (c.source === 'page_collection' && c.collectionLayerId) {
+          return ctx.has(c.collectionLayerId);
+        }
+        return true;
+      });
+      if (cleanedConditions.length !== group.conditions.length) {
+        changed = true;
+        return { ...group, conditions: cleanedConditions };
+      }
+      return group;
+    });
+    if (changed) {
+      updated.conditionalVisibility = { groups: cleanedGroups };
+    }
+  }
+
+  // --- Text variable: strip invalid inline variables from content ---
+  if (updated.text) {
+    if (updated.text.type === 'dynamic_text' && typeof updated.text.data?.content === 'string') {
+      const cleaned = stripInvalidInlineVariables(updated.text.data.content, ctx);
+      if (cleaned !== null) {
+        updated.text = { ...updated.text, data: { content: cleaned } };
+        changed = true;
+      }
+    }
+    if (updated.text.type === 'dynamic_rich_text' && typeof updated.text.data?.content === 'object') {
+      const cleanedText = cleanTiptapContent(updated.text.data.content, ctx);
+      if (cleanedText !== null) {
+        updated.text = { ...updated.text, data: { content: cleanedText } };
+        changed = true;
+      }
+    }
+  }
+
+  // --- Image variable ---
+  if (updated.image) {
+    const imgSrc = updated.image.src;
+    if (imgSrc && imgSrc.type === 'field') {
+      const fv = imgSrc as FieldVariable;
+      if (isCollectionBoundField(fv) && !isFieldVariableValid(fv, ctx)) {
+        updated.image = { ...updated.image, src: { type: 'asset', data: { asset_id: null } } };
+        changed = true;
+      }
+    }
+    // Clean alt inline variables
+    if (updated.image.alt?.type === 'dynamic_text' && typeof updated.image.alt.data?.content === 'string') {
+      const cleaned = stripInvalidInlineVariables(updated.image.alt.data.content, ctx);
+      if (cleaned !== null) {
+        updated.image = { ...updated.image, alt: { ...updated.image.alt, data: { content: cleaned } } };
+        changed = true;
+      }
+    }
+  }
+
+  // --- Audio variable ---
+  if (updated.audio?.src) {
+    const fv = updated.audio.src;
+    if (fv.type === 'field' && isCollectionBoundField(fv as FieldVariable) && !isFieldVariableValid(fv as FieldVariable, ctx)) {
+      updated.audio = { ...updated.audio, src: { type: 'asset', data: { asset_id: null } } };
+      changed = true;
+    }
+  }
+
+  // --- Video variable ---
+  if (updated.video?.src) {
+    const fv = updated.video.src;
+    if (fv.type === 'field' && isCollectionBoundField(fv as FieldVariable) && !isFieldVariableValid(fv as FieldVariable, ctx)) {
+      updated.video = { ...updated.video, src: undefined };
+      changed = true;
+    }
+  }
+  if (updated.video?.poster) {
+    const fv = updated.video.poster;
+    if (fv.type === 'field' && isCollectionBoundField(fv as FieldVariable) && !isFieldVariableValid(fv as FieldVariable, ctx)) {
+      updated.video = { ...updated.video, poster: undefined };
+      changed = true;
+    }
+  }
+
+  // --- Iframe variable: strip inline variables from src ---
+  if (updated.iframe?.src?.type === 'dynamic_text' && typeof updated.iframe.src.data?.content === 'string') {
+    const cleaned = stripInvalidInlineVariables(updated.iframe.src.data.content, ctx);
+    if (cleaned !== null) {
+      updated.iframe = { ...updated.iframe, src: { ...updated.iframe.src, data: { content: cleaned } } };
+      changed = true;
+    }
+  }
+
+  // --- Link variable ---
+  if (updated.link) {
+    // URL inline variables
+    if (updated.link.url?.type === 'dynamic_text' && typeof updated.link.url.data?.content === 'string') {
+      const cleaned = stripInvalidInlineVariables(updated.link.url.data.content, ctx);
+      if (cleaned !== null) {
+        updated.link = { ...updated.link, url: { ...updated.link.url, data: { content: cleaned } } };
+        changed = true;
+      }
+    }
+    // Field link
+    if (updated.link.field && isCollectionBoundField(updated.link.field) && !isFieldVariableValid(updated.link.field, ctx)) {
+      updated.link = { ...updated.link, type: 'url', field: undefined };
+      changed = true;
+    }
+    // Email inline variables
+    if (updated.link.email?.type === 'dynamic_text' && typeof updated.link.email.data?.content === 'string') {
+      const cleaned = stripInvalidInlineVariables(updated.link.email.data.content, ctx);
+      if (cleaned !== null) {
+        updated.link = { ...updated.link, email: { ...updated.link.email, data: { content: cleaned } } };
+        changed = true;
+      }
+    }
+    // Phone inline variables
+    if (updated.link.phone?.type === 'dynamic_text' && typeof updated.link.phone.data?.content === 'string') {
+      const cleaned = stripInvalidInlineVariables(updated.link.phone.data.content, ctx);
+      if (cleaned !== null) {
+        updated.link = { ...updated.link, phone: { ...updated.link.phone, data: { content: cleaned } } };
+        changed = true;
+      }
+    }
+  }
+
+  // --- Design color bindings ---
+  if (updated.design) {
+    const designKeys = ['backgroundColor', 'color', 'borderColor', 'divideColor', 'textDecorationColor'] as const;
+    let designChanged = false;
+    const newDesign = { ...updated.design };
+
+    for (const key of designKeys) {
+      const dcv = newDesign[key];
+      if (dcv) {
+        const cleaned = cleanDesignColorVariable(dcv, ctx);
+        if (cleaned !== dcv) {
+          (newDesign as Record<string, DesignColorVariable | undefined>)[key] = cleaned;
+          designChanged = true;
+        }
+      }
+    }
+
+    if (designChanged) {
+      updated.design = newDesign;
+      changed = true;
+    }
+  }
+
+  return changed ? updated : null;
+}
+
+/**
+ * Clean Tiptap JSON content by removing dynamicVariable nodes with invalid bindings.
+ * Returns cleaned content or null if unchanged.
+ */
+function cleanTiptapContent(content: object, ctx: CollectionContext): object | null {
+  if (!content || typeof content !== 'object') return null;
+
+  let changed = false;
+  const doc = content as { type?: string; content?: any[] };
+
+  if (!doc.content || !Array.isArray(doc.content)) return null;
+
+  const cleanedBlocks = doc.content.map((block: any) => {
+    if (!block.content || !Array.isArray(block.content)) return block;
+
+    const cleanedNodes = block.content.filter((node: any) => {
+      if (node.type === 'dynamicVariable' && node.attrs?.variable) {
+        const fv = node.attrs.variable as FieldVariable;
+        if (fv.type === 'field' && isCollectionBoundField(fv) && !isFieldVariableValid(fv, ctx)) {
+          changed = true;
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (cleanedNodes.length !== block.content.length) {
+      return { ...block, content: cleanedNodes };
+    }
+    return block;
+  });
+
+  return changed ? { ...doc, content: cleanedBlocks } : null;
+}
+
+/**
+ * Recursively reset invalid CMS data bindings on a layer subtree.
+ * Checks each layer's bindings against the collection context available at its position.
+ *
+ * @param layers - The full layer tree (for context building)
+ * @param subtree - The layer subtree to clean (modified in-place conceptually, returns new tree)
+ * @param parentContext - Optional pre-built context from parent (optimization for batch ops)
+ * @returns Updated subtree with invalid bindings removed
+ */
+export function resetInvalidBindings(
+  layers: Layer[],
+  subtree: Layer[],
+  parentContext?: CollectionContext
+): Layer[] {
+  return subtree.map(layer => {
+    // Build context for this layer's position
+    const ctx = parentContext
+      ? new Map(parentContext)
+      : buildCollectionContext(layers, layer.id);
+
+    // If this layer itself is a collection layer, add it to context for its children
+    const cv = getCollectionVariable(layer);
+    const childCtx = new Map(ctx);
+    if (cv?.id) {
+      childCtx.set(layer.id, cv.id);
+    }
+
+    // Reset variables on this layer
+    const cleanedVars = resetLayerVariableBindings(layer.variables, ctx);
+
+    // Recursively clean children
+    let cleanedChildren = layer.children;
+    if (layer.children && layer.children.length > 0) {
+      cleanedChildren = resetInvalidBindings(layers, layer.children, childCtx);
+    }
+
+    if (cleanedVars || cleanedChildren !== layer.children) {
+      return {
+        ...layer,
+        variables: cleanedVars || layer.variables,
+        children: cleanedChildren,
+      };
+    }
+
+    return layer;
+  });
+}
+
+/**
+ * Reset CMS bindings on a layer and its descendants after it has been moved to a new position.
+ * Should be called after the layer tree has been updated with the new position.
+ *
+ * @param layers - The full updated layer tree
+ * @param movedLayerId - ID of the moved layer
+ * @returns Updated layer tree with invalid bindings reset
+ */
+export function resetBindingsAfterMove(layers: Layer[], movedLayerId: string): Layer[] {
+  const movedLayer = findLayerById(layers, movedLayerId);
+  if (!movedLayer) return layers;
+
+  // Build context at the moved layer's new position
+  const ctx = buildCollectionContext(layers, movedLayerId);
+
+  // Clean the moved layer and its subtree
+  const cleanedSubtree = resetInvalidBindings(layers, [movedLayer], ctx);
+  const cleanedLayer = cleanedSubtree[0];
+
+  if (cleanedLayer === movedLayer) return layers;
+
+  // Replace the moved layer in the tree
+  return replaceLayerInTree(layers, movedLayerId, cleanedLayer);
+}
+
+/**
+ * Reset CMS bindings on all descendants of a layer whose collection source has changed.
+ * Strips any binding that references the changed collection layer (by collection_layer_id)
+ * or implicitly depends on it (source='collection' without a specific layer ID).
+ *
+ * @param layers - The full layer tree
+ * @param collectionLayerId - ID of the layer whose collection source changed
+ * @returns Updated layer tree
+ */
+export function resetBindingsOnCollectionSourceChange(layers: Layer[], collectionLayerId: string): Layer[] {
+  const layer = findLayerById(layers, collectionLayerId);
+  if (!layer) return layers;
+
+  // Reset the layer's own bindings (filters, sort, conditional visibility)
+  let updated = resetCollectionLayerOwnBindings(layer);
+  let changed = updated !== layer;
+
+  // Strip bindings on all descendants that reference this collection layer
+  if (updated.children && updated.children.length > 0) {
+    const cleanedChildren = stripBindingsForCollectionLayer(updated.children, collectionLayerId);
+    if (cleanedChildren !== updated.children) {
+      updated = { ...updated, children: cleanedChildren };
+      changed = true;
+    }
+  }
+
+  if (!changed) return layers;
+
+  return replaceLayerInTree(layers, collectionLayerId, updated);
+}
+
+/**
+ * Recursively strip CMS bindings that reference a specific collection layer.
+ * Used when that collection layer's source has changed, making all existing field bindings invalid.
+ * Also resets nested collection sources that depend on the changed parent (source_field_source='collection').
+ */
+function stripBindingsForCollectionLayer(subtree: Layer[], collectionLayerId: string): Layer[] {
+  let treeChanged = false;
+
+  const result = subtree.map(layer => {
+    let changed = false;
+    let updated = layer;
+
+    // Check if this is a nested collection layer whose source depends on the changed parent
+    // A nested collection has a source_field_id (gets items from a parent's reference/multi-reference field)
+    const cv = getCollectionVariable(layer);
+    if (cv?.source_field_id) {
+      // This nested collection gets its data from the parent collection — reset its source
+      updated = {
+        ...updated,
+        variables: {
+          ...updated.variables,
+          collection: { id: '', source_field_id: undefined, source_field_type: undefined, source_field_source: undefined },
+        },
+      };
+      changed = true;
+
+      // Reset the nested collection's own bindings (filters, sort, conditional visibility)
+      updated = resetCollectionLayerOwnBindings(updated);
+
+      // Reset all bindings inside the nested collection that reference it,
+      // then cascade further into any deeper nested collections
+      if (updated.children && updated.children.length > 0) {
+        const cleanedChildren = stripBindingsForCollectionLayer(updated.children, layer.id);
+        if (cleanedChildren !== updated.children) {
+          updated = { ...updated, children: cleanedChildren };
+        }
+      }
+
+      treeChanged = true;
+      return updated;
+    }
+
+    // Reset field variable bindings on this layer
+    if (updated.variables) {
+      const cleaned = resetVariablesForCollectionLayer(updated.variables, collectionLayerId);
+      if (cleaned) {
+        updated = { ...updated, variables: cleaned };
+        changed = true;
+      }
+    }
+
+    // Recurse into children
+    if (layer.children && layer.children.length > 0) {
+      const cleanedChildren = stripBindingsForCollectionLayer(
+        changed ? updated.children || [] : layer.children,
+        collectionLayerId
+      );
+      if (cleanedChildren !== layer.children) {
+        updated = { ...updated, children: cleanedChildren };
+        changed = true;
+      }
+    }
+
+    if (changed) treeChanged = true;
+    return changed ? updated : layer;
+  });
+
+  return treeChanged ? result : subtree;
+}
+
+/**
+ * Reset a collection layer's own bindings that depend on its collection source.
+ * Clears filters, sort-by-field, and collection_field conditional visibility.
+ */
+function resetCollectionLayerOwnBindings(layer: Layer): Layer {
+  let updated = layer;
+
+  // Reset collection filters and field-based sort
+  if (updated.variables?.collection) {
+    const cv = updated.variables.collection;
+    const hasFilters = cv.filters?.groups?.length;
+    const hasFieldSort = cv.sort_by && cv.sort_by !== 'none' && cv.sort_by !== 'manual' && cv.sort_by !== 'random';
+
+    if (hasFilters || hasFieldSort) {
+      updated = {
+        ...updated,
+        variables: {
+          ...updated.variables,
+          collection: {
+            ...cv,
+            filters: undefined,
+            sort_by: undefined,
+            sort_order: undefined,
+          },
+        },
+      };
+    }
+  }
+
+  // Reset conditional visibility conditions that reference collection fields
+  if (updated.variables?.conditionalVisibility?.groups) {
+    let visChanged = false;
+    const cleanedGroups = updated.variables.conditionalVisibility.groups.map(group => {
+      const cleanedConditions = group.conditions.filter(c => {
+        if (c.source === 'collection_field') {
+          visChanged = true;
+          return false;
+        }
+        return true;
+      });
+      return visChanged ? { ...group, conditions: cleanedConditions } : group;
+    });
+
+    if (visChanged) {
+      updated = {
+        ...updated,
+        variables: {
+          ...updated.variables,
+          conditionalVisibility: { groups: cleanedGroups },
+        },
+      };
+    }
+  }
+
+  return updated;
+}
+
+/**
+ * Check if a FieldVariable references a specific collection layer (directly or implicitly).
+ */
+function fieldReferencesCollectionLayer(fv: FieldVariable, collectionLayerId: string): boolean {
+  if (!isCollectionBoundField(fv)) return false;
+
+  // Direct reference to the collection layer
+  if (fv.data?.collection_layer_id === collectionLayerId) return true;
+
+  // Implicit reference: source='collection' without a specific layer ID
+  // means it uses the nearest ancestor collection — which is the one being changed
+  if (fv.data?.source === 'collection' && !fv.data?.collection_layer_id) return true;
+
+  return false;
+}
+
+/**
+ * Reset variable bindings on a single layer that reference a specific collection layer.
+ * Returns updated variables or null if unchanged.
+ */
+function resetVariablesForCollectionLayer(variables: LayerVariables, collectionLayerId: string): LayerVariables | null {
+  let changed = false;
+  const updated = { ...variables };
+
+  // --- Conditional visibility ---
+  if (updated.conditionalVisibility?.groups) {
+    let visChanged = false;
+    const cleanedGroups = updated.conditionalVisibility.groups.map(group => {
+      const cleanedConditions = group.conditions.filter(c => {
+        if (c.source === 'page_collection' && c.collectionLayerId === collectionLayerId) {
+          visChanged = true;
+          return false;
+        }
+        return true;
+      });
+      return visChanged ? { ...group, conditions: cleanedConditions } : group;
+    });
+    if (visChanged) {
+      updated.conditionalVisibility = { groups: cleanedGroups };
+      changed = true;
+    }
+  }
+
+  // --- Text variable ---
+  if (updated.text) {
+    if (updated.text.type === 'dynamic_text' && typeof updated.text.data?.content === 'string') {
+      const cleaned = stripInlineVarsForCollectionLayer(updated.text.data.content, collectionLayerId);
+      if (cleaned !== null) {
+        updated.text = { ...updated.text, data: { content: cleaned } };
+        changed = true;
+      }
+    }
+    if (updated.text.type === 'dynamic_rich_text' && typeof updated.text.data?.content === 'object') {
+      const cleaned = cleanTiptapForCollectionLayer(updated.text.data.content, collectionLayerId);
+      if (cleaned !== null) {
+        updated.text = { ...updated.text, data: { content: cleaned } };
+        changed = true;
+      }
+    }
+  }
+
+  // --- Image ---
+  if (updated.image) {
+    if (updated.image.src?.type === 'field' && fieldReferencesCollectionLayer(updated.image.src as FieldVariable, collectionLayerId)) {
+      updated.image = { ...updated.image, src: { type: 'asset', data: { asset_id: null } } };
+      changed = true;
+    }
+    if (updated.image.alt?.type === 'dynamic_text' && typeof updated.image.alt.data?.content === 'string') {
+      const cleaned = stripInlineVarsForCollectionLayer(updated.image.alt.data.content, collectionLayerId);
+      if (cleaned !== null) {
+        updated.image = { ...updated.image, alt: { ...updated.image.alt, data: { content: cleaned } } };
+        changed = true;
+      }
+    }
+  }
+
+  // --- Audio ---
+  if (updated.audio?.src?.type === 'field' && fieldReferencesCollectionLayer(updated.audio.src as FieldVariable, collectionLayerId)) {
+    updated.audio = { ...updated.audio, src: { type: 'asset', data: { asset_id: null } } };
+    changed = true;
+  }
+
+  // --- Video ---
+  if (updated.video?.src?.type === 'field' && fieldReferencesCollectionLayer(updated.video.src as FieldVariable, collectionLayerId)) {
+    updated.video = { ...updated.video, src: undefined };
+    changed = true;
+  }
+  if (updated.video?.poster?.type === 'field' && fieldReferencesCollectionLayer(updated.video.poster as FieldVariable, collectionLayerId)) {
+    updated.video = { ...updated.video, poster: undefined };
+    changed = true;
+  }
+
+  // --- Iframe ---
+  if (updated.iframe?.src?.type === 'dynamic_text' && typeof updated.iframe.src.data?.content === 'string') {
+    const cleaned = stripInlineVarsForCollectionLayer(updated.iframe.src.data.content, collectionLayerId);
+    if (cleaned !== null) {
+      updated.iframe = { ...updated.iframe, src: { ...updated.iframe.src, data: { content: cleaned } } };
+      changed = true;
+    }
+  }
+
+  // --- Link ---
+  if (updated.link) {
+    if (updated.link.field && fieldReferencesCollectionLayer(updated.link.field, collectionLayerId)) {
+      updated.link = { ...updated.link, type: 'url', field: undefined };
+      changed = true;
+    }
+    const linkToCheck = updated.link;
+    for (const key of ['url', 'email', 'phone'] as const) {
+      const linkVar = linkToCheck[key];
+      if (linkVar?.type === 'dynamic_text' && typeof linkVar.data?.content === 'string') {
+        const cleaned = stripInlineVarsForCollectionLayer(linkVar.data.content, collectionLayerId);
+        if (cleaned !== null) {
+          updated.link = { ...updated.link, [key]: { ...linkVar, data: { content: cleaned } } };
+          changed = true;
+        }
+      }
+    }
+  }
+
+  // --- Design color bindings ---
+  if (updated.design) {
+    const designKeys = ['backgroundColor', 'color', 'borderColor', 'divideColor', 'textDecorationColor'] as const;
+    let designChanged = false;
+    const newDesign = { ...updated.design };
+
+    for (const key of designKeys) {
+      const dcv = newDesign[key];
+      if (dcv) {
+        const cleaned = cleanDesignColorForCollectionLayer(dcv, collectionLayerId);
+        if (cleaned !== dcv) {
+          (newDesign as Record<string, DesignColorVariable | undefined>)[key] = cleaned;
+          designChanged = true;
+        }
+      }
+    }
+
+    if (designChanged) {
+      updated.design = newDesign;
+      changed = true;
+    }
+  }
+
+  return changed ? updated : null;
+}
+
+/** Strip inline variable tags referencing a specific collection layer from a text string. */
+function stripInlineVarsForCollectionLayer(text: string, collectionLayerId: string): string | null {
+  if (!text) return null;
+  let changed = false;
+
+  const result = text.replace(INLINE_VAR_REGEX, (match, content) => {
+    try {
+      const parsed = JSON.parse(content.trim());
+      if (parsed.type === 'field' && parsed.data) {
+        if (fieldReferencesCollectionLayer(parsed as FieldVariable, collectionLayerId)) {
+          changed = true;
+          return '';
+        }
+      }
+    } catch { /* not valid JSON */ }
+    return match;
+  });
+
+  return changed ? result : null;
+}
+
+/** Clean Tiptap content by removing dynamicVariable nodes referencing a specific collection layer. */
+function cleanTiptapForCollectionLayer(content: object, collectionLayerId: string): object | null {
+  if (!content || typeof content !== 'object') return null;
+  const doc = content as { type?: string; content?: any[] };
+  if (!doc.content || !Array.isArray(doc.content)) return null;
+
+  let changed = false;
+  const cleanedBlocks = doc.content.map((block: any) => {
+    if (!block.content || !Array.isArray(block.content)) return block;
+
+    const cleanedNodes = block.content.filter((node: any) => {
+      if (node.type === 'dynamicVariable' && node.attrs?.variable) {
+        const fv = node.attrs.variable as FieldVariable;
+        if (fv.type === 'field' && fieldReferencesCollectionLayer(fv, collectionLayerId)) {
+          changed = true;
+          return false;
+        }
+      }
+      return true;
+    });
+
+    return cleanedNodes.length !== block.content.length ? { ...block, content: cleanedNodes } : block;
+  });
+
+  return changed ? { ...doc, content: cleanedBlocks } : null;
+}
+
+/** Clean a DesignColorVariable for a collection layer source change. */
+function cleanDesignColorForCollectionLayer(dcv: DesignColorVariable, collectionLayerId: string): DesignColorVariable {
+  let changed = false;
+  const result = { ...dcv };
+
+  if (result.field?.type === 'field' && fieldReferencesCollectionLayer(result.field, collectionLayerId)) {
+    result.field = undefined;
+    changed = true;
+  }
+
+  if (result.linear?.stops) {
+    const cleanedStops = result.linear.stops.map(stop => {
+      if (stop.field?.type === 'field' && fieldReferencesCollectionLayer(stop.field, collectionLayerId)) {
+        changed = true;
+        const { field: _, ...rest } = stop;
+        return rest;
+      }
+      return stop;
+    });
+    if (changed) result.linear = { ...result.linear, stops: cleanedStops };
+  }
+
+  if (result.radial?.stops) {
+    let radialChanged = false;
+    const cleanedStops = result.radial.stops.map(stop => {
+      if (stop.field?.type === 'field' && fieldReferencesCollectionLayer(stop.field, collectionLayerId)) {
+        radialChanged = true;
+        const { field: _, ...rest } = stop;
+        return rest;
+      }
+      return stop;
+    });
+    if (radialChanged) {
+      result.radial = { ...result.radial, stops: cleanedStops };
+      changed = true;
+    }
+  }
+
+  return changed ? result : dcv;
+}
+
+/**
+ * Reset CMS bindings that reference a deleted collection across all layers.
+ *
+ * @param layers - The full layer tree
+ * @param deletedCollectionId - ID of the deleted collection
+ * @returns Updated layer tree
+ */
+export function resetBindingsForDeletedCollection(layers: Layer[], deletedCollectionId: string): Layer[] {
+  return layers.map(layer => {
+    let updated = layer;
+    let changed = false;
+
+    // If this layer has a collection binding to the deleted collection, clear it
+    const cv = getCollectionVariable(layer);
+    if (cv?.id === deletedCollectionId) {
+      updated = {
+        ...updated,
+        variables: {
+          ...updated.variables,
+          collection: { id: '' },
+        },
+      };
+      changed = true;
+    }
+
+    // Reset field variables referencing this collection's fields
+    if (updated.variables) {
+      const cleanedVars = resetFieldsForDeletedCollection(updated.variables, deletedCollectionId);
+      if (cleanedVars) {
+        updated = { ...updated, variables: cleanedVars };
+        changed = true;
+      }
+    }
+
+    // Recursively process children
+    if (layer.children && layer.children.length > 0) {
+      const cleanedChildren = resetBindingsForDeletedCollection(
+        changed ? updated.children || [] : layer.children,
+        deletedCollectionId
+      );
+      if (cleanedChildren !== layer.children) {
+        updated = { ...updated, children: cleanedChildren };
+        changed = true;
+      }
+    }
+
+    return changed ? updated : layer;
+  });
+}
+
+/**
+ * Reset field variables in a LayerVariables that reference a specific collection_layer_id
+ * which had a specific deleted collection. This is a helper used internally.
+ */
+function resetFieldsForDeletedCollection(
+  variables: LayerVariables,
+  deletedCollectionId: string
+): LayerVariables | null {
+  // For deleted collections, we need to walk the full tree and find bindings
+  // whose collection_layer_id points to a layer that had this collection.
+  // However, since the collection source is already cleared above, the main
+  // resetInvalidBindings flow handles descendant cleanup.
+  // This function is a no-op placeholder for direct field_id references
+  // (which don't directly store collection IDs).
+  return null;
+}
+
+/**
+ * Reset CMS bindings that reference a deleted field across all layers.
+ *
+ * @param layers - The full layer tree
+ * @param deletedFieldId - ID of the deleted field
+ * @returns Updated layer tree
+ */
+export function resetBindingsForDeletedField(layers: Layer[], deletedFieldId: string): Layer[] {
+  return layers.map(layer => {
+    let updated = layer;
+    let changed = false;
+
+    if (updated.variables) {
+      const cleanedVars = resetVariablesForDeletedField(updated.variables, deletedFieldId);
+      if (cleanedVars) {
+        updated = { ...updated, variables: cleanedVars };
+        changed = true;
+      }
+    }
+
+    if (layer.children && layer.children.length > 0) {
+      const cleanedChildren = resetBindingsForDeletedField(
+        changed ? updated.children || [] : layer.children,
+        deletedFieldId
+      );
+      if (cleanedChildren !== layer.children) {
+        updated = { ...updated, children: cleanedChildren };
+        changed = true;
+      }
+    }
+
+    return changed ? updated : layer;
+  });
+}
+
+/**
+ * Reset all variable bindings on a layer that reference a specific deleted field.
+ * Returns updated variables or null if unchanged.
+ */
+function resetVariablesForDeletedField(variables: LayerVariables, deletedFieldId: string): LayerVariables | null {
+  let changed = false;
+  const updated = { ...variables };
+
+  const fieldRefersToDeleted = (fv: FieldVariable): boolean => {
+    if (fv.data?.field_id === deletedFieldId) return true;
+    if (fv.data?.relationships?.includes(deletedFieldId)) return true;
+    return false;
+  };
+
+  // --- Image ---
+  if (updated.image?.src && updated.image.src.type === 'field') {
+    if (fieldRefersToDeleted(updated.image.src as FieldVariable)) {
+      updated.image = { ...updated.image, src: { type: 'asset', data: { asset_id: null } } };
+      changed = true;
+    }
+  }
+
+  // --- Audio ---
+  if (updated.audio?.src && updated.audio.src.type === 'field') {
+    if (fieldRefersToDeleted(updated.audio.src as FieldVariable)) {
+      updated.audio = { ...updated.audio, src: { type: 'asset', data: { asset_id: null } } };
+      changed = true;
+    }
+  }
+
+  // --- Video ---
+  if (updated.video?.src && updated.video.src.type === 'field') {
+    if (fieldRefersToDeleted(updated.video.src as FieldVariable)) {
+      updated.video = { ...updated.video, src: undefined };
+      changed = true;
+    }
+  }
+  if (updated.video?.poster && updated.video.poster.type === 'field') {
+    if (fieldRefersToDeleted(updated.video.poster as FieldVariable)) {
+      updated.video = { ...updated.video, poster: undefined };
+      changed = true;
+    }
+  }
+
+  // --- Link field ---
+  if (updated.link?.field && fieldRefersToDeleted(updated.link.field)) {
+    updated.link = { ...updated.link, type: 'url', field: undefined };
+    changed = true;
+  }
+
+  // --- Text: strip inline variables referencing the deleted field ---
+  if (updated.text) {
+    if (updated.text.type === 'dynamic_text' && typeof updated.text.data?.content === 'string') {
+      const cleaned = stripInlineVariablesForDeletedField(updated.text.data.content, deletedFieldId);
+      if (cleaned !== null) {
+        updated.text = { ...updated.text, data: { content: cleaned } };
+        changed = true;
+      }
+    }
+    if (updated.text.type === 'dynamic_rich_text' && typeof updated.text.data?.content === 'object') {
+      const cleaned = cleanTiptapContentForDeletedField(updated.text.data.content, deletedFieldId);
+      if (cleaned !== null) {
+        updated.text = { ...updated.text, data: { content: cleaned } };
+        changed = true;
+      }
+    }
+  }
+
+  // --- Inline variables in URL/email/phone ---
+  for (const key of ['url', 'email', 'phone'] as const) {
+    const linkVar = updated.link?.[key];
+    if (linkVar?.type === 'dynamic_text' && typeof linkVar.data?.content === 'string') {
+      const cleaned = stripInlineVariablesForDeletedField(linkVar.data.content, deletedFieldId);
+      if (cleaned !== null) {
+        updated.link = { ...updated.link!, [key]: { ...linkVar, data: { content: cleaned } } };
+        changed = true;
+      }
+    }
+  }
+
+  // --- Image alt inline variables ---
+  if (updated.image?.alt?.type === 'dynamic_text' && typeof updated.image.alt.data?.content === 'string') {
+    const cleaned = stripInlineVariablesForDeletedField(updated.image.alt.data.content, deletedFieldId);
+    if (cleaned !== null) {
+      updated.image = { ...updated.image, alt: { ...updated.image.alt, data: { content: cleaned } } };
+      changed = true;
+    }
+  }
+
+  // --- Design color bindings ---
+  if (updated.design) {
+    const designKeys = ['backgroundColor', 'color', 'borderColor', 'divideColor', 'textDecorationColor'] as const;
+    let designChanged = false;
+    const newDesign = { ...updated.design };
+
+    for (const dKey of designKeys) {
+      const dcv = newDesign[dKey];
+      if (dcv) {
+        const cleaned = cleanDesignColorForDeletedField(dcv, deletedFieldId);
+        if (cleaned !== dcv) {
+          (newDesign as Record<string, DesignColorVariable | undefined>)[dKey] = cleaned;
+          designChanged = true;
+        }
+      }
+    }
+
+    if (designChanged) {
+      updated.design = newDesign;
+      changed = true;
+    }
+  }
+
+  // --- Conditional visibility ---
+  if (updated.conditionalVisibility?.groups) {
+    let visChanged = false;
+    const cleanedGroups = updated.conditionalVisibility.groups.map(group => {
+      const cleanedConditions = group.conditions.filter(c => {
+        if (c.source === 'collection_field' && c.fieldId === deletedFieldId) {
+          visChanged = true;
+          return false;
+        }
+        return true;
+      });
+      return visChanged ? { ...group, conditions: cleanedConditions } : group;
+    });
+
+    if (visChanged) {
+      updated.conditionalVisibility = { groups: cleanedGroups };
+      changed = true;
+    }
+  }
+
+  // --- Collection filters (references deleted field) ---
+  if (updated.collection?.filters?.groups) {
+    let filterChanged = false;
+    const cleanedGroups = updated.collection.filters.groups.map(group => {
+      const cleanedConditions = group.conditions.filter(c => {
+        if (c.fieldId === deletedFieldId) {
+          filterChanged = true;
+          return false;
+        }
+        return true;
+      });
+      return filterChanged ? { ...group, conditions: cleanedConditions } : group;
+    });
+
+    if (filterChanged) {
+      updated.collection = { ...updated.collection, filters: { groups: cleanedGroups } };
+      changed = true;
+    }
+  }
+
+  return changed ? updated : null;
+}
+
+/**
+ * Strip inline variable tags from text that reference a specific deleted field.
+ */
+function stripInlineVariablesForDeletedField(text: string, deletedFieldId: string): string | null {
+  if (!text) return null;
+
+  let changed = false;
+  const result = text.replace(INLINE_VAR_REGEX, (match, content) => {
+    try {
+      const parsed = JSON.parse(content.trim());
+      if (parsed.type === 'field' && parsed.data) {
+        if (parsed.data.field_id === deletedFieldId || parsed.data.relationships?.includes(deletedFieldId)) {
+          changed = true;
+          return '';
+        }
+      }
+    } catch {
+      // Not valid JSON
+    }
+    return match;
+  });
+
+  return changed ? result : null;
+}
+
+/**
+ * Clean Tiptap JSON content by removing dynamicVariable nodes referencing a deleted field.
+ */
+function cleanTiptapContentForDeletedField(content: object, deletedFieldId: string): object | null {
+  if (!content || typeof content !== 'object') return null;
+
+  let changed = false;
+  const doc = content as { type?: string; content?: any[] };
+
+  if (!doc.content || !Array.isArray(doc.content)) return null;
+
+  const cleanedBlocks = doc.content.map((block: any) => {
+    if (!block.content || !Array.isArray(block.content)) return block;
+
+    const cleanedNodes = block.content.filter((node: any) => {
+      if (node.type === 'dynamicVariable' && node.attrs?.variable) {
+        const fv = node.attrs.variable;
+        if (fv.type === 'field' && fv.data) {
+          if (fv.data.field_id === deletedFieldId || fv.data.relationships?.includes(deletedFieldId)) {
+            changed = true;
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+
+    if (cleanedNodes.length !== block.content.length) {
+      return { ...block, content: cleanedNodes };
+    }
+    return block;
+  });
+
+  return changed ? { ...doc, content: cleanedBlocks } : null;
+}
+
+/**
+ * Clean a DesignColorVariable for a deleted field.
+ */
+function cleanDesignColorForDeletedField(dcv: DesignColorVariable, deletedFieldId: string): DesignColorVariable {
+  let changed = false;
+  const result = { ...dcv };
+
+  if (result.field?.type === 'field' && (result.field.data?.field_id === deletedFieldId || result.field.data?.relationships?.includes(deletedFieldId))) {
+    result.field = undefined;
+    changed = true;
+  }
+
+  if (result.linear?.stops) {
+    const cleanedStops = result.linear.stops.map(stop => {
+      if (stop.field?.type === 'field' && (stop.field.data?.field_id === deletedFieldId || stop.field.data?.relationships?.includes(deletedFieldId))) {
+        changed = true;
+        const { field: _, ...rest } = stop;
+        return rest;
+      }
+      return stop;
+    });
+    if (changed) result.linear = { ...result.linear, stops: cleanedStops };
+  }
+
+  if (result.radial?.stops) {
+    let radialChanged = false;
+    const cleanedStops = result.radial.stops.map(stop => {
+      if (stop.field?.type === 'field' && (stop.field.data?.field_id === deletedFieldId || stop.field.data?.relationships?.includes(deletedFieldId))) {
+        radialChanged = true;
+        const { field: _, ...rest } = stop;
+        return rest;
+      }
+      return stop;
+    });
+    if (radialChanged) {
+      result.radial = { ...result.radial, stops: cleanedStops };
+      changed = true;
+    }
+  }
+
+  return changed ? result : dcv;
+}
+
+/**
+ * Helper to replace a single layer in the tree by ID.
+ */
+function replaceLayerInTree(layers: Layer[], layerId: string, replacement: Layer): Layer[] {
+  return layers.map(layer => {
+    if (layer.id === layerId) return replacement;
+    if (layer.children) {
+      const updatedChildren = replaceLayerInTree(layer.children, layerId, replacement);
+      if (updatedChildren !== layer.children) {
+        return { ...layer, children: updatedChildren };
+      }
+    }
+    return layer;
+  });
+}
+
+/**
+ * Find the parent layer and sibling index for a target layer ID
+ * @returns Parent layer (null if root-level) and the index within the parent's children
+ */
+export function findParentAndIndex(
+  layers: Layer[],
+  targetId: string,
+  parent: Layer | null = null
+): { parent: Layer | null; index: number } | null {
+  for (let i = 0; i < layers.length; i++) {
+    if (layers[i].id === targetId) {
+      return { parent, index: i };
+    }
+    if (layers[i].children && layers[i].children!.length > 0) {
+      const found = findParentAndIndex(layers[i].children!, targetId, layers[i]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Insert a layer after a target position identified by parent and index
+ */
+export function insertLayerAfter(
+  layers: Layer[],
+  parentLayer: Layer | null,
+  insertIndex: number,
+  newLayer: Layer
+): Layer[] {
+  if (parentLayer === null) {
+    const newList = [...layers];
+    newList.splice(insertIndex + 1, 0, newLayer);
+    return newList;
+  }
+  return layers.map(l => {
+    if (l.id === parentLayer.id) {
+      const children = [...(l.children || [])];
+      children.splice(insertIndex + 1, 0, newLayer);
+      return { ...l, children };
+    }
+    if (l.children && l.children.length > 0) {
+      return { ...l, children: insertLayerAfter(l.children, parentLayer, insertIndex, newLayer) };
+    }
+    return l;
+  });
+}
+
+/**
+ * Recursively update a layer's properties by ID
+ */
+export function updateLayerProps(
+  layers: Layer[],
+  targetId: string,
+  props: Partial<Layer>
+): Layer[] {
+  return layers.map(layer => {
+    if (layer.id === targetId) {
+      return { ...layer, ...props };
+    }
+    if (layer.children && layer.children.length > 0) {
+      return { ...layer, children: updateLayerProps(layer.children, targetId, props) };
     }
     return layer;
   });

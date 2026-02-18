@@ -14,18 +14,25 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInput } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useFontsStore } from '@/stores/useFontsStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
 import { removeSpaces } from '@/lib/utils';
-import type { Layer } from '@/types';
-import ColorPicker from './ColorPicker';
+import { getFontAvailableWeights, FONT_WEIGHTS } from '@/lib/font-utils';
+import type { Collection, CollectionField, Layer } from '@/types';
+import type { FieldGroup } from '@/lib/collection-field-utils';
+import ColorPropertyField from './ColorPropertyField';
+import FontPicker from './FontPicker';
 
 interface TypographyControlsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   activeTextStyleKey?: string | null;
+  fieldGroups?: FieldGroup[];
+  allFields?: Record<string, CollectionField[]>;
+  collections?: Collection[];
 }
 
-export default function TypographyControls({ layer, onLayerUpdate, activeTextStyleKey }: TypographyControlsProps) {
+export default function TypographyControls({ layer, onLayerUpdate, activeTextStyleKey, fieldGroups, allFields, collections }: TypographyControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
   const showTextStyleControls = useEditorStore((state) => state.showTextStyleControls());
   const { updateDesignProperty, updateDesignProperties, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
@@ -36,8 +43,10 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
     activeTextStyleKey,
   });
 
+  const { getFontByFamily } = useFontsStore();
+
   // Get current values from layer (with inheritance)
-  const fontFamily = getDesignProperty('typography', 'fontFamily') || 'sans';
+  const fontFamily = getDesignProperty('typography', 'fontFamily') || '';
   const fontWeightRaw = getDesignProperty('typography', 'fontWeight') || 'normal';
   const fontSize = getDesignProperty('typography', 'fontSize') || '';
   const textAlign = getDesignProperty('typography', 'textAlign') || 'left';
@@ -49,6 +58,10 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
   const textDecorationColor = getDesignProperty('typography', 'textDecorationColor') || '';
   const textDecorationThickness = getDesignProperty('typography', 'textDecorationThickness') || '';
   const underlineOffset = getDesignProperty('typography', 'underlineOffset') || '';
+
+  // Get available weights for the selected font
+  const selectedFont = getFontByFamily(fontFamily);
+  const availableWeights = selectedFont ? getFontAvailableWeights(selectedFont) : [];
 
   // Detect if underline is active
   const hasUnderline = textDecoration === 'underline';
@@ -143,10 +156,16 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
     debouncedUpdateDesignProperty('typography', 'lineHeight', sanitized || null);
   };
 
-  // Handle color change (debounced for text input)
+  // Debounced handler for keyboard-typed hex values
   const handleColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('typography', 'color', sanitized || null);
+  };
+
+  // Immediate handler for programmatic changes
+  const handleColorImmediate = (value: string) => {
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('typography', 'color', sanitized || null);
   };
 
   // Add underline with defaults
@@ -169,10 +188,16 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
     ]);
   };
 
-  // Handle decoration color change (debounced)
+  // Debounced handler for keyboard-typed hex values
   const handleDecorationColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('typography', 'textDecorationColor', sanitized || null);
+  };
+
+  // Immediate handler for programmatic changes
+  const handleDecorationColorImmediate = (value: string) => {
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('typography', 'textDecorationColor', sanitized || null);
   };
 
   // Handle decoration thickness change (debounced for text input)
@@ -231,20 +256,11 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
           <>
             <div className="grid grid-cols-3">
               <Label variant="muted">Font</Label>
-              <div className="col-span-2 *:w-full">
-                <Select value={fontFamily} onValueChange={handleFontFamilyChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="inherit">Inherit</SelectItem>
-                      <SelectItem value="sans">Sans</SelectItem>
-                      <SelectItem value="serif">Serif</SelectItem>
-                      <SelectItem value="mono">Mono</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+              <div className="col-span-2">
+                <FontPicker
+                  value={fontFamily}
+                  onChange={handleFontFamilyChange}
+                />
               </div>
             </div>
 
@@ -257,15 +273,27 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="thin">Thin</SelectItem>
-                      <SelectItem value="extralight">Extralight</SelectItem>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="normal">Regular</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="semibold">Semibold</SelectItem>
-                      <SelectItem value="bold">Bold</SelectItem>
-                      <SelectItem value="extrabold">Extrabold</SelectItem>
-                      <SelectItem value="black">Black</SelectItem>
+                      {availableWeights.length > 0 ? (
+                        FONT_WEIGHTS
+                          .filter(w => availableWeights.includes(w.value))
+                          .map(w => (
+                            <SelectItem key={w.value} value={fontWeightMap[w.value] || w.value}>
+                              {w.label}
+                            </SelectItem>
+                          ))
+                      ) : (
+                        <>
+                          <SelectItem value="thin">Thin</SelectItem>
+                          <SelectItem value="extralight">Extralight</SelectItem>
+                          <SelectItem value="light">Light</SelectItem>
+                          <SelectItem value="normal">Regular</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="semibold">Semibold</SelectItem>
+                          <SelectItem value="bold">Bold</SelectItem>
+                          <SelectItem value="extrabold">Extrabold</SelectItem>
+                          <SelectItem value="black">Black</SelectItem>
+                        </>
+                      )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
@@ -291,10 +319,17 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
         <div className="grid grid-cols-3">
           <Label variant="muted">Color</Label>
           <div className="col-span-2 *:w-full">
-            <ColorPicker
+            <ColorPropertyField
               value={color}
               onChange={handleColorChange}
+              onImmediateChange={handleColorImmediate}
               defaultValue="#1c70d7"
+              layer={layer}
+              onLayerUpdate={onLayerUpdate}
+              designProperty="color"
+              fieldGroups={fieldGroups}
+              allFields={allFields}
+              collections={collections}
             />
           </div>
         </div>
@@ -344,7 +379,7 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
                   </div>
                 </InputGroupAddon>
                 <InputGroupInput
-                  className="!pr-0"
+                  className="pr-0!"
                   value={letterSpacingInput}
                   onChange={(e) => handleLetterSpacingChange(e.target.value)}
                   stepper
@@ -365,7 +400,7 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
                   </div>
                 </InputGroupAddon>
                 <InputGroupInput
-                  className="!pr-0"
+                  className="pr-0!"
                   value={lineHeightInput}
                   onChange={(e) => handleLineHeightChange(e.target.value)}
                   stepper
@@ -393,7 +428,7 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
                   </InputGroup>
                 </PopoverTrigger>
 
-                <PopoverContent className="w-[255px] mr-4">
+                <PopoverContent className="w-64 mr-4">
                   <div className="flex flex-col gap-2">
 
                     <div className="grid grid-cols-3 items-start">
@@ -427,10 +462,17 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
                     <div className="grid grid-cols-3">
                       <Label variant="muted">Color</Label>
                       <div className="col-span-2 *:w-full">
-                        <ColorPicker
+                        <ColorPropertyField
                           solidOnly
                           value={textDecorationColor || '#000000'}
                           onChange={handleDecorationColorChange}
+                          onImmediateChange={handleDecorationColorImmediate}
+                          layer={layer}
+                          onLayerUpdate={onLayerUpdate}
+                          designProperty="textDecorationColor"
+                          fieldGroups={fieldGroups}
+                          allFields={allFields}
+                          collections={collections}
                         />
                       </div>
                     </div>

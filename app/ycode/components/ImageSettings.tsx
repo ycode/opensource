@@ -354,7 +354,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
 
   // Shared source picker content
   const sourcePickerContent = (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-3">
       {/* Source Section */}
       <div className={isStandaloneMode ? '' : 'grid grid-cols-3 items-center'}>
         {!isStandaloneMode && (

@@ -365,11 +365,18 @@ export async function publishCollection(id: string): Promise<Collection> {
 
 }
 
+/** Check if draft collection metadata differs from published */
+function hasCollectionChanged(draft: Collection, published: Collection): boolean {
+  return (
+    draft.name !== published.name ||
+    draft.order !== published.order
+  );
+}
+
 /**
- * Get all unpublished collections
- * A collection needs publishing if:
- * - Published version doesn't exist, OR
- * - Draft data differs from published data
+ * Get all unpublished collections.
+ * A collection needs publishing if no published version exists or draft data differs.
+ * Uses batch query instead of N+1.
  */
 export async function getUnpublishedCollections(): Promise<Collection[]> {
   const client = await getSupabaseAdmin();
@@ -381,30 +388,32 @@ export async function getUnpublishedCollections(): Promise<Collection[]> {
   // Get all draft collections
   const draftCollections = await getAllCollections({ is_published: false });
 
-  const unpublishedCollections: Collection[] = [];
-
-  for (const draft of draftCollections) {
-    // Check if published version exists
-    const published = await getCollectionById(draft.id, true);
-
-    if (!published) {
-      // Never published
-      unpublishedCollections.push(draft);
-      continue;
-    }
-
-    // Check if draft differs from published
-    const hasChanges =
-    draft.name !== published.name ||
-    JSON.stringify(draft.sorting) !== JSON.stringify(published.sorting) ||
-    draft.order !== published.order;
-
-    if (hasChanges) {
-      unpublishedCollections.push(draft);
-    }
+  if (draftCollections.length === 0) {
+    return [];
   }
 
-  return unpublishedCollections;
+  // Batch fetch all published collections for comparison
+  const draftIds = draftCollections.map(c => c.id);
+  const { data: publishedCollections, error: publishedError } = await client
+    .from('collections')
+    .select('*')
+    .in('id', draftIds)
+    .eq('is_published', true);
+
+  if (publishedError) {
+    throw new Error(`Failed to fetch published collections: ${publishedError.message}`);
+  }
+
+  const publishedById = new Map<string, Collection>();
+  (publishedCollections || []).forEach(c => publishedById.set(c.id, c));
+
+  return draftCollections.filter(draft => {
+    const published = publishedById.get(draft.id);
+    if (!published) {
+      return true; // Never published
+    }
+    return hasCollectionChanged(draft, published);
+  });
 }
 
 /**

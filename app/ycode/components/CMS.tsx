@@ -1428,8 +1428,8 @@ const CMS = React.memo(function CMS() {
           items={sortedItems.map(item => item.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="flex flex-col">
-            <table className="border-0 whitespace-nowrap text-xs min-w-full align-top border-separate border-spacing-[0px] [&>tbody>tr>td]:border-b [&>tbody>tr>td]:max-w-56">
+          <div className="flex flex-col flex-1">
+            <table className="flex-1 border-0 whitespace-nowrap text-xs min-w-full align-top border-separate border-spacing-0 [&>tbody>tr>td]:border-b [&>tbody>tr>td]:max-w-56">
               <thead className="">
                 <tr className="">
                   <th className="pl-5 pr-3 py-5 text-left font-normal w-12 sticky top-0 z-10 bg-background border-b border-border">
@@ -1557,7 +1557,7 @@ const CMS = React.memo(function CMS() {
                     lockInfo={getItemLockInfo(item.id)}
                   >
                     <td
-                      className="pl-5 pr-3 py-3 w-12 !border-b-0"
+                      className="pl-5 pr-3 py-3 w-12 border-b-0!"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!isManualMode) {
@@ -1807,6 +1807,25 @@ const CMS = React.memo(function CMS() {
                         );
                       }
 
+                      // Color fields - display as color swatch
+                      if (field.type === 'color' && value) {
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4 py-5 text-muted-foreground"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="size-5 rounded border border-white/10 shrink-0"
+                                style={{ backgroundColor: value as string }}
+                              />
+                              <span className="text-xs">{value}</span>
+                            </div>
+                          </td>
+                        );
+                      }
+
                       // Boolean fields - display as readonly switch
                       if (field.type === 'boolean') {
                         const isTrue = isTruthyBooleanValue(value);
@@ -1845,13 +1864,20 @@ const CMS = React.memo(function CMS() {
                 ))
               ) : (
                 <tr className="group">
-                  <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4">
-                    {searchQuery && collectionItems.length > 0 ? (
-                      <div className="text-muted-foreground py-32">
+                  <td colSpan={collectionFields.filter(f => !f.hidden).length + 3} className="px-4">
+                    {searchQuery ? (
+                      <div className="text-muted-foreground py-32 text-center">
                         No items found matching &quot;{searchQuery}&quot;
                       </div>
                     ) : (
-                      <div></div>
+                      <div className="flex flex-col items-center justify-center gap-4 py-32">
+                        <Empty className="max-w-sm">
+                          <EmptyTitle>No Items</EmptyTitle>
+                          <EmptyDescription>
+                            This collection has no items yet. Add your first item to get started.
+                          </EmptyDescription>
+                        </Empty>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -2061,19 +2087,6 @@ const CMS = React.memo(function CMS() {
               <Icon name="plus" />
               Add Field
             </Button>
-          </div>
-        ) : !showSkeleton && sortedItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 p-8 flex-1">
-            <Empty className="max-w-sm">
-              <EmptyTitle>No Items</EmptyTitle>
-              <EmptyDescription>
-                This collection has no items yet. Add your first item to get started.
-              </EmptyDescription>
-              <Button onClick={handleCreateItem} variant="secondary">
-                <Icon name="plus" />
-                New Item
-              </Button>
-            </Empty>
           </div>
         ) : (
           <>

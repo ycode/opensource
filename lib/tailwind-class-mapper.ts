@@ -10,6 +10,73 @@ import { cn } from '@/lib/utils';
 import { getBreakpointPrefix } from './breakpoint-utils';
 
 /**
+ * Build a CSS custom property name for background image per breakpoint/state.
+ * Omits suffixes for defaults: desktop→no bp suffix, neutral→no state suffix.
+ *
+ * Examples:
+ *  ('desktop','neutral') → '--bg-img'
+ *  ('mobile','neutral')  → '--bg-img-mobile'
+ *  ('desktop','hover')   → '--bg-img-hover'
+ *  ('tablet','focus')    → '--bg-img-tablet-focus'
+ */
+export function buildBgImgVarName(breakpoint: Breakpoint, uiState: UIState): string {
+  const parts = ['--bg-img'];
+  if (breakpoint !== 'desktop') parts.push(breakpoint);
+  if (uiState !== 'neutral') parts.push(uiState);
+  return parts.join('-');
+}
+
+/**
+ * Combine background image URL and gradient into a single CSS `background-image` value.
+ * Returns comma-separated layers when both exist (image renders on top of gradient).
+ */
+export function combineBgValues(imageUrl?: string, gradient?: string): string {
+  return [imageUrl, gradient].filter(Boolean).join(', ');
+}
+
+/**
+ * Merge bgImageVars and bgGradientVars into a single record of combined CSS variable values.
+ * Used by both client LayerRenderer and SSR page-fetcher.
+ */
+export function mergeStaticBgVars(
+  imgVars?: Record<string, string>,
+  gradVars?: Record<string, string>,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  const allKeys = new Set([
+    ...Object.keys(imgVars || {}),
+    ...Object.keys(gradVars || {}),
+  ]);
+  for (const key of allKeys) {
+    const combined = combineBgValues(imgVars?.[key], gradVars?.[key]);
+    if (combined) result[key] = combined;
+  }
+  return result;
+}
+
+// Regex to detect background-image CSS variable classes — built via new RegExp
+// to prevent Tailwind's source scanner from extracting phantom class candidates
+const _bgVarPat = '--bg-img(?:-[\\w]+)*';
+const BG_IMG_VAR_RE = new RegExp(
+  '^(?:bg-\\[image:var\\(' + _bgVarPat + '\\)\\]|bg-\\(' + _bgVarPat + '\\))$'
+);
+
+/** Prefix used for background-image CSS variable classes */
+const BG_IMG_CLASS_PREFIX = 'bg-' + '[image:var(';
+
+/** Build the Tailwind class for a background-image CSS variable */
+export function buildBgImgClass(varName: string): string {
+  return BG_IMG_CLASS_PREFIX + varName + ')]';
+}
+
+/** Extract the CSS variable name from a background-image CSS variable class */
+export function extractBgImgVarName(cls: string): string | null {
+  if (cls.startsWith(BG_IMG_CLASS_PREFIX)) return cls.slice(BG_IMG_CLASS_PREFIX.length, -2);
+  if (cls.startsWith('bg-(' + '--bg-img')) return cls.slice(3, -1);
+  return null;
+}
+
+/**
  * Helper: Check if a value looks like a color (hex, rgb, rgba, hsl, hsla, or color name)
  * Used to distinguish between text-[color] and text-[size] arbitrary values
  */
@@ -167,6 +234,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   backgroundPosition: /^bg-(bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|\[.+\])$/,
   backgroundRepeat: /^bg-(repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space)$/,
   backgroundImage: /^bg-(none|gradient-to-t|gradient-to-tr|gradient-to-r|gradient-to-br|gradient-to-b|gradient-to-bl|gradient-to-l|gradient-to-tl|\[.+\])$/,
+  backgroundClip: /^bg-clip-(text|border|padding|content)$/,
 
   // Borders
   borderWidth: /^border(-\d+|-\[(?!#|rgb).+\])?$/,
@@ -289,6 +357,13 @@ export function removeConflictingClasses(
           return true; // Keep this class, it's a size not a color
         }
       }
+    }
+
+    // Background-image CSS variable classes are always backgroundImage
+    if (BG_IMG_VAR_RE.test(baseClass)) {
+      if (property === 'backgroundColor') return true;
+      if (property === 'backgroundImage') return false;
+      return true;
     }
 
     // Special handling for bg-[...] arbitrary values
@@ -429,8 +504,10 @@ export function propertyToClass(
         // Always use arbitrary values for numeric weights
         return value.match(/^\d/) ? `font-[${value}]` : `font-${value}`;
       case 'fontFamily':
-        // Use arbitrary values for custom fonts (containing spaces, commas, etc)
-        return value.match(/[,\s]|^["']/) ? `font-[${value}]` : `font-${value}`;
+        // Built-in fonts: sans, serif, mono → font-sans, font-serif, font-mono
+        if (['sans', 'serif', 'mono'].includes(value)) return `font-${value}`;
+        // Google/custom fonts: replace spaces with underscores for Tailwind arbitrary values
+        return `font-[${value.replace(/\s+/g, '_')}]`;
       case 'lineHeight':
         return value.match(/^\d/) ? `leading-[${value}]` : `leading-${value}`;
       case 'letterSpacing':
@@ -630,6 +707,7 @@ export function propertyToClass(
         }
         return `bg-${value}`;
       case 'backgroundImage':
+        if (value.startsWith('--bg-img')) return buildBgImgClass(value);
         if (value.startsWith('url(')) return `bg-[${value}]`;
         return `bg-${value}`;
       case 'backgroundSize':
@@ -639,6 +717,8 @@ export function propertyToClass(
       case 'backgroundRepeat':
         if (value === 'no-repeat') return 'bg-no-repeat';
         return `bg-${value}`;
+      case 'backgroundClip':
+        return `bg-clip-${value}`;
     }
   }
 
@@ -744,9 +824,13 @@ export function getAffectedProperties(className: string): string[] {
   // Strip breakpoint and state prefixes for helper class detection
   const baseClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
 
-  // Special handling for text gradient helper classes
-  // bg-clip-text and text-transparent are part of text gradient implementation
-  if (baseClass === 'bg-clip-text' || baseClass === 'text-transparent') {
+  // bg-clip-* classes affect backgroundClip; bg-clip-text also participates in text gradients
+  if (baseClass.startsWith('bg-clip-')) {
+    properties.push('backgroundClip');
+    if (baseClass === 'bg-clip-text') properties.push('color');
+    return properties;
+  }
+  if (baseClass === 'text-transparent') {
     properties.push('color');
     return properties;
   }
@@ -785,6 +869,12 @@ export function getAffectedProperties(className: string): string[] {
         return properties;
       }
     }
+  }
+
+  // Background-image CSS variable classes are always backgroundImage
+  if (BG_IMG_VAR_RE.test(baseClass)) {
+    properties.push('backgroundImage');
+    return properties;
   }
 
   // Special handling for bg-[...] arbitrary values
@@ -1009,15 +1099,18 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls === 'font-extrabold') design.typography!.fontWeight = '800';
     if (cls === 'font-black') design.typography!.fontWeight = '900';
 
-    // Font Family (arbitrary values)
-    if (cls.startsWith('font-[') && (cls.includes('sans') || cls.includes('serif') || cls.includes('mono') || cls.includes(','))) {
+    // Font Family (arbitrary values - Google/custom fonts with underscores as space replacements)
+    if (cls.startsWith('font-[') && !cls.match(/^font-\[\d/)) {
       const value = extractArbitraryValue(cls);
-      if (value) design.typography!.fontFamily = value;
+      if (value) {
+        // Convert underscores back to spaces for font family names
+        design.typography!.fontFamily = value.replace(/_/g, ' ');
+      }
     }
     // Font Family (named values)
-    if (cls === 'font-sans') design.typography!.fontFamily = 'sans-serif';
+    if (cls === 'font-sans') design.typography!.fontFamily = 'sans';
     if (cls === 'font-serif') design.typography!.fontFamily = 'serif';
-    if (cls === 'font-mono') design.typography!.fontFamily = 'monospace';
+    if (cls === 'font-mono') design.typography!.fontFamily = 'mono';
 
     // Text Align
     if (cls === 'text-left') design.typography!.textAlign = 'left';
@@ -1267,6 +1360,16 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
         design.backgrounds!.backgroundColor = value;
       }
     }
+    // Background Image via CSS variable class
+    if (BG_IMG_VAR_RE.test(cls)) {
+      const varName = extractBgImgVarName(cls);
+      if (varName) design.backgrounds!.backgroundImage = varName;
+    }
+    // Background Clip (skip when it's part of a text gradient — that's managed by typography.color)
+    if (cls.startsWith('bg-clip-') && !(hasBgClipText && hasTextTransparent && gradientBgClass)) {
+      const value = cls.replace('bg-clip-', '');
+      design.backgrounds!.backgroundClip = value;
+    }
 
     // ===== EFFECTS =====
     // Opacity
@@ -1500,7 +1603,8 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
   const baseClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
 
   // Special handling for text color property
-  // Include gradient-related classes (bg-[gradient], bg-clip-text, text-transparent)
+  // Include gradient-related classes (bg-[gradient], text-transparent) but NOT bg-clip-text
+  // bg-clip-text is a helper/modifier, not an actual color value
   if (property === 'color') {
     // Include bg-[gradient] for text gradient
     if (baseClass.startsWith('bg-[')) {
@@ -1509,9 +1613,9 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
         return true; // This is a text gradient
       }
     }
-    // Include bg-clip-text (part of text gradient)
+    // Exclude bg-clip-text — it's managed by the backgrounds "Clip text" toggle
     if (baseClass === 'bg-clip-text') {
-      return true;
+      return false;
     }
     // Include text-transparent (part of text gradient)
     if (baseClass === 'text-transparent') {
@@ -1537,6 +1641,17 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
   // First check if pattern matches (use baseClass)
   if (!pattern.test(baseClass)) return false;
 
+  // Smart filtering for font-[...] arbitrary values (fontWeight vs fontFamily)
+  // font-[700] is a weight (starts with digit), font-[Inter] is a family
+  if (baseClass.startsWith('font-[')) {
+    const value = extractArbitraryValue(baseClass);
+    if (value) {
+      const isNumeric = /^\d/.test(value);
+      if (property === 'fontWeight' && !isNumeric) return false;
+      if (property === 'fontFamily' && isNumeric) return false;
+    }
+  }
+
   // Special handling for text-[...] arbitrary values (fontSize vs color)
   if (baseClass.startsWith('text-[')) {
     const value = extractArbitraryValue(baseClass);
@@ -1553,6 +1668,12 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
         return false;
       }
     }
+  }
+
+  // Background-image CSS variable classes are always backgroundImage
+  if (BG_IMG_VAR_RE.test(baseClass)) {
+    if (property === 'backgroundImage') return true;
+    return false;
   }
 
   // Special handling for bg-[...] arbitrary values (backgroundColor vs backgroundImage)
@@ -1733,12 +1854,26 @@ export function setBreakpointClass(
 
   // Remove existing class for this property + breakpoint + state
   // Use smart filtering to preserve text-[color] when adding text-[size] and vice versa
-  const newClasses = classes.filter(cls => {
+  let newClasses = classes.filter(cls => {
     const parsed = parseFullClass(cls);
     if (parsed.breakpoint !== breakpoint || parsed.uiState !== uiState) return true;
     // Use smart filtering instead of plain pattern test
     return !shouldIncludeClassForProperty(parsed.baseClass, property, pattern);
   });
+
+  // When setting a solid color (not gradient, not transparent), also remove bg-clip-text
+  if (property === 'color' && newClass) {
+    const baseNew = newClass.split(' ')[0];
+    const isGradient = newClass.includes('bg-clip-text');
+    const isTransparent = baseNew === 'text-transparent';
+    if (!isGradient && !isTransparent) {
+      newClasses = newClasses.filter(cls => {
+        const parsed = parseFullClass(cls);
+        if (parsed.breakpoint !== breakpoint || parsed.uiState !== uiState) return true;
+        return parsed.baseClass !== 'bg-clip-text';
+      });
+    }
+  }
 
   // Add new class if value is provided
   if (newClass) {

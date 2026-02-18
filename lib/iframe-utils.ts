@@ -8,10 +8,17 @@
 
 /**
  * Get the current scale factor applied to the iframe (via its parent wrapper).
- * The zoom is applied as a CSS transform on the wrapper div, not the iframe itself.
+ * The zoom is applied as CSS zoom on the wrapper div, not the iframe itself.
  */
 export function getIframeScale(iframe: HTMLIFrameElement): number {
   const wrapper = iframe.parentElement;
+  // Read from CSS zoom property
+  const zoomValue = wrapper?.style.zoom;
+  if (zoomValue) {
+    const parsed = parseFloat(zoomValue);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  // Fallback to transform scale
   const transform = wrapper?.style.transform || '';
   const match = transform.match(/scale\(([\d.]+)\)/);
   return match ? parseFloat(match[1]) : 1;

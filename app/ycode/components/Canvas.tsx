@@ -18,7 +18,9 @@ import { createRoot, Root } from 'react-dom/client';
 import LayerRenderer from '@/components/LayerRenderer';
 import { serializeLayers } from '@/lib/layer-utils';
 import { collectEditorHiddenLayerIds } from '@/lib/animation-utils';
+import { getCanvasIframeHtml } from '@/lib/canvas-utils';
 import { cn } from '@/lib/utils';
+import { useFontsStore } from '@/stores/useFontsStore';
 
 import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, Asset, ComponentVariable } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
@@ -61,6 +63,8 @@ interface CanvasProps {
   onDeleteLayer?: () => void;
   /** Callback when content height changes */
   onContentHeightChange?: (height: number) => void;
+  /** Callback when content width changes (used in component editing mode) */
+  onContentWidthChange?: (width: number) => void;
   /** Callback when gap is updated */
   onGapUpdate?: (layerId: string, gapValue: string) => void;
   /** Callback when zoom gesture is detected */
@@ -110,6 +114,7 @@ interface CanvasContentProps {
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
   editingComponentVariables?: ComponentVariable[];
+  editingComponentId?: string | null;
   editorHiddenLayerIds?: Map<string, Breakpoint[]>;
   editorBreakpoint?: Breakpoint;
 }
@@ -126,6 +131,7 @@ function CanvasContent({
   liveLayerUpdates,
   liveComponentUpdates,
   editingComponentVariables,
+  editingComponentId,
   editorHiddenLayerIds,
   editorBreakpoint,
 }: CanvasContentProps) {
@@ -141,7 +147,7 @@ function CanvasContent({
     <div
       id="canvas-body"
       data-layer-id="body"
-      className="h-full min-h-full bg-white"
+      className={cn('h-full min-h-full', editingComponentId ? 'bg-transparent' : 'bg-white')}
       onClick={handleBodyClick}
     >
       {layers.length > 0 ? (
@@ -194,6 +200,7 @@ export default function Canvas({
   onLayerUpdate,
   onDeleteLayer,
   onContentHeightChange,
+  onContentWidthChange,
   onGapUpdate,
   onZoomGesture,
   onZoomIn,
@@ -279,37 +286,29 @@ export default function Canvas({
       // Double-check we haven't already initialized
       if (rootRef.current) return;
 
-      // Write the initial HTML with Tailwind Browser CDN
+      // Write the initial HTML with Tailwind Browser CDN (shared template)
       doc.open();
-      doc.write(`
-<!DOCTYPE html>
-<html style="height: 100%;">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <style type="text/tailwindcss">
-    @theme {
-      /* Use default Tailwind theme */
-    }
-  </style>
-  <link rel="stylesheet" href="/canvas.css">
-  <!-- GSAP for animations (now free thanks to Webflow) -->
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/SplitText.min.js"></script>
-  <script>
-    // Register SplitText plugin in iframe context
-    if (typeof gsap !== 'undefined' && typeof SplitText !== 'undefined') {
-      gsap.registerPlugin(SplitText);
-    }
-  </script>
-</head>
-<body style="margin: 0; padding: 0; height: 100%;">
-  <div id="canvas-mount" style="height: 100%;"></div>
-</body>
-</html>
-      `);
+      doc.write(getCanvasIframeHtml('canvas-mount'));
       doc.close();
+
+      // Load GSAP for animations in the canvas iframe
+      const gsapScript = doc.createElement('script');
+      gsapScript.src = 'https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js';
+      gsapScript.onload = () => {
+        const splitTextScript = doc.createElement('script');
+        splitTextScript.src = 'https://cdn.jsdelivr.net/npm/gsap@3/dist/SplitText.min.js';
+        splitTextScript.onload = () => {
+          const initScript = doc.createElement('script');
+          initScript.textContent = `
+            if (typeof gsap !== 'undefined' && typeof SplitText !== 'undefined') {
+              gsap.registerPlugin(SplitText);
+            }
+          `;
+          doc.head.appendChild(initScript);
+        };
+        doc.head.appendChild(splitTextScript);
+      };
+      doc.head.appendChild(gsapScript);
 
       // Wait for Tailwind to initialize
       setTimeout(() => {
@@ -360,6 +359,16 @@ export default function Canvas({
     }
   }, [iframeReady, onIframeReady]);
 
+  // Inject font CSS into the canvas iframe when fonts change
+  const fontsCss = useFontsStore((state) => state.fontsCss);
+  const injectFontsCss = useFontsStore((state) => state.injectFontsCss);
+
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+    const iframeDoc = iframeRef.current.contentDocument;
+    injectFontsCss(iframeDoc);
+  }, [iframeReady, fontsCss, injectFontsCss]);
+
   // Render content into iframe
   useEffect(() => {
     if (!iframeReady || !rootRef.current) return;
@@ -377,6 +386,7 @@ export default function Canvas({
         liveLayerUpdates={liveLayerUpdates}
         liveComponentUpdates={liveComponentUpdates}
         editingComponentVariables={editingComponentVariables}
+        editingComponentId={editingComponentId}
         editorHiddenLayerIds={editorHiddenLayerIds}
         editorBreakpoint={breakpoint}
       />
@@ -384,6 +394,7 @@ export default function Canvas({
   }, [
     iframeReady,
     resolvedLayers,
+    editingComponentId,
     editingComponentVariables,
     selectedLayerId,
     effectiveHoveredLayerId,
@@ -515,32 +526,51 @@ export default function Canvas({
     return () => doc.removeEventListener('click', handleClick, true);
   }, [iframeReady, onCanvasClick]);
 
-  // Content height reporting
+  // Content size reporting (height always, width when callback provided)
   useEffect(() => {
     if (!iframeReady || !iframeRef.current || !onContentHeightChange) return;
 
     const doc = iframeRef.current.contentDocument;
     if (!doc) return;
 
-    const measureHeight = () => {
+    const measureContent = () => {
       const body = doc.body;
-      if (body) {
-        const height = Math.max(
-          body.scrollHeight,
-          body.offsetHeight,
-          doc.documentElement?.scrollHeight || 0,
-          doc.documentElement?.offsetHeight || 0
-        );
-        onContentHeightChange(Math.max(height, 100));
+      if (!body) return;
+
+      // Component editing mode: measure actual content bounding box from children
+      if (onContentWidthChange) {
+        const canvasBody = doc.getElementById('canvas-body');
+        if (canvasBody && canvasBody.children.length > 0) {
+          const bodyRect = canvasBody.getBoundingClientRect();
+          let maxChildWidth = 0;
+          let maxChildBottom = 0;
+          Array.from(canvasBody.children).forEach(child => {
+            const rect = (child as HTMLElement).getBoundingClientRect();
+            maxChildWidth = Math.max(maxChildWidth, rect.width);
+            maxChildBottom = Math.max(maxChildBottom, rect.bottom - bodyRect.top);
+          });
+          onContentWidthChange(maxChildWidth);
+          onContentHeightChange(maxChildBottom);
+          return;
+        }
       }
+
+      // Page mode: measure full document height
+      const height = Math.max(
+        body.scrollHeight,
+        body.offsetHeight,
+        doc.documentElement?.scrollHeight || 0,
+        doc.documentElement?.offsetHeight || 0
+      );
+      onContentHeightChange(Math.max(height, 100));
     };
 
     // Measure after render
-    const timeoutId = setTimeout(measureHeight, 100);
+    const timeoutId = setTimeout(measureContent, 100);
 
     // Observe for changes
     const observer = new MutationObserver(() => {
-      requestAnimationFrame(measureHeight);
+      requestAnimationFrame(measureContent);
     });
 
     observer.observe(doc.body, {
@@ -553,7 +583,7 @@ export default function Canvas({
       clearTimeout(timeoutId);
       observer.disconnect();
     };
-  }, [iframeReady, onContentHeightChange, resolvedLayers]);
+  }, [iframeReady, onContentHeightChange, onContentWidthChange, resolvedLayers]);
 
   // Handle zoom gestures from iframe (Ctrl+wheel, trackpad pinch)
   useEffect(() => {
@@ -586,7 +616,8 @@ export default function Canvas({
     <iframe
       ref={iframeRef}
       className={cn(
-        'w-full h-full border-0 bg-white'
+        'w-full h-full border-0',
+        editingComponentId ? 'bg-transparent' : 'bg-white'
       )}
       title="Canvas Editor"
       tabIndex={-1}

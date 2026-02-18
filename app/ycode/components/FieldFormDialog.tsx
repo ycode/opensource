@@ -34,6 +34,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import RichTextEditor from './RichTextEditor';
 import CollectionLinkFieldInput from './CollectionLinkFieldInput';
+import ColorFieldInput from './ColorFieldInput';
 import AssetFieldCard from './AssetFieldCard';
 import type { Asset, AssetCategoryFilter, CollectionField, CollectionFieldData, CollectionFieldType } from '@/types';
 
@@ -321,6 +322,11 @@ export default function FieldFormDialog({
                   />
                 ) : fieldType === 'link' ? (
                   <CollectionLinkFieldInput
+                    value={fieldDefault}
+                    onChange={setFieldDefault}
+                  />
+                ) : fieldType === 'color' ? (
+                  <ColorFieldInput
                     value={fieldDefault}
                     onChange={setFieldDefault}
                   />

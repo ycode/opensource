@@ -44,6 +44,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import CollectionLinkFieldInput from './CollectionLinkFieldInput';
+import ColorFieldInput from './ColorFieldInput';
 import AssetFieldCard from './AssetFieldCard';
 import type { Asset, CollectionItemWithValues } from '@/types';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -417,12 +418,16 @@ export default function CollectionItemSheet({
     setShowUnsavedDialog(false);
   }, []);
 
+  // Keep a stable ref to handleSubmit to avoid re-creating handleSaveFromDialog on every render
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+
   // Save changes from dialog, then close
   const handleSaveFromDialog = useCallback(async () => {
     setShowUnsavedDialog(false);
     // Trigger form submission programmatically
-    form.handleSubmit(handleSubmit)();
-  }, [form, handleSubmit]);
+    form.handleSubmit(handleSubmitRef.current)();
+  }, [form]);
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -511,6 +516,11 @@ export default function CollectionItemSheet({
                                 const utcValue = localDatetimeToUTC(e.target.value, timezone);
                                 formField.onChange(utcValue);
                               }}
+                            />
+                          ) : field.type === 'color' ? (
+                            <ColorFieldInput
+                              value={formField.value || ''}
+                              onChange={formField.onChange}
                             />
                           ) : isMultipleAssetField(field) ? (
                             /* Multiple Asset Field */

@@ -18,36 +18,45 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
-import {
-  Select,
-  SelectContent,
-  SelectGroup, SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
+/** CMS color field binding props (optional, for design property data-binding) */
+export interface ColorPickerBindingProps {
+  /** Whether CMS color fields are available for binding */
+  hasColorFields?: boolean;
+  /** Query binding state for a stop (null = solid) */
+  getBinding: (stopId: string | null) => { isBound: boolean; fieldName: string | null };
+  /** Bind a CMS field to a stop (null = solid) */
+  onBind: (stopId: string | null, fieldId: string, relationshipPath: string[], source?: string, layerId?: string) => void;
+  /** Unbind a stop (null = solid) */
+  onUnbind: (stopId: string | null) => void;
+  /** Sync gradient structure when stops change in the picker */
+  onGradientSync?: (mode: 'linear' | 'radial', stops: Array<{ id: string; position: number; color: string }>, angle?: number) => void;
+  /** Switch to solid mode, preserving gradient stops for later */
+  onSwitchToSolid?: () => void;
+  /** Render the field selector with a custom onSelect callback */
+  renderFieldSelector: (onSelect: (fieldId: string, relationshipPath: string[], source?: string, layerId?: string) => void) => React.ReactNode;
+}
 
 interface ColorPickerProps {
   value?: string;
+  /** Debounced change handler (used for keyboard-typed hex values) */
   onChange: (value: string) => void;
+  /** Immediate (non-debounced) handler for programmatic changes (tab switches, color picks, gradient stops) */
+  onImmediateChange?: (value: string) => void;
   defaultValue?: string;
   placeholder?: string;
-  solidOnly?: boolean; // Show only solid color tab (hide gradients and image)
-  // Additional props for background image mode
-  backgroundImageProps?: {
-    backgroundImage?: string;
-    backgroundSize?: string;
-    backgroundPosition?: string;
-    backgroundRepeat?: string;
-    onBackgroundImageChange?: (value: string, immediate?: boolean) => void;
-    onBackgroundSizeChange?: (value: string) => void;
-    onBackgroundPositionChange?: (value: string) => void;
-    onBackgroundRepeatChange?: (value: string) => void;
-  };
+  solidOnly?: boolean; // Show only solid color tab (hide gradients)
+  /** CMS color field binding (optional) */
+  binding?: ColorPickerBindingProps;
+  /** Called when the clear button is clicked (in addition to onChange('')) */
+  onClear?: () => void;
 }
 
 // Helper to convert hex/rgba to RgbaColor object
-// Supports formats: #hex, #hex/opacity, #hexhex (8-char with alpha), rgba(...)
+// Supports formats: #hex, #hex/opacity, #rrggbbaa (8-char with alpha), rgba(...)
 function parseColor(colorString: string): { r: number; g: number; b: number; a: number } {
   if (!colorString) return { r: 255, g: 255, b: 255, a: 1 };
 
@@ -377,7 +386,7 @@ function SaturationLightnessPicker({ hue, saturation, value, onChange }: Saturat
   return (
     <div
       ref={pickerRef}
-      className="relative w-full h-full rounded-md overflow-hidden touch-none outline outline-white/15 outline-offset-[-1px]"
+      className="relative w-full h-full rounded-md overflow-hidden touch-none outline outline-white/15 -outline-offset-1"
       style={{
         background: backgroundGradient,
         backgroundBlendMode: 'multiply',
@@ -462,7 +471,7 @@ function HueBar({ hue, onChange }: HueBarProps) {
     <div className="flex flex-col gap-2">
       <div
         ref={barRef}
-        className="relative h-3 w-full rounded-full outline outline-white/10 outline-offset-[-1px] cursor-pointer"
+        className="relative h-3 w-full rounded-full outline outline-white/10 -outline-offset-1 cursor-pointer"
         style={{ background: hueCSS }}
         onMouseDown={handleMouseDown}
       >
@@ -473,7 +482,7 @@ function HueBar({ hue, onChange }: HueBarProps) {
           )}
           style={{ left: `${position}%` }}
         >
-          <div className="size-3 rounded-full border-[1.5px] border-white flex items-center justify-center shadow-md pointer-events-none shadow-sm">
+          <div className="size-3 rounded-full border-[1.5px] border-white flex items-center justify-center shadow-md pointer-events-none">
           </div>
         </div>
       </div>
@@ -544,7 +553,7 @@ function OpacityBar({ opacity, color, onChange }: OpacityBarProps) {
     <div className="flex flex-col gap-2">
       <div
         ref={barRef}
-        className="relative h-3 w-full rounded-full outline outline-white/10 outline-offset-[-1px] cursor-pointer"
+        className="relative h-3 w-full rounded-full outline outline-white/10 -outline-offset-1 cursor-pointer"
         onMouseDown={handleMouseDown}
       >
         {/* Checkerboard pattern for transparency */}
@@ -569,7 +578,7 @@ function OpacityBar({ opacity, color, onChange }: OpacityBarProps) {
           )}
           style={{ left: `${position}%` }}
         >
-          <div className="size-3 rounded-full border-[1.5px] border-white flex items-center justify-center shadow-md pointer-events-none shadow-sm">
+          <div className="size-3 rounded-full border-[1.5px] border-white flex items-center justify-center shadow-md pointer-events-none">
           </div>
         </div>
       </div>
@@ -674,7 +683,7 @@ function GradientBar({
     <div className="flex flex-col gap-2">
       <div
         ref={barRef}
-        className="relative h-3 w-full rounded-full outline outline-white/10 outline-offset-[-1px] cursor-pointer"
+        className="relative h-3 w-full rounded-full outline outline-white/10 -outline-offset-1 cursor-pointer"
         style={{ background: gradientCSS }}
         onClick={handleBarClick}
       >
@@ -709,7 +718,7 @@ function GradientBar({
             >
               <div
                 className={cn(
-                  'size-3 rounded-full border-[1.5px] flex items-center justify-center shadow-md pointer-events-none shadow-sm',
+                  'size-3 rounded-full border-[1.5px] flex items-center justify-center shadow-md pointer-events-none',
                   isSelected
                     ? 'border-white'
                     : 'border-white'
@@ -731,38 +740,69 @@ interface ColorStop {
   position: number;
 }
 
+/** CMS field binding button rendered inline in the hex/opacity row */
+function ColorPickerFieldBinding({ binding, stopId }: { binding: ColorPickerBindingProps; stopId: string | null }) {
+  const [fieldMenuOpen, setFieldMenuOpen] = React.useState(false);
+
+  const handleSelect = React.useCallback((fieldId: string, relationshipPath: string[], source?: string, layerId?: string) => {
+    binding.onBind(stopId, fieldId, relationshipPath, source, layerId);
+    setFieldMenuOpen(false);
+  }, [binding, stopId]);
+
+  return (
+    <DropdownMenu open={fieldMenuOpen} onOpenChange={setFieldMenuOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="input"
+              size="sm"
+              type="button"
+            >
+              <Icon name="database" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Bind to color field</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent
+        className="w-56"
+        side="left"
+        align="start"
+      >
+        {binding.renderFieldSelector(handleSelect)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export default function ColorPicker({
   value,
   onChange,
+  onImmediateChange,
   defaultValue = '#ffffff',
   placeholder = '#ffffff',
   solidOnly = false,
-  backgroundImageProps,
+  binding,
+  onClear,
 }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'solid' | 'linear' | 'radial' | 'image'>('solid');
-
-  // Extract background image URL if provided
-  const extractImageUrl = (prop: string): string => {
-    if (!prop) return '';
-    if (prop.startsWith('url(')) {
-      return prop.slice(4, -1).replace(/['"]/g, '');
-    }
-    return prop;
-  };
+  const [activeTab, setActiveTab] = useState<'solid' | 'linear' | 'radial'>('solid');
 
   const displayValue = value || '';
   const isGradient = displayValue.startsWith('linear') || displayValue.startsWith('radial');
+  const isTransparent = displayValue === 'transparent';
 
-  // Format display value for user-friendly gradient names
-  const getDisplayText = (val: string): string => {
-    if (val.startsWith('linear-gradient')) {
-      return 'Linear';
+  // Format display value for user-friendly names
+  const getDisplayText = (val: string, opacity?: number): string => {
+    if (val.startsWith('linear-gradient')) return 'Linear';
+    if (val.startsWith('radial-gradient')) return 'Radial';
+    if (val === 'transparent') return 'Transparent';
+    const hex = val.match(/^#[0-9a-fA-F]{6}/)?.[0] || val;
+    if (opacity !== undefined && opacity < 1) {
+      return `${hex} ${Math.round(opacity * 100)}%`;
     }
-    if (val.startsWith('radial-gradient')) {
-      return 'Radial';
-    }
-    return val.length > 20 ? val.substring(0, 20) + '...' : val;
+    return hex.length > 20 ? hex.substring(0, 20) + '...' : hex;
   };
 
   // Solid color state
@@ -833,36 +873,9 @@ export default function ColorPicker({
   // Track dragging state for gradient bar handles
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
 
-  // Ref for hidden file input (temporary front-end upload)
-  const imageInputRef = useRef<HTMLInputElement>(null);
-
-  // TODO: Temporary front-end upload - replace with proper backend upload later
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Check if it's an image
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-
-    // Convert to data URL for temporary front-end use
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      if (dataUrl && backgroundImageProps?.onBackgroundImageChange) {
-        // Use immediate update for uploaded images (not debounced)
-        backgroundImageProps.onBackgroundImageChange(`url(${dataUrl})`, true);
-      }
-    };
-    reader.readAsDataURL(file);
-
-    // Reset input so same file can be selected again
-    if (imageInputRef.current) {
-      imageInputRef.current.value = '';
-    }
-  };
+  // Keep a stable ref to binding so the parse useEffect can sync without re-triggering
+  const bindingRef = useRef(binding);
+  bindingRef.current = binding;
 
   // HSV state for selected gradient stop (similar to solid picker)
   const [stopHue, setStopHue] = useState(0);
@@ -894,20 +907,16 @@ export default function ColorPicker({
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Clear both backgroundColor and backgroundImage
     onChange('');
-    if (backgroundImageProps?.backgroundImage) {
-      backgroundImageProps.onBackgroundImageChange?.('', true);
-    }
+    onClear?.();
   };
 
-  const hasValue = !!displayValue || !!backgroundImageProps?.backgroundImage;
+  const hasValue = !!displayValue;
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    // When opening and there's no value, set it to default
     if (newOpen && !hasValue) {
-      onChange(defaultValue);
+      // Initialize internal color picker state with default (don't push to layer yet)
       const defaultColor = parseColor(defaultValue);
       setRgbaColor(defaultColor);
       const hsv = rgbToHsv(defaultColor.r, defaultColor.g, defaultColor.b);
@@ -1019,7 +1028,7 @@ export default function ColorPicker({
       return;
     }
 
-    // Parse the hex input (supports #hex, #hex/opacity, or partial #hexhex)
+    // Parse the hex input (supports #hex, #hex/opacity, or partial #rrggbbaa)
     // Allow partial values like #ff or #ff00 (user might be typing)
     if (normalized.startsWith('#') && normalized.length > 1) {
       // Extract hex part (up to 6 chars after #)
@@ -1126,10 +1135,10 @@ export default function ColorPicker({
     };
   }, [onChange]);
 
-  // Immediate onChange for solid colors (no debounce needed for simple color changes)
+  // Immediate onChange — bypasses parent debounce for programmatic changes
   const immediateOnChange = (value: string) => {
-    debouncedOnChangeRef.current.cancel(); // Cancel any pending debounced calls
-    onChange(value);
+    debouncedOnChangeRef.current.cancel();
+    (onImmediateChange || onChange)(value);
   };
 
   // Gradient handlers
@@ -1138,6 +1147,7 @@ export default function ColorPicker({
   // Convert colors to rgba format for Tailwind compatibility
   const handleLinearGradientChange = (angle: number, stops: ColorStop[]) => {
     isInternalGradientChange.current = true;
+    binding?.onGradientSync?.('linear', stops.map(s => ({ id: s.id, position: s.position, color: s.color })), angle);
     const stopsStr = stops.map(s => `${colorToRgbaString(s.color)}${s.position}%`).join(',');
     const gradientValue = `linear-gradient(${angle}deg,${stopsStr})`;
     // Use immediate onChange for gradients to ensure ref is still set when parsing useEffect runs
@@ -1146,6 +1156,7 @@ export default function ColorPicker({
 
   const handleRadialGradientChange = (stops: ColorStop[]) => {
     isInternalGradientChange.current = true;
+    binding?.onGradientSync?.('radial', stops.map(s => ({ id: s.id, position: s.position, color: s.color })));
     const stopsStr = stops.map(s => `${colorToRgbaString(s.color)}${s.position}%`).join(',');
     const gradientValue = `radial-gradient(circle,${stopsStr})`;
     // Use immediate onChange for gradients to ensure ref is still set when parsing useEffect runs
@@ -1286,49 +1297,27 @@ export default function ColorPicker({
   };
 
   const handleTabChange = (value: string) => {
-    const newTab = value as 'solid' | 'linear' | 'radial' | 'image';
+    const newTab = value as 'solid' | 'linear' | 'radial';
     const previousTab = activeTab;
-    
-    setActiveTab(newTab);
-    setSelectedStopId(null); // Reset selected stop when switching tabs
 
-    // Clear previous fill type when switching tabs
-    // Each tab represents a different type of fill, so switching should clear the old one
+    setActiveTab(newTab);
+    setSelectedStopId(null);
 
     if (newTab === 'solid') {
-      // Switching TO solid: Clear gradients and background images
+      // Apply the current solid color when switching to solid tab
+      immediateOnChange(rgbaToHex(rgbaColor));
       if (previousTab === 'linear' || previousTab === 'radial') {
-        // Clear gradient, set to solid color
-        onChange(rgbaToHex(rgbaColor));
-      }
-      if (previousTab === 'image' && backgroundImageProps?.backgroundImage) {
-        // Clear background image
-        backgroundImageProps.onBackgroundImageChange?.('', true);
+        binding?.onSwitchToSolid?.();
       }
     } else if (newTab === 'linear') {
-      // Switching TO linear gradient: Clear solid colors, images, and radial gradients
-      if (previousTab === 'image' && backgroundImageProps?.backgroundImage) {
-        backgroundImageProps.onBackgroundImageChange?.('', true);
-      }
       handleLinearGradientChange(linearAngle, linearStops);
-      // Always ensure at least one stop is selected
       if (linearStops.length > 0) {
         setSelectedStopId(linearStops[0].id);
       }
     } else if (newTab === 'radial') {
-      // Switching TO radial gradient: Clear solid colors, images, and linear gradients
-      if (previousTab === 'image' && backgroundImageProps?.backgroundImage) {
-        backgroundImageProps.onBackgroundImageChange?.('', true);
-      }
       handleRadialGradientChange(radialStops);
-      // Always ensure at least one stop is selected
       if (radialStops.length > 0) {
         setSelectedStopId(radialStops[0].id);
-      }
-    } else if (newTab === 'image') {
-      // Switching TO image: Clear solid colors and gradients
-      if (displayValue) {
-        onChange('');
       }
     }
   };
@@ -1392,9 +1381,10 @@ export default function ColorPicker({
         if (stops.length > 0) {
           setLinearAngle(angle);
           setLinearStops(stops);
-          // Always ensure at least one stop is selected
-          const validSelectedId = stops.some(s => s.id === selectedStopId) ? selectedStopId : stops[0].id;
-          setSelectedStopId(validSelectedId);
+          // Sync parsed stops with binding layer so stop IDs stay consistent
+          bindingRef.current?.onGradientSync?.('linear', stops.map(s => ({ id: s.id, position: s.position, color: s.color })), angle);
+          // Select the first stop if none is selected
+          setSelectedStopId(prev => (prev && stops.some(s => s.id === prev)) ? prev : stops[0].id);
         }
       }
     } else if (displayValue.startsWith('radial-gradient')) {
@@ -1417,13 +1407,15 @@ export default function ColorPicker({
         }
         if (stops.length > 0) {
           setRadialStops(stops);
-          // Always ensure at least one stop is selected
-          const validSelectedId = stops.some(s => s.id === selectedStopId) ? selectedStopId : stops[0].id;
-          setSelectedStopId(validSelectedId);
+          // Sync parsed stops with binding layer so stop IDs stay consistent
+          bindingRef.current?.onGradientSync?.('radial', stops.map(s => ({ id: s.id, position: s.position, color: s.color })));
+          // Select the first stop if none is selected
+          setSelectedStopId(prev => (prev && stops.some(s => s.id === prev)) ? prev : stops[0].id);
         }
       }
     }
-  }, [displayValue, selectedStopId]);
+
+  }, [displayValue]);
 
   // Sync HSV state when stop is selected or stop color changes externally
   useEffect(() => {
@@ -1480,30 +1472,24 @@ export default function ColorPicker({
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
       {hasValue ? (
-        <div className="flex items-center justify-start h-8 rounded-lg bg-input hover:bg-input/60 px-2.5 flex items-center gap-2 cursor-pointer">
+        <div className="flex items-center justify-start h-8 rounded-lg bg-input hover:bg-input/60 px-2.5 cursor-pointer">
           <div
-            className="size-4 rounded shrink-0 bg-cover bg-center"
-            style={
-              backgroundImageProps?.backgroundImage 
-                ? {
-                  backgroundImage: backgroundImageProps.backgroundImage,
-                }
-                : {
-                  background: isGradient ? displayValue : displayValue,
-                }
-            }
-          />
-          <Label variant="muted" className="truncate max-w-[120px]">
-            {backgroundImageProps?.backgroundImage ? 'Image' : getDisplayText(displayValue)}
+            className={cn('size-4 rounded shrink-0 mr-2', isTransparent && 'relative overflow-hidden')}
+            style={isTransparent ? undefined : { background: displayValue }}
+          >
+            {isTransparent && <div className="absolute inset-0 opacity-30 bg-checkerboard" />}
+          </div>
+          <Label variant="muted" className="truncate max-w-30 cursor-pointer">
+            {getDisplayText(displayValue, rgbaColor.a)}
           </Label>
           <div className="ml-auto -mr-1.5">
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={handleClear}
-              >
-                <Icon name="x" />
-              </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleClear}
+            >
+              <Icon name="x" />
+            </Button>
           </div>
         </div>
       ) : (
@@ -1528,7 +1514,7 @@ export default function ColorPicker({
       >
         <Tabs
           value={activeTab} onValueChange={handleTabChange}
-          className="!gap-3"
+          className="gap-3!"
         >
           {!solidOnly && (
             <TabsList className="w-full">
@@ -1541,16 +1527,13 @@ export default function ColorPicker({
               <TabsTrigger value="radial">
                 <Icon name="radial" />
               </TabsTrigger>
-              <TabsTrigger value="image">
-                <Icon name="fill-image" />
-              </TabsTrigger>
             </TabsList>
           )}
 
           <TabsContent value="solid" className="gap-3">
             <div className="flex flex-col gap-3">
               {/* Saturation/Value Picker (HSV color space) */}
-              <div className="w-full relative aspect-[4/3]">
+              <div className="w-full relative aspect-4/3">
                 <SaturationLightnessPicker
                   hue={hue}
                   saturation={saturation}
@@ -1587,48 +1570,68 @@ export default function ColorPicker({
                 }}
               />
 
-              <div className="flex items-center gap-2">
-                <InputGroup className="flex-1">
-                  <InputGroupInput
-                    type="text"
-                    value={hexInputValue}
-                    onChange={(e) => handleHexInputChange(e.target.value)}
-                    onBlur={handleHexInputBlur}
-                    onKeyDown={(e) => {
-                      // On Enter, blur to normalize the value
-                      if (e.key === 'Enter') {
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    placeholder={placeholder}
-                  />
-                  <InputGroupAddon align="inline-end">
+              {(() => {
+                const solidBinding = binding?.getBinding(null);
+                return solidBinding?.isBound ? (
+                  <div className="flex items-center h-8 rounded-lg bg-input px-2.5 gap-2">
+                    <Icon name="database" className="size-3 text-muted-foreground shrink-0" />
+                    <Label variant="muted" className="truncate text-xs flex-1">
+                      {solidBinding.fieldName || 'Color field'}
+                    </Label>
                     <Button
-                      variant="input"
-                      size="xs"
-                      onClick={handleEyeDropper}
-                      type="button"
+                      variant="ghost" size="xs"
+                      onClick={() => binding?.onUnbind(null)} className="-mr-1.5"
                     >
-                      <Icon name="eyedrop" />
+                      <Icon name="x" />
                     </Button>
-                  </InputGroupAddon>
-                </InputGroup>
-                <InputGroup className="w-16">
-                  <InputGroupInput
-                    value={Math.round(rgbaColor.a * 100)}
-                    onChange={(e) => {
-                      const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
-                      handleRgbaChange({ ...rgbaColor, a });
-                    }}
-                    className="w-16 text-xs"
-                    min={0}
-                    max={100}
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <Label variant="muted" className="text-xs">%</Label>
-                  </InputGroupAddon>
-                </InputGroup>
-              </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <InputGroup className="flex-1">
+                      <InputGroupInput
+                        type="text"
+                        value={hexInputValue}
+                        onChange={(e) => handleHexInputChange(e.target.value)}
+                        onBlur={handleHexInputBlur}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        placeholder={placeholder}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <Button
+                          variant="input"
+                          size="xs"
+                          onClick={handleEyeDropper}
+                          type="button"
+                        >
+                          <Icon name="eyedrop" />
+                        </Button>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    <InputGroup className="w-16">
+                      <InputGroupInput
+                        value={Math.round(rgbaColor.a * 100)}
+                        onChange={(e) => {
+                          const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
+                          handleRgbaChange({ ...rgbaColor, a });
+                        }}
+                        className="w-16 text-xs"
+                        min={0}
+                        max={100}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <Label variant="muted" className="text-xs">%</Label>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    {binding?.hasColorFields && (
+                      <ColorPickerFieldBinding binding={binding} stopId={null} />
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </TabsContent>
 
@@ -1671,7 +1674,7 @@ export default function ColorPicker({
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Value Picker (HSV) */}
-                    <div className="w-full relative aspect-[4/3]">
+                    <div className="w-full relative aspect-4/3">
                       <SaturationLightnessPicker
                         hue={stopHue}
                         saturation={stopSaturation}
@@ -1712,53 +1715,71 @@ export default function ColorPicker({
                       }}
                     />
 
-                    <div className="flex items-center gap-2">
-                      <InputGroup className="flex-1">
-                        <InputGroupInput
-                          type="text"
-                          value={getHexOnly(rgbaToHex(stopRgba))}
-                          onChange={(e) => {
-                            const parsed = parseColor(e.target.value);
-                            // Preserve current opacity if user only typed hex without opacity
-                            const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
-                            // Mark as internal update (HSV values are explicitly set below)
-                            isStopInternalUpdate.current = true;
-                            // Update HSV values when hex input changes
-                            const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
-                            setStopHue(hsv.h);
-                            setStopSaturation(hsv.s);
-                            setStopHsvValue(hsv.v);
-                            updateColorStop('linear', selectedStopId, { color: rgbaToHex(finalRgba) });
-                          }}
-                          placeholder="#000000"
-                        />
-                        <InputGroupAddon align="inline-end">
+                    {(() => {
+                      const stopBinding = binding?.getBinding(selectedStopId);
+                      return stopBinding?.isBound ? (
+                        <div className="flex items-center h-8 rounded-lg bg-input px-2.5 gap-2">
+                          <Icon name="database" className="size-3 text-muted-foreground shrink-0" />
+                          <Label variant="muted" className="truncate text-xs flex-1">
+                            {stopBinding.fieldName || 'Color field'}
+                          </Label>
                           <Button
-                            variant="input"
-                            size="xs"
-                            onClick={() => handleGradientStopEyeDropper('linear')}
-                            type="button"
+                            variant="ghost" size="xs"
+                            onClick={() => binding?.onUnbind(selectedStopId)} className="-mr-1.5"
                           >
-                            <Icon name="eyedrop" />
+                            <Icon name="x" />
                           </Button>
-                        </InputGroupAddon>
-                      </InputGroup>
-                      <InputGroup className="w-16">
-                        <InputGroupInput
-                          value={Math.round(stopRgba.a * 100)}
-                          onChange={(e) => {
-                            const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
-                            const newRgba = { ...stopRgba, a };
-                            updateColorStop('linear', selectedStopId, { color: rgbaToHex(newRgba) });
-                          }}
-                          min={0}
-                          max={100}
-                        />
-                        <InputGroupAddon align="inline-end">
-                          <Label variant="muted" className="text-xs">%</Label>
-                        </InputGroupAddon>
-                      </InputGroup>
-                    </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <InputGroup className="flex-1">
+                            <InputGroupInput
+                              type="text"
+                              value={getHexOnly(rgbaToHex(stopRgba))}
+                              onChange={(e) => {
+                                const parsed = parseColor(e.target.value);
+                                const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
+                                isStopInternalUpdate.current = true;
+                                const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+                                setStopHue(hsv.h);
+                                setStopSaturation(hsv.s);
+                                setStopHsvValue(hsv.v);
+                                updateColorStop('linear', selectedStopId, { color: rgbaToHex(finalRgba) });
+                              }}
+                              placeholder="#000000"
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <Button
+                                variant="input"
+                                size="xs"
+                                onClick={() => handleGradientStopEyeDropper('linear')}
+                                type="button"
+                              >
+                                <Icon name="eyedrop" />
+                              </Button>
+                            </InputGroupAddon>
+                          </InputGroup>
+                          <InputGroup className="w-16">
+                            <InputGroupInput
+                              value={Math.round(stopRgba.a * 100)}
+                              onChange={(e) => {
+                                const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
+                                const newRgba = { ...stopRgba, a };
+                                updateColorStop('linear', selectedStopId, { color: rgbaToHex(newRgba) });
+                              }}
+                              min={0}
+                              max={100}
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <Label variant="muted" className="text-xs">%</Label>
+                            </InputGroupAddon>
+                          </InputGroup>
+                          {binding?.hasColorFields && (
+                            <ColorPickerFieldBinding binding={binding} stopId={selectedStopId} />
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -1787,7 +1808,7 @@ export default function ColorPicker({
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Value Picker (HSV) */}
-                    <div className="w-full relative aspect-[4/3]">
+                    <div className="w-full relative aspect-4/3">
                       <SaturationLightnessPicker
                         hue={stopHue}
                         saturation={stopSaturation}
@@ -1828,184 +1849,76 @@ export default function ColorPicker({
                       }}
                     />
 
-                    <div className="flex items-center gap-2">
-                      <InputGroup className="flex-1">
-                        <InputGroupInput
-                          type="text"
-                          value={getHexOnly(rgbaToHex(stopRgba))}
-                          onChange={(e) => {
-                            const parsed = parseColor(e.target.value);
-                            // Preserve current opacity if user only typed hex without opacity
-                            const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
-                            // Mark as internal update (HSV values are explicitly set below)
-                            isStopInternalUpdate.current = true;
-                            // Update HSV values when hex input changes
-                            const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
-                            setStopHue(hsv.h);
-                            setStopSaturation(hsv.s);
-                            setStopHsvValue(hsv.v);
-                            updateColorStop('radial', selectedStopId, { color: rgbaToHex(finalRgba) });
-                          }}
-                          placeholder="#000000"
-                        />
-                        <InputGroupAddon align="inline-end">
+                    {(() => {
+                      const stopBinding = binding?.getBinding(selectedStopId);
+                      return stopBinding?.isBound ? (
+                        <div className="flex items-center h-8 rounded-lg bg-input px-2.5 gap-2">
+                          <Icon name="database" className="size-3 text-muted-foreground shrink-0" />
+                          <Label variant="muted" className="truncate text-xs flex-1">
+                            {stopBinding.fieldName || 'Color field'}
+                          </Label>
                           <Button
-                            variant="input"
-                            size="xs"
-                            onClick={() => handleGradientStopEyeDropper('radial')}
-                            type="button"
+                            variant="ghost" size="xs"
+                            onClick={() => binding?.onUnbind(selectedStopId)} className="-mr-1.5"
                           >
-                            <Icon name="eyedrop" />
+                            <Icon name="x" />
                           </Button>
-                        </InputGroupAddon>
-                      </InputGroup>
-                      <InputGroup className="w-16">
-                        <InputGroupInput
-                          value={Math.round(stopRgba.a * 100)}
-                          onChange={(e) => {
-                            const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
-                            const newRgba = { ...stopRgba, a };
-                            updateColorStop('radial', selectedStopId, { color: rgbaToHex(newRgba) });
-                          }}
-                          className="w-16 text-xs"
-                          min={0}
-                          max={100}
-                        />
-                        <InputGroupAddon align="inline-end">
-                          <Label variant="muted" className="text-xs">%</Label>
-                        </InputGroupAddon>
-                      </InputGroup>
-                    </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <InputGroup className="flex-1">
+                            <InputGroupInput
+                              type="text"
+                              value={getHexOnly(rgbaToHex(stopRgba))}
+                              onChange={(e) => {
+                                const parsed = parseColor(e.target.value);
+                                const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
+                                isStopInternalUpdate.current = true;
+                                const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+                                setStopHue(hsv.h);
+                                setStopSaturation(hsv.s);
+                                setStopHsvValue(hsv.v);
+                                updateColorStop('radial', selectedStopId, { color: rgbaToHex(finalRgba) });
+                              }}
+                              placeholder="#000000"
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <Button
+                                variant="input"
+                                size="xs"
+                                onClick={() => handleGradientStopEyeDropper('radial')}
+                                type="button"
+                              >
+                                <Icon name="eyedrop" />
+                              </Button>
+                            </InputGroupAddon>
+                          </InputGroup>
+                          <InputGroup className="w-16">
+                            <InputGroupInput
+                              value={Math.round(stopRgba.a * 100)}
+                              onChange={(e) => {
+                                const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
+                                const newRgba = { ...stopRgba, a };
+                                updateColorStop('radial', selectedStopId, { color: rgbaToHex(newRgba) });
+                              }}
+                              className="w-16 text-xs"
+                              min={0}
+                              max={100}
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <Label variant="muted" className="text-xs">%</Label>
+                            </InputGroupAddon>
+                          </InputGroup>
+                          {binding?.hasColorFields && (
+                            <ColorPickerFieldBinding binding={binding} stopId={selectedStopId} />
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
             </div>
-          </TabsContent>
-
-          <TabsContent value="image">
-
-            <div className="flex flex-col gap-3">
-
-              {/* Hidden file input for temporary upload */}
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
-
-              {/* Image upload button */}
-              <div className="aspect-[4/3] bg-input rounded-md flex items-center justify-center">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => imageInputRef.current?.click()}
-                  type="button"
-                >
-                  Choose image...
-                </Button>
-              </div>
-
-              {/* Manual URL input */}
-              <div className="grid grid-cols-3">
-                <Label variant="muted">URL</Label>
-                <div className="col-span-2 *:w-full">
-                  <Input
-                    type="text"
-                    value={extractImageUrl(backgroundImageProps?.backgroundImage || '')}
-                    onChange={(e) => {
-                      const sanitized = e.target.value.trim();
-                      let processedValue = sanitized;
-                      if (sanitized && !sanitized.startsWith('url(')) {
-                        processedValue = `url(${sanitized})`;
-                      }
-                      backgroundImageProps?.onBackgroundImageChange?.(processedValue || '');
-                    }}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
-              </div>
-
-              {/* Image controls - only show when image is set */}
-              {backgroundImageProps?.backgroundImage && (
-                <>
-                  <div className="grid grid-cols-3">
-                    <Label variant="muted">Size</Label>
-                    <div className="col-span-2 *:w-full">
-                      <Select
-                        value={backgroundImageProps.backgroundSize || 'cover'}
-                        onValueChange={(value) => backgroundImageProps.onBackgroundSizeChange?.(value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectItem value="auto">Auto</SelectItem>
-                            <SelectItem value="cover">Cover</SelectItem>
-                            <SelectItem value="contain">Contain</SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3">
-                    <Label variant="muted">Position</Label>
-                    <div className="col-span-2 *:w-full">
-                      <Select
-                        value={backgroundImageProps.backgroundPosition || 'center'}
-                        onValueChange={(value) => backgroundImageProps.onBackgroundPositionChange?.(value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectItem value="center">Center</SelectItem>
-                            <SelectItem value="top">Top</SelectItem>
-                            <SelectItem value="bottom">Bottom</SelectItem>
-                            <SelectItem value="left">Left</SelectItem>
-                            <SelectItem value="right">Right</SelectItem>
-                            <SelectItem value="left-top">Left Top</SelectItem>
-                            <SelectItem value="left-bottom">Left Bottom</SelectItem>
-                            <SelectItem value="right-top">Right Top</SelectItem>
-                            <SelectItem value="right-bottom">Right Bottom</SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3">
-                    <Label variant="muted">Repeat</Label>
-                    <div className="col-span-2 *:w-full">
-                      <Select
-                        value={backgroundImageProps.backgroundRepeat || 'no-repeat'}
-                        onValueChange={(value) => backgroundImageProps.onBackgroundRepeatChange?.(value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectItem value="no-repeat">No Repeat</SelectItem>
-                            <SelectItem value="repeat">Repeat</SelectItem>
-                            <SelectItem value="repeat-x">Repeat X</SelectItem>
-                            <SelectItem value="repeat-y">Repeat Y</SelectItem>
-                            <SelectItem value="repeat-round">Repeat Round</SelectItem>
-                            <SelectItem value="repeat-space">Repeat Space</SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </>
-              )}
-
-            </div>
-
           </TabsContent>
 
         </Tabs>

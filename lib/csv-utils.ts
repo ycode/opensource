@@ -464,6 +464,7 @@ export function getFieldTypeLabel(type: CollectionFieldType): string {
     number: 'Number',
     boolean: 'Boolean',
     date: 'Date',
+    color: 'Color',
     reference: 'Reference',
     multi_reference: 'Multi Reference',
     rich_text: 'Rich Text',

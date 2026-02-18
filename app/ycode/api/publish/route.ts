@@ -13,6 +13,7 @@ import { getAllCollections } from '@/lib/repositories/collectionRepository';
 import { getItemsByCollectionId } from '@/lib/repositories/collectionItemRepository';
 import { publishAssets, getUnpublishedAssets, hardDeleteSoftDeletedAssets } from '@/lib/repositories/assetRepository';
 import { publishAssetFolders, getUnpublishedAssetFolders, hardDeleteSoftDeletedAssetFolders } from '@/lib/repositories/assetFolderRepository';
+import { publishFonts } from '@/lib/repositories/fontRepository';
 import type { Setting, PublishStats, PublishTableStats } from '@/types';
 
 // Disable caching for this route
@@ -355,6 +356,17 @@ export async function POST(request: NextRequest) {
           // Silently handle - non-fatal
         }
         stats.tables.assets.durationMs = Math.round(performance.now() - stepStart);
+      }
+
+      // Fonts
+      {
+        try {
+          const fontsResult = await publishFonts();
+          // Font stats tracked under a simple log (no dedicated stats table column)
+          console.log('[Publish] Fonts:', fontsResult);
+        } catch {
+          // Silently handle - non-fatal
+        }
       }
 
       // Locales and translations

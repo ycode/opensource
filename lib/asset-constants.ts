@@ -1,9 +1,21 @@
 /**
- * Asset Category Constants
- * Shared constants for asset categorization (no dependencies to avoid circular imports)
+ * Asset Constants
+ * Shared constants for asset categorization and storage (no dependencies to avoid circular imports)
  */
 
 import type { AssetCategory } from '@/types';
+
+/**
+ * Supabase Storage bucket and folder prefix constants.
+ * All uploads go to a single 'assets' bucket, organized by folder.
+ */
+export const STORAGE_BUCKET = 'assets';
+export const STORAGE_FOLDERS = {
+  WEBSITE: 'website',
+  AVATARS: 'avatars',
+  COMPONENTS: 'components',
+  FONTS: 'fonts',
+} as const;
 
 /**
  * Asset category constants

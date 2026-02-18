@@ -115,7 +115,7 @@ interface LayersTreeProps {
   selectedLayerId: string | null;
   selectedLayerIds?: string[]; // New multi-select support
   onLayerSelect: (layerId: string) => void;
-  onReorder: (newLayers: Layer[]) => void;
+  onReorder: (newLayers: Layer[], movedLayerId?: string) => void;
   pageId: string;
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
@@ -1179,7 +1179,7 @@ export default function LayersTree({
             maxIndex + 1
           );
 
-          onReorder(newLayers);
+          onReorder(newLayers, activeNode.id);
         }
 
         setActiveId(null);
@@ -1360,7 +1360,9 @@ export default function LayersTree({
         newLayers = rebuildTree(flattenedNodes, activeNode.id, newParentId, newOrder);
       }
 
-      onReorder(newLayers);
+      // Pass movedLayerId when parent changed (cross-parent move needs binding reset)
+      const parentChanged = activeNode.parentId !== newParentId;
+      onReorder(newLayers, parentChanged ? activeNode.id : undefined);
       setActiveId(null);
       setOverId(null);
       setDropPosition(null);

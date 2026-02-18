@@ -3,6 +3,7 @@ import { collectionsApi } from '@/lib/api';
 import { sortCollectionsByOrder } from '@/lib/collection-utils';
 import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 import { useAssetsStore } from '@/stores/useAssetsStore';
+import { usePagesStore } from '@/stores/usePagesStore';
 import type { Collection, CollectionField, CollectionItemWithValues, CreateCollectionData, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
 
 /**
@@ -336,6 +337,9 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           isLoading: false,
         };
       });
+
+      // Reset CMS bindings referencing the deleted collection across all page drafts
+      usePagesStore.getState().cleanupDeletedCollection(id);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete collection';
       set({ error: errorMessage, isLoading: false });
@@ -504,6 +508,9 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         },
         isLoading: false,
       }));
+
+      // Reset CMS bindings referencing the deleted field across all page drafts
+      usePagesStore.getState().cleanupDeletedField(fieldId);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete field';
       set({ error: errorMessage, isLoading: false });

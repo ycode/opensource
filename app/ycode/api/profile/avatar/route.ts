@@ -2,9 +2,9 @@ import { NextRequest } from 'next/server';
 import { noCache } from '@/lib/api-response';
 import { getAuthUser } from '@/lib/supabase-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
+import { generateId } from '@/lib/utils';
 import sharp from 'sharp';
-
-const STORAGE_BUCKET = 'avatars';
 
 /**
  * POST /ycode/api/profile/avatar
@@ -52,40 +52,23 @@ export async function POST(request: NextRequest) {
       .webp({ quality: 85 })
       .toBuffer();
 
-    // Create storage path with user ID
-    const timestamp = Date.now();
-    const storagePath = `${auth.user.id}/${timestamp}.webp`;
+    // Create storage path: avatars/{userId}-{randomId}.webp
+    const storagePath = `${STORAGE_FOLDERS.AVATARS}/${generateId(auth.user.id)}.webp`;
 
     // Delete old avatar if exists
     const oldAvatarUrl = auth.user.user_metadata?.avatar_url;
     if (oldAvatarUrl) {
       try {
-        // Extract path from URL
-        const urlParts = oldAvatarUrl.split('/avatars/');
-        if (urlParts.length > 1) {
-          const oldPath = urlParts[1];
+        // Extract storage path from public URL (after bucket name segment)
+        const bucketSegment = `/object/public/${STORAGE_BUCKET}/`;
+        const idx = oldAvatarUrl.indexOf(bucketSegment);
+        if (idx !== -1) {
+          const oldPath = oldAvatarUrl.substring(idx + bucketSegment.length);
           await adminClient.storage.from(STORAGE_BUCKET).remove([oldPath]);
         }
       } catch (error) {
         console.error('Failed to delete old avatar:', error);
         // Continue even if deletion fails
-      }
-    }
-
-    // Ensure avatars bucket exists
-    const { data: buckets } = await adminClient.storage.listBuckets();
-    const bucketExists = buckets?.some(b => b.name === STORAGE_BUCKET);
-
-    if (!bucketExists) {
-      const { error: createBucketError } = await adminClient.storage.createBucket(STORAGE_BUCKET, {
-        public: true,
-        fileSizeLimit: 5 * 1024 * 1024, // 5MB
-        allowedMimeTypes: ['image/*'],
-      });
-
-      if (createBucketError) {
-        console.error('Failed to create avatars bucket:', createBucketError);
-        return noCache({ error: `Failed to create storage bucket: ${createBucketError.message}` }, 500);
       }
     }
 

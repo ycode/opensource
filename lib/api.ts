@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData, AssetFolder } from '../types';
+import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData, AssetFolder, Font } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -623,6 +623,27 @@ export const componentsApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // Upload a component thumbnail (FormData, not JSON)
+  async uploadThumbnail(id: string, blob: Blob): Promise<ApiResponse<{ thumbnail_url: string }>> {
+    const formData = new FormData();
+    formData.append('image', blob, 'thumbnail.png');
+
+    const response = await fetch(`/ycode/api/components/${id}/thumbnail`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      try {
+        const json = await response.json();
+        if (json.error) return { error: json.error };
+      } catch { /* fall through */ }
+      return { error: `HTTP ${response.status}: ${response.statusText}` };
+    }
+
+    return response.json();
+  },
 };
 
 // Layer Styles API
@@ -647,6 +668,7 @@ export const editorApi = {
     locales: Locale[];
     assets: Asset[];
     assetFolders: AssetFolder[];
+    fonts: Font[];
   }>> {
     return apiRequest('/ycode/api/editor/init');
   },

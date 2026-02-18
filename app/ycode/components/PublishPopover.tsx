@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
@@ -27,7 +28,7 @@ const BREAKDOWN_ITEMS: { key: keyof Omit<PublishPreviewCounts, 'total'>; label: 
   { key: 'components', label: 'Components', icon: 'component' },
   { key: 'collections', label: 'Collections', icon: 'database' },
   { key: 'collectionItems', label: 'Collection items', icon: 'database' },
-  { key: 'layerStyles', label: 'Layer styles', icon: 'paintbrush' },
+  { key: 'layerStyles', label: 'Layer styles', icon: 'cube' },
   { key: 'assets', label: 'Assets', icon: 'image' },
 ];
 
@@ -158,32 +159,40 @@ export default function PublishPopover({
             Calculating changes...
           </div>
         ) : changeCounts ? (
-          <div className="flex flex-col gap-2">
-            {changeCounts.total > 0 ? (
-              <>
-                {BREAKDOWN_ITEMS.map(({ key, label, icon }) =>
-                  changeCounts[key] > 0 ? (
-                    <div key={key} className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1.5">
-                        <Icon name={icon} className="size-3" />
-                        {label}
-                      </span>
-                      <span>{changeCounts[key]}</span>
+          changeCounts.total > 0 ? (
+            <Collapsible>
+              <CollapsibleTrigger className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors group">
+                <span className="flex items-center gap-1.5">
+                    <div className="size-[22px] flex items-center justify-center bg-input rounded-md">
+                     <Icon
+                       name="chevronRight"
+                       className="size-2.5 transition-transform group-data-[state=open]:rotate-90"
+                     />
                     </div>
-                  ) : null
-                )}
-                <div className="flex items-center justify-between">
-                  <Label className="text-foreground flex items-center gap-1.5">
-                    <Icon name="layers" className="size-3" />
-                    Total changes
-                  </Label>
-                  <span className="text-xs font-medium text-foreground">{changeCounts.total}</span>
+                  {changeCounts.total} {changeCounts.total === 1 ? 'Change' : 'Changes'}
+                </span>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="flex flex-col gap-1.5 pt-1.5">
+                  {BREAKDOWN_ITEMS.map(({ key, label, icon }) =>
+                    changeCounts[key] > 0 ? (
+                      <div key={key} className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <div className="size-[22px] flex items-center justify-center bg-input rounded-md">
+                            <Icon name={icon} className="size-2.5" />
+                          </div>
+                          {label}
+                        </span>
+                        <span>{changeCounts[key]}</span>
+                      </div>
+                    ) : null
+                  )}
                 </div>
-              </>
-            ) : (
-              <span className="text-xs text-muted-foreground">Everything is up to date</span>
-            )}
-          </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ) : (
+            <span className="text-xs text-muted-foreground">Everything is up to date</span>
+          )
         ) : null}
       </PopoverContent>
     </Popover>

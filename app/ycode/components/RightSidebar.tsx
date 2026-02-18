@@ -69,14 +69,14 @@ import { useLayerLocks } from '@/hooks/use-layer-locks';
 import { classesToDesign, mergeDesign, removeConflictsForClass, getRemovedPropertyClasses } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
 import { sanitizeHtmlId } from '@/lib/html-utils';
-import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, findAllParentCollectionLayers, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
+import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, findAllParentCollectionLayers, isTextEditable, findLayerWithParent, resetBindingsOnCollectionSourceChange } from '@/lib/layer-utils';
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 import { DEFAULT_TEXT_STYLES, getTextStyle } from '@/lib/text-format-utils';
 import { buildFieldGroups, getFieldIcon, isMultipleAssetField, MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
 
 // 7. Types
-import type { Layer, FieldVariable, CollectionField } from '@/types';
+import type { Layer, FieldVariable, CollectionField, CollectionVariable } from '@/types';
 import { createTextComponentVariableValue, extractTiptapFromComponentVariable } from '@/lib/variable-utils';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import {
@@ -247,6 +247,22 @@ const RightSidebar = React.memo(function RightSidebar({
 
     const parentCollection = findParentCollectionLayer(allLayers, selectedLayerId);
     return !!parentCollection;
+  }, [selectedLayer, selectedLayerId, allLayers]);
+
+  // Check if link settings should be hidden:
+  // - Buttons inside a form (they act as submit buttons)
+  // - Any layer inside a button (the button itself handles the link)
+  const shouldHideLinkSettings: boolean = useMemo(() => {
+    if (!selectedLayer || !selectedLayerId) return false;
+
+    let current = findLayerWithParent(allLayers, selectedLayerId)?.parent ?? null;
+    while (current) {
+      if (current.name === 'button') return true;
+      if (current.name === 'form' && selectedLayer.name === 'button') return true;
+      const parentResult = findLayerWithParent(allLayers, current.id);
+      current = parentResult?.parent ?? null;
+    }
+    return false;
   }, [selectedLayer, selectedLayerId, allLayers]);
 
   // Check if pagination should be disabled (only for root-level case where we show a message)
@@ -451,10 +467,9 @@ const RightSidebar = React.memo(function RightSidebar({
         return isTextLayer(layer) || isButtonLayer(layer) || isIconLayer(layer) || isFormInputLayer(layer);
 
       case 'backgrounds':
-        // Background controls: hide for text elements (show for buttons and containers)
-        // Also show in text style mode for text highlighting
+        // Background controls: show for all elements (text layers need it for clip-text effects)
         if (showTextStyleControls) return true;
-        return !isTextLayer(layer) || isButtonLayer(layer);
+        return true;
 
       case 'borders':
         // Border controls: hide for pure text elements (show for buttons and containers)
@@ -837,22 +852,42 @@ const RightSidebar = React.memo(function RightSidebar({
     return { type: 'doc', content: [{ type: 'paragraph' }] };
   }, []);
 
-  // Handle collection binding change
+  // Handle collection binding change (also resets child bindings when source changes)
   const handleCollectionChange = (collectionId: string) => {
-    if (selectedLayerId && selectedLayer) {
-      const currentCollectionVariable = getCollectionVariable(selectedLayer);
-      handleLayerUpdate(selectedLayerId, {
-        variables: {
-          ...selectedLayer?.variables,
-          collection: collectionId ? {
-            id: collectionId,
-            // Preserve existing sort settings when changing collection
-            sort_by: currentCollectionVariable?.sort_by,
-            sort_order: currentCollectionVariable?.sort_order,
-          } : undefined
+    if (!selectedLayerId || !selectedLayer) return;
+
+    const currentCollectionVariable = getCollectionVariable(selectedLayer);
+    handleLayerUpdate(selectedLayerId, {
+      variables: {
+        ...selectedLayer?.variables,
+        collection: collectionId && collectionId !== 'none' ? {
+          id: collectionId,
+          sort_by: currentCollectionVariable?.sort_by,
+          sort_order: currentCollectionVariable?.sort_order,
+        } : { id: '', source_field_id: undefined, source_field_type: undefined }
+      }
+    });
+
+    // Reset invalid CMS bindings on child layers after the source changed
+    const layerId = selectedLayerId;
+    setTimeout(() => {
+      const currentLayers = editingComponentId
+        ? useComponentsStore.getState().componentDrafts[editingComponentId]
+        : currentPageId
+          ? usePagesStore.getState().draftsByPageId[currentPageId]?.layers
+          : null;
+
+      if (!currentLayers) return;
+
+      const cleanedLayers = resetBindingsOnCollectionSourceChange(currentLayers, layerId);
+      if (cleanedLayers !== currentLayers) {
+        if (editingComponentId) {
+          useComponentsStore.getState().updateComponentDraft(editingComponentId, cleanedLayers);
+        } else if (currentPageId) {
+          setDraftLayers(currentPageId, cleanedLayers);
         }
-      });
-    }
+      }
+    }, 0);
   };
 
   // Handle sort by change
@@ -876,71 +911,25 @@ const RightSidebar = React.memo(function RightSidebar({
   };
 
   // Handle reference field selection (for reference, multi-reference, or multi-asset as collection source)
+  // Also resets child bindings when source changes
   const handleReferenceFieldChange = (fieldId: string) => {
-    if (selectedLayerId && selectedLayer) {
-      const currentCollectionVariable = getCollectionVariable(selectedLayer);
-      // Find the selected field to get its reference_collection_id and type
-      const selectedField = parentCollectionFields.find(f => f.id === fieldId);
-
-      if (selectedField && isMultipleAssetField(selectedField)) {
-        // Multi-asset field - iterate over assets, no target collection ID
-        handleLayerUpdate(selectedLayerId, {
-          variables: {
-            ...selectedLayer?.variables,
-            collection: {
-              ...currentCollectionVariable,
-              id: MULTI_ASSET_COLLECTION_ID, // Marker for multi-asset collection
-              source_field_id: fieldId,
-              source_field_type: 'multi_asset',
-              source_field_source: 'collection', // From parent collection layer
-            }
-          }
-        });
-      } else if (selectedField?.reference_collection_id) {
-        // Reference field - filter by referenced collection
-        handleLayerUpdate(selectedLayerId, {
-          variables: {
-            ...selectedLayer?.variables,
-            collection: {
-              ...currentCollectionVariable,
-              id: selectedField.reference_collection_id,
-              source_field_id: fieldId,
-              source_field_type: selectedField.type as 'reference' | 'multi_reference',
-              source_field_source: undefined, // Not needed for reference fields
-            }
-          }
-        });
-      }
-    }
-  };
-
-  // Handle dynamic page source selection (unified handler for field or collection)
-  // Value format: "field:{fieldId}" or "collection:{collectionId}" or "none"
-  const handleDynamicPageSourceChange = (value: string) => {
     if (!selectedLayerId || !selectedLayer) return;
 
     const currentCollectionVariable = getCollectionVariable(selectedLayer);
 
-    if (value === 'none' || !value) {
-      // Clear collection binding
+    if (fieldId === 'none') {
+      // Clear the collection source
       handleLayerUpdate(selectedLayerId, {
         variables: {
           ...selectedLayer?.variables,
-          collection: {
-            id: '',
-            source_field_id: undefined,
-            source_field_type: undefined,
-          }
+          collection: { id: '', source_field_id: undefined, source_field_type: undefined, source_field_source: undefined }
         }
       });
-      return;
-    }
+    } else {
+      // Find the selected field to get its reference_collection_id and type
+      const selectedField = parentCollectionFields.find(f => f.id === fieldId);
 
-    if (value.startsWith('multi_asset:')) {
-      // Multi-asset field from CMS page data
-      const fieldId = value.replace('multi_asset:', '');
-      const selectedField = dynamicPageMultiAssetFields.find(f => f.id === fieldId);
-      if (selectedField) {
+      if (selectedField && isMultipleAssetField(selectedField)) {
         handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
@@ -949,16 +938,11 @@ const RightSidebar = React.memo(function RightSidebar({
               id: MULTI_ASSET_COLLECTION_ID,
               source_field_id: fieldId,
               source_field_type: 'multi_asset',
-              source_field_source: 'page',
+              source_field_source: 'collection',
             }
           }
         });
-      }
-    } else if (value.startsWith('field:')) {
-      // Reference field from CMS page data
-      const fieldId = value.replace('field:', '');
-      const selectedField = dynamicPageReferenceFields.find(f => f.id === fieldId);
-      if (selectedField?.reference_collection_id) {
+      } else if (selectedField?.reference_collection_id) {
         handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
@@ -972,22 +956,104 @@ const RightSidebar = React.memo(function RightSidebar({
           }
         });
       }
-    } else if (value.startsWith('collection:')) {
-      // Direct collection selection
-      const collectionId = value.replace('collection:', '');
-      handleLayerUpdate(selectedLayerId, {
-        variables: {
-          ...selectedLayer?.variables,
-          collection: {
-            id: collectionId,
-            source_field_id: undefined,
-            source_field_type: undefined,
-            sort_by: currentCollectionVariable?.sort_by,
-            sort_order: currentCollectionVariable?.sort_order,
-          }
-        }
-      });
     }
+
+    // Reset invalid CMS bindings on child layers after the source changed
+    const layerId = selectedLayerId;
+    setTimeout(() => {
+      const currentLayers = editingComponentId
+        ? useComponentsStore.getState().componentDrafts[editingComponentId]
+        : currentPageId
+          ? usePagesStore.getState().draftsByPageId[currentPageId]?.layers
+          : null;
+
+      if (!currentLayers) return;
+
+      const cleanedLayers = resetBindingsOnCollectionSourceChange(currentLayers, layerId);
+      if (cleanedLayers !== currentLayers) {
+        if (editingComponentId) {
+          useComponentsStore.getState().updateComponentDraft(editingComponentId, cleanedLayers);
+        } else if (currentPageId) {
+          setDraftLayers(currentPageId, cleanedLayers);
+        }
+      }
+    }, 0);
+  };
+
+  // Handle dynamic page source selection (unified handler for field or collection)
+  // Value format: "field:{fieldId}" or "collection:{collectionId}" or "none"
+  // After changing the source, resets invalid CMS bindings on child layers
+  const handleDynamicPageSourceChange = (value: string) => {
+    if (!selectedLayerId || !selectedLayer) return;
+
+    const currentCollectionVariable = getCollectionVariable(selectedLayer);
+    let newCollectionVar: CollectionVariable | undefined;
+
+    if (value === 'none' || !value) {
+      newCollectionVar = { id: '', source_field_id: undefined, source_field_type: undefined };
+    } else if (value.startsWith('multi_asset:')) {
+      const fieldId = value.replace('multi_asset:', '');
+      const selectedField = dynamicPageMultiAssetFields.find(f => f.id === fieldId);
+      if (selectedField) {
+        newCollectionVar = {
+          ...currentCollectionVariable,
+          id: MULTI_ASSET_COLLECTION_ID,
+          source_field_id: fieldId,
+          source_field_type: 'multi_asset',
+          source_field_source: 'page',
+        };
+      }
+    } else if (value.startsWith('field:')) {
+      const fieldId = value.replace('field:', '');
+      const selectedField = dynamicPageReferenceFields.find(f => f.id === fieldId);
+      if (selectedField?.reference_collection_id) {
+        newCollectionVar = {
+          ...currentCollectionVariable,
+          id: selectedField.reference_collection_id,
+          source_field_id: fieldId,
+          source_field_type: selectedField.type as 'reference' | 'multi_reference',
+          source_field_source: undefined,
+        };
+      }
+    } else if (value.startsWith('collection:')) {
+      const collectionId = value.replace('collection:', '');
+      newCollectionVar = {
+        id: collectionId,
+        source_field_id: undefined,
+        source_field_type: undefined,
+        sort_by: currentCollectionVariable?.sort_by,
+        sort_order: currentCollectionVariable?.sort_order,
+      };
+    }
+
+    if (!newCollectionVar) return;
+
+    // Update the collection source on the layer
+    handleLayerUpdate(selectedLayerId, {
+      variables: { ...selectedLayer?.variables, collection: newCollectionVar }
+    });
+
+    // Reset invalid CMS bindings on child layers after the source changed
+    // Use setTimeout to ensure the layer update is applied first
+    const layerId = selectedLayerId;
+    setTimeout(() => {
+      const currentLayers = editingComponentId
+        ? useComponentsStore.getState().componentDrafts[editingComponentId]
+        : currentPageId
+          ? usePagesStore.getState().draftsByPageId[currentPageId]?.layers
+          : null;
+
+      if (!currentLayers) return;
+
+      const cleanedLayers = resetBindingsOnCollectionSourceChange(currentLayers, layerId);
+      if (cleanedLayers !== currentLayers) {
+        if (editingComponentId) {
+          useComponentsStore.getState().updateComponentDraft(editingComponentId, cleanedLayers);
+        } else if (currentPageId) {
+          setDraftLayers(currentPageId, cleanedLayers);
+        }
+      }
+    }, 0);
   };
 
   // Get current value for dynamic page source dropdown
@@ -1948,6 +2014,9 @@ const RightSidebar = React.memo(function RightSidebar({
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
               activeTextStyleKey={activeTextStyleKey}
+              fieldGroups={fieldGroups}
+              allFields={fields}
+              collections={collections}
             />
           )}
 
@@ -1956,6 +2025,9 @@ const RightSidebar = React.memo(function RightSidebar({
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
               activeTextStyleKey={activeTextStyleKey}
+              fieldGroups={fieldGroups}
+              allFields={fields}
+              collections={collections}
             />
           )}
 
@@ -1964,6 +2036,9 @@ const RightSidebar = React.memo(function RightSidebar({
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
               activeTextStyleKey={activeTextStyleKey}
+              fieldGroups={fieldGroups}
+              allFields={fields}
+              collections={collections}
             />
           )}
 
@@ -2194,7 +2269,7 @@ const RightSidebar = React.memo(function RightSidebar({
                 >
                   <div className="grid grid-cols-3">
                     {!(isTextEditingOnCanvas && editingLayerIdOnCanvas === selectedLayerId) && (
-                      <div className="flex items-start gap-1 py-1">
+                      <div className="flex items-start gap-1 py-2">
                         {editingComponentId ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -2282,8 +2357,8 @@ const RightSidebar = React.memo(function RightSidebar({
               );
             })()}
 
-            {/* Link Settings - hide for form-related layers that should not be links */}
-            {selectedLayer && !['form', 'select', 'input', 'textarea', 'checkbox', 'radio', 'label'].includes(selectedLayer.name) && selectedLayer.settings?.tag !== 'label' && (
+            {/* Link Settings - hide for form-related layers, buttons inside forms, and layers inside buttons */}
+            {selectedLayer && !['form', 'select', 'input', 'textarea', 'checkbox', 'radio', 'label'].includes(selectedLayer.name) && selectedLayer.settings?.tag !== 'label' && !shouldHideLinkSettings && (
               <LinkSettings
                 layer={selectedLayer}
                 onLayerUpdate={handleLayerUpdate}
@@ -2367,47 +2442,45 @@ const RightSidebar = React.memo(function RightSidebar({
                       {/* When inside a parent collection, show reference fields and multi-asset fields as source options */}
                       {parentCollectionLayer ? (
                         <Select
-                          value={getCollectionVariable(selectedLayer)?.source_field_id || ''}
+                          value={getCollectionVariable(selectedLayer)?.source_field_id || 'none'}
                           onValueChange={handleReferenceFieldChange}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select source" />
                           </SelectTrigger>
                           <SelectContent>
-                            {parentReferenceFields.length > 0 || parentMultiAssetFields.length > 0 ? (
-                              <>
-                                {parentReferenceFields.length > 0 && (
-                                  <SelectGroup>
-                                    <SelectLabel>Reference fields</SelectLabel>
-                                    {parentReferenceFields.map((field) => (
-                                      <SelectItem key={field.id} value={field.id}>
-                                        <span className="flex items-center gap-2">
-                                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                                          {field.name}
-                                        </span>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                )}
-                                {parentMultiAssetFields.length > 0 && (
-                                  <SelectGroup>
-                                    <SelectLabel>Multi-asset fields</SelectLabel>
-                                    {parentMultiAssetFields.map((field) => (
-                                      <SelectItem key={field.id} value={field.id}>
-                                        <span className="flex items-center gap-2">
-                                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
-                                          {field.name}
-                                        </span>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                )}
-                              </>
-                            ) : (
+                            <SelectGroup>
+                              <SelectItem value="none">
+                                <span className="flex items-center gap-2">
+                                  <Icon name="none" className="size-3 text-muted-foreground shrink-0" />
+                                  No source
+                                </span>
+                              </SelectItem>
+                            </SelectGroup>
+                            {parentReferenceFields.length > 0 && (
                               <SelectGroup>
-                                <SelectItem value="__none__" disabled>
-                                  None
-                                </SelectItem>
+                                <SelectLabel>Reference fields</SelectLabel>
+                                {parentReferenceFields.map((field) => (
+                                  <SelectItem key={field.id} value={field.id}>
+                                    <span className="flex items-center gap-2">
+                                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                      {field.name}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {parentMultiAssetFields.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Multi-asset fields</SelectLabel>
+                                {parentMultiAssetFields.map((field) => (
+                                  <SelectItem key={field.id} value={field.id}>
+                                    <span className="flex items-center gap-2">
+                                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                      {field.name}
+                                    </span>
+                                  </SelectItem>
+                                ))}
                               </SelectGroup>
                             )}
                           </SelectContent>
@@ -2423,7 +2496,12 @@ const RightSidebar = React.memo(function RightSidebar({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
-                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="none">
+                                <span className="flex items-center gap-2">
+                                  <Icon name="none" className="size-3 text-muted-foreground shrink-0" />
+                                  No source
+                                </span>
+                              </SelectItem>
                             </SelectGroup>
                             {dynamicPageReferenceFields.length > 0 && (
                               <SelectGroup>
@@ -2456,7 +2534,10 @@ const RightSidebar = React.memo(function RightSidebar({
                               {collections.length > 0 ? (
                                 collections.map((collection) => (
                                   <SelectItem key={collection.id} value={`collection:${collection.id}`}>
-                                    {collection.name}
+                                    <span className="flex items-center gap-2">
+                                      <Icon name="database" className="size-3 text-muted-foreground shrink-0" />
+                                      {collection.name}
+                                    </span>
                                   </SelectItem>
                                 ))
                               ) : (
@@ -2470,7 +2551,7 @@ const RightSidebar = React.memo(function RightSidebar({
                       ) : (
                         /* When not inside a parent collection and not dynamic, show collections as source options */
                         <Select
-                          value={getCollectionVariable(selectedLayer)?.id || ''}
+                          value={getCollectionVariable(selectedLayer)?.id || 'none'}
                           onValueChange={handleCollectionChange}
                         >
                           <SelectTrigger>
@@ -2478,10 +2559,22 @@ const RightSidebar = React.memo(function RightSidebar({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
+                              <SelectItem value="none">
+                                <span className="flex items-center gap-2">
+                                  <Icon name="none" className="size-3 text-muted-foreground shrink-0" />
+                                  No source
+                                </span>
+                              </SelectItem>
+                            </SelectGroup>
+                            <SelectGroup>
+                              <SelectLabel>Collections</SelectLabel>
                               {collections.length > 0 ? (
                                 collections.map((collection) => (
                                   <SelectItem key={collection.id} value={collection.id}>
-                                    {collection.name}
+                                    <span className="flex items-center gap-2">
+                                      <Icon name="database" className="size-3 text-muted-foreground shrink-0" />
+                                      {collection.name}
+                                    </span>
                                   </SelectItem>
                                 ))
                               ) : (

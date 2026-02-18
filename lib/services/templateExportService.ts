@@ -1,5 +1,6 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { STORAGE_BUCKET } from '@/lib/asset-constants';
 import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
 
 // API key for uploading templates to the shared template service
@@ -448,7 +449,7 @@ export async function collectTemplateAssets(): Promise<
     try {
       // Download from Supabase Storage
       const { data, error: downloadError } = await client.storage
-        .from('assets')
+        .from(STORAGE_BUCKET)
         .download(asset.storage_path);
 
       if (downloadError || !data) {

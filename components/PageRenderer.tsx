@@ -5,6 +5,7 @@ import PasswordForm from '@/components/PasswordForm';
 import { resolveComponents } from '@/lib/resolve-components';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
 import { generateInitialAnimationCSS, type HiddenLayerInfo } from '@/lib/animation-utils';
+import { buildCustomFontsCss, buildFontClassesCss, getGoogleFontLinks } from '@/lib/font-utils';
 import { getAllPages } from '@/lib/repositories/pageRepository';
 import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
 import { getItemWithValues } from '@/lib/repositories/collectionItemRepository';
@@ -201,6 +202,19 @@ export default async function PageRenderer({
   // Generate CSS for initial animation states to prevent flickering
   const { css: initialAnimationCSS, hiddenLayerInfo } = generateInitialAnimationCSS(resolvedLayers);
 
+  // Load installed fonts and generate CSS + link URLs
+  let fontsCss = '';
+  let googleFontLinkUrls: string[] = [];
+  try {
+    const { getAllFonts: getAllDraftFonts } = await import('@/lib/repositories/fontRepository');
+    const { getPublishedFonts } = await import('@/lib/repositories/fontRepository');
+    const fonts = isPreview ? await getAllDraftFonts() : await getPublishedFonts();
+    fontsCss = buildCustomFontsCss(fonts) + buildFontClassesCss(fonts);
+    googleFontLinkUrls = getGoogleFontLinks(fonts);
+  } catch (error) {
+    console.error('[PageRenderer] Error loading fonts:', error);
+  }
+
   // Pre-resolve all asset URLs for SSR (images, videos, audio, icons, and field values)
   // This prevents client-side fetching delays and ensures links/media work immediately
   const collectAssetIds = (layers: Layer[]): Set<string> => {
@@ -257,6 +271,10 @@ export default async function PageRenderer({
       // Icon source
       if (isAssetVar(layer.variables?.icon?.src)) {
         assetIds.add(layer.variables.icon.src.data.asset_id);
+      }
+      // Background image source
+      if (isAssetVar(layer.variables?.backgroundImage?.src)) {
+        assetIds.add(layer.variables.backgroundImage.src.data.asset_id);
       }
 
       // Direct asset link (type = 'asset')
@@ -332,6 +350,23 @@ export default async function PageRenderer({
         />
       )}
 
+      {/* Load Google Fonts via <link> elements (more reliable than @import) */}
+      {googleFontLinkUrls.map((url, i) => (
+        <link
+          key={`gfont-${i}`}
+          rel="stylesheet"
+          href={url}
+        />
+      ))}
+
+      {/* Inject custom font @font-face rules and font class CSS */}
+      {fontsCss && (
+        <style
+          id="ycode-fonts"
+          dangerouslySetInnerHTML={{ __html: fontsCss }}
+        />
+      )}
+
       {/* Inject initial animation styles to prevent flickering */}
       {initialAnimationCSS && (
         <style
@@ -373,7 +408,7 @@ export default async function PageRenderer({
 
       <div
         id="ybody"
-        className="min-h-screen bg-white"
+        className="h-full min-h-screen bg-white"
         data-layer-id="body"
         data-layer-type="div"
         data-is-empty={hasLayers ? 'false' : 'true'}
