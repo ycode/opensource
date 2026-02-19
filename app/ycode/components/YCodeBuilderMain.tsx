@@ -842,14 +842,20 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
     // Update the ref for next comparison (store per page)
     lastLayersByPageRef.current.set(currentPageId, currentLayersJSON);
+    // NOTE: No cleanup here — clearing the save timeout on every re-run caused a race
+    // condition where saves scheduled during an in-flight save were cancelled when
+    // saveDraft updated draftsByPageId metadata, triggering this effect's cleanup.
+  }, [currentPageId, draftsByPageId, debouncedSave]);
 
-    // Cleanup timeout on unmount
+  // Cleanup save timeout on unmount only
+  useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
       }
     };
-  }, [currentPageId, draftsByPageId, debouncedSave]);
+  }, []);
 
   // Listen for version saved event to clear unsaved flag
   useEffect(() => {
