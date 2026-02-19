@@ -424,8 +424,27 @@ async function publishSelectedItems(
     return { itemsCount: 0, valuesCount: 0, itemsDurationMs: 0, valuesDurationMs: 0 };
   }
 
+  // Separate publishable from non-publishable items
+  const publishableItems = draftItems.filter(item => item.is_publishable);
+  const nonPublishableItems = draftItems.filter(item => !item.is_publishable);
+
+  // Remove published versions of non-publishable items
+  if (nonPublishableItems.length > 0) {
+    const nonPublishableIds = nonPublishableItems.map(item => item.id);
+    await client
+      .from('collection_items')
+      .delete()
+      .in('id', nonPublishableIds)
+      .eq('is_published', true);
+  }
+
+  if (publishableItems.length === 0) {
+    return { itemsCount: 0, valuesCount: 0, itemsDurationMs: 0, valuesDurationMs: 0 };
+  }
+
   // Fetch existing published items for comparison
-  const publishedItems = await getItemsByIds(itemsToPublish, true);
+  const publishableIds = publishableItems.map(i => i.id);
+  const publishedItems = await getItemsByIds(publishableIds, true);
   const publishedItemsById = new Map(publishedItems.map(i => [i.id, i]));
 
   // Time items upsert
@@ -436,10 +455,10 @@ async function publishSelectedItems(
   const itemsToUpsert: any[] = [];
   const itemIdsToPublishValues: string[] = [];
 
-  for (const item of draftItems) {
+  for (const item of publishableItems) {
     const existing = publishedItemsById.get(item.id);
 
-    if (existing && existing.manual_order === item.manual_order) {
+    if (existing && existing.manual_order === item.manual_order && existing.is_publishable === item.is_publishable) {
       // Item metadata unchanged - still need to check values
       itemIdsToPublishValues.push(item.id);
       continue;
@@ -449,6 +468,7 @@ async function publishSelectedItems(
       id: item.id,
       collection_id: item.collection_id,
       manual_order: item.manual_order,
+      is_publishable: item.is_publishable,
       is_published: true,
       created_at: item.created_at,
       updated_at: now,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getItemWithValues, updateItem, deleteItem } from '@/lib/repositories/collectionItemRepository';
+import { getItemWithValues, updateItem, deleteItem, enrichSingleItemWithStatus } from '@/lib/repositories/collectionItemRepository';
 import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
 import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { noCache } from '@/lib/api-response';
@@ -57,14 +57,17 @@ export async function PUT(
 
     const body = await request.json();
 
-    // Extract values from body
-    const { values, ...itemData } = body;
+    // Extract values and is_publishable from body
+    const { values, is_publishable, ...itemData } = body;
+
+    // Build update payload (only include is_publishable if explicitly provided)
+    const updatePayload: Record<string, any> = { ...itemData };
+    if (typeof is_publishable === 'boolean') {
+      updatePayload.is_publishable = is_publishable;
+    }
 
     // Always update the item's updated_at timestamp in collection_items table
-    await updateItem(itemId, {
-      ...itemData,
-      // updated_at is automatically set in updateItem repository function
-    });
+    await updateItem(itemId, updatePayload);
 
     // Update field values if provided
     if (values && typeof values === 'object') {
@@ -77,8 +80,11 @@ export async function PUT(
       );
     }
 
-    // Get updated item with values
+    // Get updated item with values and enrich with status
     const updatedItem = await getItemWithValues(itemId, false);
+    if (updatedItem) {
+      await enrichSingleItemWithStatus(updatedItem, collectionId);
+    }
 
     return noCache({ data: updatedItem });
   } catch (error) {

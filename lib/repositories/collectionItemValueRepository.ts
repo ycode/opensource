@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { CollectionItemValue, CollectionFieldType } from '@/types';
 import { castValue, valueToString } from '../collection-utils';
+import { generateCollectionItemContentHash } from '../hash-utils';
 import { randomUUID } from 'crypto';
 import { deleteTranslationsInBulk, markTranslationsIncomplete } from '@/lib/repositories/translationRepository';
 
@@ -15,6 +16,20 @@ import { deleteTranslationsInBulk, markTranslationsIncomplete } from '@/lib/repo
  * References items using FK (item_id).
  * References fields using FK (field_id).
  */
+
+/** Update the content_hash on a collection_items row */
+async function updateContentHash(itemId: string, isPublished: boolean, hash: string): Promise<void> {
+  const client = await getSupabaseAdmin();
+  if (!client) throw new Error('Supabase client not configured');
+
+  const { error } = await client
+    .from('collection_items')
+    .update({ content_hash: hash, updated_at: new Date().toISOString() })
+    .eq('id', itemId)
+    .eq('is_published', isPublished);
+
+  if (error) throw new Error(`Failed to update content_hash: ${error.message}`);
+}
 
 export interface CreateCollectionItemValueData {
   value: string | null;
@@ -55,6 +70,18 @@ export async function insertValuesBulk(
 
   if (error) {
     throw new Error(`Failed to bulk insert values: ${error.message}`);
+  }
+
+  // Compute and store content_hash per item
+  const valuesByItem = new Map<string, Array<{ field_id: string; value: string | null; is_published: boolean }>>();
+  for (const v of values) {
+    const key = v.item_id;
+    if (!valuesByItem.has(key)) valuesByItem.set(key, []);
+    valuesByItem.get(key)!.push({ field_id: v.field_id, value: v.value, is_published: v.is_published ?? false });
+  }
+  for (const [itemId, itemValues] of valuesByItem) {
+    const hash = generateCollectionItemContentHash(itemValues.map(v => ({ field_id: v.field_id, value: v.value })));
+    await updateContentHash(itemId, itemValues[0].is_published, hash);
   }
 }
 
@@ -380,7 +407,14 @@ export async function setValuesByFieldName(
     }
   }
 
-  return setValues(item_id, valuesToSet, is_published);
+  const results = await setValues(item_id, valuesToSet, is_published);
+
+  // Recompute content_hash from all current values
+  const allValues = await getValuesByItemId(item_id, is_published);
+  const hash = generateCollectionItemContentHash(allValues.map(v => ({ field_id: v.field_id, value: v.value })));
+  await updateContentHash(item_id, is_published, hash);
+
+  return results;
 }
 
 /**
@@ -461,6 +495,10 @@ export async function publishValues(item_id: string): Promise<number> {
   if (error) {
     throw new Error(`Failed to publish values: ${error.message}`);
   }
+
+  // Copy the draft content_hash to the published item
+  const hash = generateCollectionItemContentHash(draftValues.map(v => ({ field_id: v.field_id, value: v.value })));
+  await updateContentHash(item_id, true, hash);
 
   console.log(`[publishValues] Successfully published ${draftValues.length} values for item ${item_id}`);
   return draftValues.length;

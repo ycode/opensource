@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto';
 
 export interface FieldFilters {
   search?: string;
+  excludeComputed?: boolean;
 }
 
 /**
@@ -86,7 +87,10 @@ export async function getFieldsByCollectionId(
     .is('deleted_at', null)
     .order('order', { ascending: true });
 
-  // Apply search filter
+  if (filters?.excludeComputed) {
+    query = query.eq('is_computed', false);
+  }
+
   if (filters?.search && filters.search.trim()) {
     const searchTerm = `%${filters.search.trim()}%`;
     query = query.ilike('name', searchTerm);
@@ -149,6 +153,7 @@ export async function createField(fieldData: CreateCollectionFieldData): Promise
       fillable: fieldData.fillable ?? true,
       key: fieldData.key ?? null,
       hidden: fieldData.hidden ?? false,
+      is_computed: fieldData.is_computed ?? false,
       data: fieldData.data ?? {},
       is_published: isPublished,
       created_at: new Date().toISOString(),

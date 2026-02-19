@@ -243,3 +243,16 @@ export function generateFontContentHash(fontData: {
     category: fontData.category,
   });
 }
+
+/**
+ * Generate a content hash for a collection item's EAV values.
+ * Values are sorted by field_id for stability regardless of insertion order.
+ */
+export function generateCollectionItemContentHash(
+  values: Array<{ field_id: string; value: string | null }>
+): string {
+  const sorted = [...values]
+    .sort((a, b) => a.field_id.localeCompare(b.field_id))
+    .map(v => ({ field_id: v.field_id, value: v.value ?? '' }));
+  return generateContentHash(sorted);
+}

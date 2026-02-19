@@ -64,6 +64,21 @@ export async function GET(
         continue;
       }
 
+      // If item is not publishable, check if it has a published version that needs removal
+      if (!item.is_publishable) {
+        const { data: publishedItem } = await client
+          .from('collection_items')
+          .select('id')
+          .eq('id', item.id)
+          .eq('is_published', true)
+          .limit(1);
+
+        if (publishedItem && publishedItem.length > 0) {
+          unpublishedItems.push({ ...item, publish_status: 'deleted' });
+        }
+        continue;
+      }
+
       // Get draft values
       const { data: draftValues, error: draftError } = await client
         .from('collection_item_values')

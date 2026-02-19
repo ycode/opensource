@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { getValuesByFieldId, getValuesByItemIds } from '@/lib/repositories/collectionItemValueRepository';
 import { castValue } from '../collection-utils';
+import { findStatusFieldId, buildStatusValue } from '@/lib/collection-field-utils';
 
 /**
  * Collection Item Repository
@@ -56,7 +57,7 @@ export async function getTopItemsPerCollection(
 
   if (error) {
     // Fallback to manual approach if RPC doesn't exist yet
-    const { data: manualData, error: manualError } = await client
+    let manualQuery = client
       .from('collection_items')
       .select('*')
       .in('collection_id', collectionIds)
@@ -66,6 +67,13 @@ export async function getTopItemsPerCollection(
       .order('manual_order', { ascending: true })
       .order('created_at', { ascending: false })
       .limit(collectionIds.length * limit);
+
+    // For published queries, only include publishable items
+    if (is_published) {
+      manualQuery = manualQuery.eq('is_publishable', true);
+    }
+
+    const { data: manualData, error: manualError } = await manualQuery;
 
     if (manualError) {
       throw new Error(`Failed to fetch items: ${manualError.message}`);
@@ -92,10 +100,12 @@ export interface CreateCollectionItemData {
   collection_id: string; // UUID
   manual_order?: number;
   is_published?: boolean;
+  is_publishable?: boolean;
 }
 
 export interface UpdateCollectionItemData {
   manual_order?: number;
+  is_publishable?: boolean;
 }
 
 /**
@@ -171,6 +181,12 @@ export async function getItemsByCollectionId(
     .select('*', { count: 'exact', head: true })
     .eq('collection_id', collection_id)
     .eq('is_published', is_published);
+
+  // For published queries, only include publishable items
+  if (is_published) {
+    countQuery = countQuery.eq('is_publishable', true);
+  }
+
   // Apply item ID filter to count query (from itemIds filter and/or search)
   if (filterIds !== null) {
     countQuery = countQuery.in('id', filterIds);
@@ -202,6 +218,11 @@ export async function getItemsByCollectionId(
     .eq('is_published', is_published)
     .order('manual_order', { ascending: true })
     .order('created_at', { ascending: false });
+
+  // For published queries, only include publishable items
+  if (is_published) {
+    query = query.eq('is_publishable', true);
+  }
 
   // Apply item ID filter (from itemIds filter and/or search)
   if (filterIds !== null) {
@@ -239,6 +260,61 @@ export async function getItemsByCollectionId(
 }
 
 /**
+ * Enrich draft items with computed status values for the Status field.
+ * Injects `{ is_publishable, is_published, is_modified }` JSON into each item's
+ * values map under the status field's ID, matching the old project's format.
+ */
+export async function enrichItemsWithStatus(
+  items: CollectionItemWithValues[],
+  collectionId: string,
+  statusFieldId: string | null,
+): Promise<void> {
+  if (!statusFieldId || items.length === 0) return;
+
+  const client = await getSupabaseAdmin();
+  if (!client) throw new Error('Supabase client not configured');
+
+  const itemIds = items.map(item => item.id);
+
+  // Fetch published counterparts (id + content_hash) in one query
+  const { data: publishedRows, error } = await client
+    .from('collection_items')
+    .select('id, content_hash')
+    .in('id', itemIds)
+    .eq('is_published', true)
+    .is('deleted_at', null);
+
+  if (error) throw new Error(`Failed to fetch published items for status: ${error.message}`);
+
+  const publishedHashMap = new Map(
+    (publishedRows || []).map(row => [row.id, row.content_hash])
+  );
+
+  for (const item of items) {
+    const publishedHash = publishedHashMap.get(item.id);
+    const hasPublishedVersion = publishedHash !== undefined;
+    const isModified = hasPublishedVersion
+      && item.content_hash != null
+      && publishedHash != null
+      && item.content_hash !== publishedHash;
+
+    item.values[statusFieldId] = buildStatusValue(item.is_publishable, hasPublishedVersion, isModified);
+  }
+}
+
+/**
+ * Enrich a single item with computed status.
+ * Fetches fields internally — use when the caller doesn't already have them.
+ */
+export async function enrichSingleItemWithStatus(
+  item: CollectionItemWithValues,
+  collectionId: string,
+): Promise<void> {
+  const fields = await getFieldsByCollectionId(collectionId, false);
+  await enrichItemsWithStatus([item], collectionId, findStatusFieldId(fields));
+}
+
+/**
  * Get ALL items for a collection (with pagination to handle >1000 items)
  * Use this for publishing and other operations that need all items
  * @param includeDeleted - If true, only returns deleted items. If false/undefined, excludes deleted items.
@@ -267,6 +343,11 @@ export async function getAllItemsByCollectionId(
       .order('manual_order', { ascending: true })
       .order('created_at', { ascending: false })
       .range(offset, offset + SUPABASE_QUERY_LIMIT - 1);
+
+    // For published queries, only include publishable items
+    if (is_published) {
+      query = query.eq('is_publishable', true);
+    }
 
     // Apply deleted filter
     if (includeDeleted) {
@@ -549,6 +630,7 @@ export async function createItemsBulk(
     collection_id: item.collection_id,
     manual_order: item.manual_order ?? 0,
     is_published: item.is_published ?? false,
+    is_publishable: item.is_publishable ?? true,
     created_at: now,
     updated_at: now,
   }));
@@ -585,6 +667,7 @@ export async function createItem(itemData: CreateCollectionItemData): Promise<Co
       ...itemData,
       manual_order: itemData.manual_order ?? 0,
       is_published: isPublished,
+      is_publishable: itemData.is_publishable ?? true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -797,6 +880,7 @@ export async function duplicateItem(itemId: string, isPublished: boolean = false
       collection_id: originalItem.collection_id,
       manual_order: originalItem.manual_order,
       is_published: isPublished,
+      is_publishable: originalItem.is_publishable,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -919,6 +1003,7 @@ export async function publishItem(id: string): Promise<CollectionItem> {
       id: draft.id, // Same UUID
       collection_id: draft.collection_id,
       manual_order: draft.manual_order,
+      is_publishable: draft.is_publishable,
       is_published: true,
       created_at: draft.created_at,
       updated_at: new Date().toISOString(),
@@ -968,6 +1053,7 @@ export async function getTotalPublishableItemsCount(): Promise<number> {
       .select('id, manual_order')
       .in('collection_id', collectionIds)
       .eq('is_published', false)
+      .eq('is_publishable', true)
       .is('deleted_at', null),
     client
       .from('collection_items')
@@ -1084,4 +1170,116 @@ async function countItemsWithValueChanges(
   }
 
   return changedCount;
+}
+
+/**
+ * Unpublish a single item: deletes its published row and values (CASCADE).
+ * Also sets is_publishable = false on the draft row.
+ */
+export async function unpublishSingleItem(itemId: string): Promise<void> {
+  const client = await getSupabaseAdmin();
+  if (!client) throw new Error('Supabase client not configured');
+
+  // Delete published row (CASCADE deletes published values)
+  await client
+    .from('collection_items')
+    .delete()
+    .eq('id', itemId)
+    .eq('is_published', true);
+
+  // Set draft as not publishable
+  await client
+    .from('collection_items')
+    .update({ is_publishable: false, updated_at: new Date().toISOString() })
+    .eq('id', itemId)
+    .eq('is_published', false);
+}
+
+/**
+ * Stage a single item for publish: removes published version if it exists,
+ * then sets is_publishable = true on the draft row.
+ * @returns true if a published version was removed (caller should clear cache)
+ */
+export async function stageSingleItem(itemId: string): Promise<boolean> {
+  const client = await getSupabaseAdmin();
+  if (!client) throw new Error('Supabase client not configured');
+
+  // Check if a published version exists
+  const { data: published } = await client
+    .from('collection_items')
+    .select('id')
+    .eq('id', itemId)
+    .eq('is_published', true)
+    .maybeSingle();
+
+  const hadPublished = !!published;
+
+  // Remove published version if it exists (CASCADE deletes published values)
+  if (hadPublished) {
+    await client
+      .from('collection_items')
+      .delete()
+      .eq('id', itemId)
+      .eq('is_published', true);
+  }
+
+  // Set draft as publishable
+  await client
+    .from('collection_items')
+    .update({ is_publishable: true, updated_at: new Date().toISOString() })
+    .eq('id', itemId)
+    .eq('is_published', false);
+
+  return hadPublished;
+}
+
+/**
+ * Publish a single item immediately: upserts a published item row
+ * and copies draft values to published. Sets is_publishable = true.
+ */
+export async function publishSingleItem(itemId: string): Promise<void> {
+  const client = await getSupabaseAdmin();
+  if (!client) throw new Error('Supabase client not configured');
+
+  // Get draft item
+  const { data: draftItem, error: draftErr } = await client
+    .from('collection_items')
+    .select('*')
+    .eq('id', itemId)
+    .eq('is_published', false)
+    .is('deleted_at', null)
+    .single();
+
+  if (draftErr || !draftItem) {
+    throw new Error('Draft item not found');
+  }
+
+  const now = new Date().toISOString();
+
+  // Ensure draft is marked publishable
+  if (!draftItem.is_publishable) {
+    await client
+      .from('collection_items')
+      .update({ is_publishable: true, updated_at: now })
+      .eq('id', itemId)
+      .eq('is_published', false);
+  }
+
+  // Upsert published item row
+  await client
+    .from('collection_items')
+    .upsert({
+      id: draftItem.id,
+      collection_id: draftItem.collection_id,
+      manual_order: draftItem.manual_order,
+      is_publishable: true,
+      is_published: true,
+      content_hash: draftItem.content_hash,
+      created_at: draftItem.created_at,
+      updated_at: now,
+    }, { onConflict: 'id,is_published' });
+
+  // Copy draft values to published via existing publishValues utility
+  const { publishValues } = await import('@/lib/repositories/collectionItemValueRepository');
+  await publishValues(itemId);
 }

@@ -1,4 +1,3 @@
- 
 'use client';
 
 /**
@@ -8,12 +7,17 @@
  * Can be used from CMS page or triggered from builder canvas.
  */
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Sheet,
   SheetContent,
@@ -38,7 +42,9 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { slugify, normalizeBooleanValue } from '@/lib/collection-utils';
-import { validateFieldValue, isAssetFieldType, isMultipleAssetField, getFileManagerCategory, getAssetFieldLabel, getAssetFieldTypeLabel, isValidAssetForField } from '@/lib/collection-field-utils';
+import { isAssetFieldType, isMultipleAssetField, getFileManagerCategory, getAssetFieldLabel, getAssetFieldTypeLabel, isValidAssetForField, findStatusFieldId } from '@/lib/collection-field-utils';
+import type { StatusAction } from '@/lib/collection-field-utils';
+import { CollectionStatusPill, parseStatusValue } from './CollectionStatusPill';
 import { formatDateInTimezone, localDatetimeToUTC } from '@/lib/date-format-utils';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { toast } from 'sonner';
@@ -49,7 +55,7 @@ import AssetFieldCard from './AssetFieldCard';
 import type { Asset, CollectionItemWithValues } from '@/types';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 
 interface CollectionItemSheetProps {
   open: boolean;
@@ -66,7 +72,7 @@ export default function CollectionItemSheet({
   itemId,
   onSuccess,
 }: CollectionItemSheetProps) {
-  const { collections, fields, items, updateItem, createItem } = useCollectionsStore();
+  const { collections, fields, items, updateItem, createItem, setItemStatus } = useCollectionsStore();
   const { updateItemInLayerData, refetchLayersForCollection } = useCollectionLayerStore();
   const { updatePageCollectionItem, refetchPageCollectionItem, pages } = usePagesStore();
   const { currentPageId, openFileManager } = useEditorStore();
@@ -93,6 +99,7 @@ export default function CollectionItemSheet({
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const pendingStatusActionRef = useRef<StatusAction | null>(null);
 
   const collection = collections.find(c => c.id === collectionId);
   const collectionFields = useMemo(
@@ -102,6 +109,10 @@ export default function CollectionItemSheet({
   const collectionItems = useMemo(
     () => (collectionId ? (items[collectionId] || []) : []),
     [collectionId, items]
+  );
+  const statusFieldId = useMemo(
+    () => findStatusFieldId(collectionFields),
+    [collectionFields]
   );
 
   // Check if the current page is a dynamic page using this collection
@@ -140,6 +151,12 @@ export default function CollectionItemSheet({
   const isTempId = (id: string | null | undefined): boolean => {
     return !!id && (id.startsWith('temp-') || id.startsWith('temp-dup-'));
   };
+
+  // Compute status for the current item from the status field value
+  const isNewItem = !editingItem || isTempId(editingItem.id);
+  const statusValue = (editingItem && statusFieldId) ? parseStatusValue(editingItem.values[statusFieldId]) : null;
+  const isPublishable = statusValue?.is_publishable ?? editingItem?.is_publishable ?? true;
+  const hasPublishedVersion = statusValue?.is_published ?? false;
 
   // Load item data when sheet opens with an itemId
   useEffect(() => {
@@ -338,8 +355,14 @@ export default function CollectionItemSheet({
 
       // 3. Update in main collections store (fire and forget - store handles optimistic update & rollback)
       const itemId = itemToUpdate.id;
+      const statusAction = pendingStatusActionRef.current;
+      pendingStatusActionRef.current = null;
       updateItem(collectionId, itemId, values)
         .then(() => {
+          // Apply status action after save completes
+          if (statusAction) {
+            setItemStatus(collectionId, itemId, statusAction);
+          }
           // Broadcast item update to other collaborators
           if (liveCollectionUpdates) {
             liveCollectionUpdates.broadcastItemUpdate(collectionId, itemId, { values } as any);
@@ -365,7 +388,9 @@ export default function CollectionItemSheet({
       }
     } else {
       // Create new item (store handles optimistic update & rollback)
-      createItem(collectionId, values)
+      const statusAction = pendingStatusActionRef.current;
+      pendingStatusActionRef.current = null;
+      createItem(collectionId, values, statusAction ?? undefined)
         .then((newItem) => {
           // Broadcast item creation to other collaborators
           if (liveCollectionUpdates && newItem) {
@@ -433,18 +458,86 @@ export default function CollectionItemSheet({
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent onOpenAutoFocus={handleOpenAutoFocus} aria-describedby={undefined}>
         <SheetHeader>
-          <SheetTitle>
+          <SheetTitle className="flex items-center gap-2 flex-wrap">
             {editingItem ? 'Edit' : 'Create'} {collection?.name} Item
+            {!isNewItem && statusValue && (
+              <CollectionStatusPill statusValue={statusValue} />
+            )}
           </SheetTitle>
           <SheetActions>
-            <Button
-              size="sm"
-              type="submit"
-              form="collection-item-form"
-              disabled={isTempId(editingItem?.id)}
-            >
-              {editingItem ? (isTempId(editingItem.id) ? 'Saving...' : 'Save') : 'Create'}
-            </Button>
+            {/* More options dropdown */}
+            {editingItem && !isTempId(editingItem.id) && (
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="secondary">
+                    <Icon name="dotsHorizontal" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      onOpenChange(false);
+                      toast.info('Use the context menu in the CMS table to delete items');
+                    }}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Save button with dropdown for alternate actions */}
+            <div className="flex">
+              <Button
+                size="sm"
+                type="submit"
+                form="collection-item-form"
+                disabled={isTempId(editingItem?.id)}
+                className="rounded-r-none"
+              >
+                {editingItem ? (isTempId(editingItem.id) ? 'Saving...' : 'Save') : 'Create'}
+              </Button>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="rounded-l-none border-l border-primary-foreground/20 px-1.5"
+                    disabled={isTempId(editingItem?.id)}
+                  >
+                    <Icon name="triangle-down" className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!isNewItem && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        pendingStatusActionRef.current = 'stage';
+                        form.handleSubmit(handleSubmit)();
+                      }}
+                    >
+                      Save as staged for publish
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => {
+                      pendingStatusActionRef.current = 'draft';
+                      form.handleSubmit(handleSubmit)();
+                    }}
+                  >
+                    {isNewItem ? 'Create' : 'Save'} as draft
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      pendingStatusActionRef.current = 'publish';
+                      form.handleSubmit(handleSubmit)();
+                    }}
+                  >
+                    {isNewItem ? 'Create' : 'Save'} and publish
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </SheetActions>
         </SheetHeader>
 

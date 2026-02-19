@@ -84,7 +84,7 @@ export async function POST(
     const collectionItemSlugs: Record<string, string> = {};
 
     // Get the slug field for this collection
-    const collectionFields = await getFieldsByCollectionId(collectionId, published);
+    const collectionFields = await getFieldsByCollectionId(collectionId, published, { excludeComputed: true });
     const slugField = collectionFields.find(f => f.key === 'slug');
 
     // Extract slug values from items

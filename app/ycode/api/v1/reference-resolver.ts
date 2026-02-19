@@ -122,7 +122,7 @@ export async function resolveItemReferences(
       try {
         const refItem = await getItemWithValues(value, isPublished);
         if (refItem) {
-          const refFields = await getFieldsByCollectionId(field.reference_collection_id, isPublished);
+          const refFields = await getFieldsByCollectionId(field.reference_collection_id, isPublished, { excludeComputed: true });
           // Build the path for nested projections
           const nestedPath = currentPath ? `${currentPath}.${field.name}` : undefined;
           const resolved = await resolveItemReferences(
