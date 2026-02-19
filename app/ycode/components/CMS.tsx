@@ -54,6 +54,7 @@ import { Switch } from '@/components/ui/switch';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import type { CollectionUsageResult, CollectionFieldUsageResult } from '@/lib/collection-usage-utils';
 
 /**
  * Helper component to render reference field values in CMS list
@@ -412,6 +413,12 @@ const CMS = React.memo(function CMS() {
   const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
   const [deleteCollectionDialogOpen, setDeleteCollectionDialogOpen] = useState(false);
   const [deleteCollectionId, setDeleteCollectionId] = useState<string | null>(null);
+
+  // Usage check state for deletion protection
+  const [collectionUsage, setCollectionUsage] = useState<CollectionUsageResult | null>(null);
+  const [loadingCollectionUsage, setLoadingCollectionUsage] = useState(false);
+  const [fieldUsage, setFieldUsage] = useState<CollectionFieldUsageResult | null>(null);
+  const [loadingFieldUsage, setLoadingFieldUsage] = useState(false);
 
   // Manual order switch dialog state
   const [switchToManualDialogOpen, setSwitchToManualDialogOpen] = useState(false);
@@ -1088,7 +1095,7 @@ const CMS = React.memo(function CMS() {
       });
   };
 
-  const handleDeleteField = (fieldId: string) => {
+  const handleDeleteField = async (fieldId: string) => {
     if (!selectedCollectionId) return;
 
     const field = collectionFields.find(f => f.id === fieldId);
@@ -1098,11 +1105,27 @@ const CMS = React.memo(function CMS() {
     }
 
     setDeleteFieldId(fieldId);
+    setFieldUsage(null);
+    setLoadingFieldUsage(true);
     setDeleteFieldDialogOpen(true);
+
+    try {
+      const response = await collectionsApi.getFieldUsage(selectedCollectionId, fieldId);
+      if (response.data && !response.error) {
+        setFieldUsage(response.data as CollectionFieldUsageResult);
+      }
+    } catch (error) {
+      console.error('Failed to fetch field usage:', error);
+    } finally {
+      setLoadingFieldUsage(false);
+    }
   };
 
   const handleConfirmDeleteField = async () => {
     if (!selectedCollectionId || !deleteFieldId) return;
+
+    // Block deletion if field is in use
+    if (fieldUsage && fieldUsage.total > 0) return;
 
     try {
       await deleteField(selectedCollectionId, deleteFieldId);
@@ -1375,13 +1398,29 @@ const CMS = React.memo(function CMS() {
     setRenameValue('');
   };
 
-  const handleCollectionDelete = (collectionId: string) => {
+  const handleCollectionDelete = async (collectionId: string) => {
     setDeleteCollectionId(collectionId);
+    setCollectionUsage(null);
+    setLoadingCollectionUsage(true);
     setDeleteCollectionDialogOpen(true);
+
+    try {
+      const response = await collectionsApi.getUsage(collectionId);
+      if (response.data && !response.error) {
+        setCollectionUsage(response.data as CollectionUsageResult);
+      }
+    } catch (error) {
+      console.error('Failed to fetch collection usage:', error);
+    } finally {
+      setLoadingCollectionUsage(false);
+    }
   };
 
   const handleConfirmDeleteCollection = async () => {
     if (!deleteCollectionId) return;
+
+    // Block deletion if collection is in use
+    if (collectionUsage && collectionUsage.total > 0) return;
 
     try {
       await deleteCollection(deleteCollectionId);
@@ -2281,28 +2320,149 @@ const CMS = React.memo(function CMS() {
         open={deleteFieldDialogOpen}
         onOpenChange={(open) => {
           setDeleteFieldDialogOpen(open);
-          if (!open) setDeleteFieldId(null);
+          if (!open) {
+            setTimeout(() => {
+              setDeleteFieldId(null);
+              setFieldUsage(null);
+              setLoadingFieldUsage(false);
+            }, 200);
+          }
         }}
-        title="Delete field"
-        description="Are you sure you want to delete this field? This will remove it from all items."
+        title={fieldUsage && fieldUsage.total > 0 ? 'Field in use' : 'Delete field'}
         confirmLabel="Delete"
+        confirmVariant="destructive"
+        disableConfirm={loadingFieldUsage || (fieldUsage !== null && fieldUsage.total > 0)}
         onConfirm={handleConfirmDeleteField}
-      />
+      >
+        {loadingFieldUsage ? (
+          <span className="flex items-center gap-2">
+            <Spinner />
+            Checking field usage...
+          </span>
+        ) : fieldUsage && fieldUsage.total > 0 ? (
+          <div className="space-y-3">
+            <p>
+              This field cannot be deleted because it is still being used. Remove all references before deleting.
+            </p>
+            <div className="space-y-2 text-muted-foreground">
+              {fieldUsage.pages.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">Page collection layers</span>
+                    <span>&mdash;</span>
+                    <span>{fieldUsage.pages.length} item{fieldUsage.pages.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {fieldUsage.pages.map((p) => (
+                      <li key={p.id}>{p.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {fieldUsage.components.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">Components</span>
+                    <span>&mdash;</span>
+                    <span>{fieldUsage.components.length} item{fieldUsage.components.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {fieldUsage.components.map((c) => (
+                      <li key={c.id}>{c.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          'Are you sure you want to delete this field? This will remove it from all items.'
+        )}
+      </ConfirmDialog>
       <ConfirmDialog
         open={deleteCollectionDialogOpen}
         onOpenChange={(open) => {
           setDeleteCollectionDialogOpen(open);
-          if (!open) setDeleteCollectionId(null);
+          if (!open) {
+            setTimeout(() => {
+              setDeleteCollectionId(null);
+              setCollectionUsage(null);
+              setLoadingCollectionUsage(false);
+            }, 200);
+          }
         }}
-        title="Delete collection"
-        description={
-          deleteCollectionId
-            ? `Are you sure you want to delete "${collections.find(c => c.id === deleteCollectionId)?.name ?? 'this collection'}"? This action cannot be undone.`
-            : 'Are you sure you want to delete this collection? This action cannot be undone.'
-        }
+        title={collectionUsage && collectionUsage.total > 0 ? 'Collection in use' : 'Delete collection'}
         confirmLabel="Delete"
+        confirmVariant="destructive"
+        disableConfirm={loadingCollectionUsage || (collectionUsage !== null && collectionUsage.total > 0)}
         onConfirm={handleConfirmDeleteCollection}
-      />
+      >
+        {loadingCollectionUsage ? (
+          <span className="flex items-center gap-2">
+            <Spinner />
+            Checking collection usage...
+          </span>
+        ) : collectionUsage && collectionUsage.total > 0 ? (
+          <div className="space-y-3">
+            <p>
+              <span className="text-foreground">
+                {collections.find(c => c.id === deleteCollectionId)?.name ?? 'This collection'}
+              </span>{' '}
+              cannot be deleted because it is still being used. Remove all references before deleting.
+            </p>
+            <div className="space-y-2 text-muted-foreground">
+              {collectionUsage.pages.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">Page collection layers</span>
+                    <span>&mdash;</span>
+                    <span>{collectionUsage.pages.length} item{collectionUsage.pages.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {collectionUsage.pages.map((p) => (
+                      <li key={p.id}>{p.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {collectionUsage.components.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">Components</span>
+                    <span>&mdash;</span>
+                    <span>{collectionUsage.components.length} item{collectionUsage.components.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {collectionUsage.components.map((c) => (
+                      <li key={c.id}>{c.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {collectionUsage.referenceFields.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">Reference fields</span>
+                    <span>&mdash;</span>
+                    <span>{collectionUsage.referenceFields.length} field{collectionUsage.referenceFields.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {collectionUsage.referenceFields.map((f) => (
+                      <li key={f.id}>
+                        Field &quot;{f.name}&quot; in &quot;{f.collectionName}&quot;
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p>
+            Are you sure you want to delete &quot;{collections.find(c => c.id === deleteCollectionId)?.name ?? 'this collection'}&quot;? This action cannot be undone.
+          </p>
+        )}
+      </ConfirmDialog>
       <ConfirmDialog
         open={switchToManualDialogOpen}
         onOpenChange={(open) => {

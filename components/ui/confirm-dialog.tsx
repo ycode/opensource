@@ -32,6 +32,8 @@ export interface ConfirmDialogProps {
   onConfirm: () => void | Promise<void>;
   onCancel?: () => void;
   showCloseButton?: boolean;
+  showCancelButton?: boolean;
+  disableConfirm?: boolean;
   saveLabel?: string;
   onSave?: () => void | Promise<void>;
 }
@@ -48,6 +50,8 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   showCloseButton = false,
+  showCancelButton = true,
+  disableConfirm = false,
   saveLabel,
   onSave,
 }: ConfirmDialogProps) {
@@ -128,20 +132,22 @@ export function ConfirmDialog({
             variant={confirmVariant}
             size="sm"
             onClick={handleConfirm}
-            disabled={loading}
+            disabled={loading || disableConfirm}
           >
             {loading && <Spinner />}
             {confirmLabel}
           </Button>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleCancel}
-              disabled={loading}
-            >
-              {cancelLabel}
-            </Button>
+            {showCancelButton && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleCancel}
+                disabled={loading}
+              >
+                {cancelLabel}
+              </Button>
+            )}
             {saveLabel && onSave && (
               <Button
                 variant="default"

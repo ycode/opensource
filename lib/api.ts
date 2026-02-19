@@ -6,6 +6,7 @@
 
 import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData, AssetFolder, Font } from '../types';
 import type { StatusAction } from '@/lib/collection-field-utils';
+import type { CollectionUsageResult, CollectionFieldUsageResult } from '@/lib/collection-usage-utils';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -447,6 +448,10 @@ export const collectionsApi = {
     });
   },
 
+  async getUsage(id: string): Promise<ApiResponse<CollectionUsageResult>> {
+    return apiRequest(`/ycode/api/collections/${id}/usage`);
+  },
+
   async reorder(collectionIds: string[]): Promise<ApiResponse<{ success: boolean }>> {
     return apiRequest<{ success: boolean }>('/ycode/api/collections/reorder', {
       method: 'PUT',
@@ -485,6 +490,10 @@ export const collectionsApi = {
     return apiRequest<void>(`/ycode/api/collections/${collectionId}/fields/${fieldId}`, {
       method: 'DELETE',
     });
+  },
+
+  async getFieldUsage(collectionId: string, fieldId: string): Promise<ApiResponse<CollectionFieldUsageResult>> {
+    return apiRequest(`/ycode/api/collections/${collectionId}/fields/${fieldId}/usage`);
   },
 
   async reorderFields(collectionId: string, fieldIds: string[]): Promise<ApiResponse<{ success: boolean }>> {

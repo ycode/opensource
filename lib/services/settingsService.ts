@@ -4,23 +4,28 @@
  * Business logic for managing application settings
  */
 
-import { getSettingByKey, setSetting } from '@/lib/repositories/settingsRepository';
+import { getSettingsByKeys, setSetting } from '@/lib/repositories/settingsRepository';
 import type { Setting } from '@/types';
 
 /**
- * Copy draft CSS to published CSS
- * @returns True if CSS was successfully published
+ * Copy draft CSS to published CSS if it changed
+ * @returns True if CSS was updated, false if unchanged or missing
  */
 export async function publishCSS(): Promise<boolean> {
   try {
-    const draftCSS = await getSettingByKey('draft_css');
-    
-    if (draftCSS) {
-      await setSetting('published_css', draftCSS);
-      return true;
+    const { draft_css: draftCSS, published_css: publishedCSS } =
+      await getSettingsByKeys(['draft_css', 'published_css']);
+
+    if (!draftCSS) {
+      return false;
     }
-    
-    return false;
+
+    if (draftCSS === publishedCSS) {
+      return false;
+    }
+
+    await setSetting('published_css', draftCSS);
+    return true;
   } catch (error) {
     console.error('Failed to publish CSS:', error);
     return false;
