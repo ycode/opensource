@@ -140,7 +140,7 @@ export default function LayerContextMenu({
 
   const handleCopy = () => {
     if (!canCopy) return;
-    
+
     // In component context, copy from component drafts
     if (isComponentContext && editingComponentId) {
       const layerToCopy = findLayerById(getComponentLayers(), layerId);
@@ -157,14 +157,14 @@ export default function LayerContextMenu({
 
   const handleCut = () => {
     if (isLocked || !canCopy || !canDelete) return;
-    
+
     // In component context, cut from component drafts
     if (isComponentContext && editingComponentId) {
       const layerToCopy = findLayerById(getComponentLayers(), layerId);
       if (layerToCopy) {
         cutToClipboard(cloneDeep(layerToCopy), pageId);
         updateComponentAndBroadcast(removeLayerById(getComponentLayers(), layerId));
-        
+
         if (onLayerSelect) {
           onLayerSelect(null as any);
         }
@@ -190,19 +190,19 @@ export default function LayerContextMenu({
 
   const handlePasteAfter = () => {
     if (!clipboardLayer) return;
-    
+
     if (isComponentContext && editingComponentId) {
       const circularError = checkCircularReference(editingComponentId, clipboardLayer, components);
       if (circularError) {
         toast.error('Infinite component loop detected', { description: circularError });
         return;
       }
-      
+
       const componentLayers = getComponentLayers();
       const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
       const result = findParentAndIndex(componentLayers, layerId);
       if (!result) return;
-      
+
       updateComponentAndBroadcast(insertLayerAfter(componentLayers, result.parent, result.index, newLayer));
     } else {
       const pastedLayer = pasteAfter(pageId, layerId, clipboardLayer);
@@ -214,14 +214,14 @@ export default function LayerContextMenu({
 
   const handlePasteInside = () => {
     if (!clipboardLayer || !canPasteInside) return;
-    
+
     if (isComponentContext && editingComponentId) {
       const circularError = checkCircularReference(editingComponentId, clipboardLayer, components);
       if (circularError) {
         toast.error('Infinite component loop detected', { description: circularError });
         return;
       }
-      
+
       const componentLayers = getComponentLayers();
       const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
       updateComponentAndBroadcast(
@@ -237,16 +237,16 @@ export default function LayerContextMenu({
 
   const handleDuplicate = () => {
     if (!canCopy) return;
-    
+
     if (isComponentContext && editingComponentId) {
       const componentLayers = getComponentLayers();
       const layerToCopy = findLayerById(componentLayers, layerId);
       if (!layerToCopy) return;
-      
+
       const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(layerToCopy));
       const result = findParentAndIndex(componentLayers, layerId);
       if (!result) return;
-      
+
       updateComponentAndBroadcast(insertLayerAfter(componentLayers, result.parent, result.index, newLayer));
     } else {
       const duplicatedLayer = duplicateLayer(pageId, layerId);
@@ -259,10 +259,10 @@ export default function LayerContextMenu({
 
   const handleDelete = () => {
     if (isLocked || !canDelete) return;
-    
+
     if (isComponentContext && editingComponentId) {
       updateComponentAndBroadcast(removeLayerById(getComponentLayers(), layerId));
-      
+
       if (onLayerSelect) {
         onLayerSelect(null as any);
       }
@@ -504,6 +504,8 @@ export default function LayerContextMenu({
       formData.append('layoutName', layoutName);
       formData.append('category', category);
       formData.append('template', JSON.stringify(template));
+      formData.append('pageId', pageId);
+      formData.append('layerId', layerId);
 
       if (imageFile) {
         formData.append('image', imageFile);
@@ -613,7 +615,7 @@ export default function LayerContextMenu({
 
         {isComponentInstance ? (
           <>
-          <ContextMenuSeparator />
+            <ContextMenuSeparator />
 
             <ContextMenuItem onClick={handleEditMasterComponent}>
               Edit master component
@@ -633,10 +635,12 @@ export default function LayerContextMenu({
         {process.env.NODE_ENV === 'development' && (
           <>
             <ContextMenuSeparator />
+
             <ContextMenuItem onClick={handleShowJSON}>
               Show JSON
               <ContextMenuShortcut>🔍</ContextMenuShortcut>
             </ContextMenuItem>
+
             <ContextMenuItem onClick={handleSaveAsLayout}>
               Save as Layout
               <ContextMenuShortcut>📐</ContextMenuShortcut>

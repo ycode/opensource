@@ -16,7 +16,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'hero-001': {
     category: 'Hero',
-    previewImage: '/layouts/hero-001.webp',
+    previewImage: '/ycode/layouts/previews/hero-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -410,7 +410,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   },
                   'src': {
                     'data': {
-                      'content': 'https://app.ycode.com/images/layouts/image-GhsEblszvVGwL0OW8RsSNgSo6QMrhuaetaMo95QO.webp'
+                      'content': '/ycode/layouts/assets/hero-background-1.webp'
                     },
                     'type': 'dynamic_text'
                   }
@@ -431,7 +431,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'hero-002': {
     category: 'Hero',
-    previewImage: '/layouts/hero-002.webp',
+    previewImage: '/ycode/layouts/previews/hero-002.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -743,7 +743,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'hero-003': {
     category: 'Hero',
-    previewImage: '/layouts/hero-003.webp',
+    previewImage: '/ycode/layouts/previews/hero-003.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -1089,7 +1089,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           },
                           'src': {
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/image-v7rjaWPn4Dd0YIEQoyCUm59jmzwsHM8tRUJ756RV.webp'
+                              'content': '/ycode/layouts/assets/placeholder-1.webp'
                             },
                             'type': 'dynamic_text'
                           }
@@ -1116,7 +1116,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'hero-004': {
     category: 'Hero',
-    previewImage: '/layouts/hero-004.webp',
+    previewImage: '/ycode/layouts/previews/hero-004.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -1464,7 +1464,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'src': {
                             'type': 'dynamic_text',
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/image-ps9xO6m7BE34lp9dkPue4aAL8mcsDjw6UKg0rIVb.webp'
+                              'content': '/ycode/layouts/assets/placeholder-2.webp'
                             }
                           },
                           'alt': {
@@ -1504,7 +1504,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'hero-005': {
     category: 'Hero',
-    previewImage: '/layouts/hero-005.webp',
+    previewImage: '/ycode/layouts/previews/hero-005.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -1787,7 +1787,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
               'src': {
                 'type': 'dynamic_text',
                 'data': {
-                  'content': 'https://app.ycode.com/images/layouts/image-gEwXpLIeOESQlCWaCrDH3FUzT5AMZ9cEtIlpIyCc.webp'
+                  'content': '/ycode/layouts/assets/placeholder-3.webp'
                 }
               },
               'alt': {
@@ -1807,7 +1807,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'header-001': {
     category: 'Header',
-    previewImage: '/layouts/header-001.webp',
+    previewImage: '/ycode/layouts/previews/header-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -2153,7 +2153,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'header-002': {
     category: 'Header',
-    previewImage: '/layouts/header-002.webp',
+    previewImage: '/ycode/layouts/previews/header-002.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -2305,7 +2305,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'header-003': {
     category: 'Header',
-    previewImage: '/layouts/header-003.webp',
+    previewImage: '/ycode/layouts/previews/header-003.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -2704,7 +2704,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'header-004': {
     category: 'Header',
-    previewImage: '/layouts/header-004.webp',
+    previewImage: '/ycode/layouts/previews/header-004.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -3093,7 +3093,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
               'src': {
                 'type': 'dynamic_text',
                 'data': {
-                  'content': 'https://app.ycode.com/images/layouts/image-ps9xO6m7BE34lp9dkPue4aAL8mcsDjw6UKg0rIVb.webp'
+                  'content': '/ycode/layouts/assets/placeholder-2.webp'
                 }
               },
               'alt': {
@@ -3113,7 +3113,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-001': {
     category: 'Features',
-    previewImage: '/layouts/features-001.webp',
+    previewImage: '/ycode/layouts/previews/features-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -3319,7 +3319,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               },
                               'src': {
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/image-v7rjaWPn4Dd0YIEQoyCUm59jmzwsHM8tRUJ756RV.webp'
+                                  'content': '/ycode/layouts/assets/placeholder-1.webp'
                                 },
                                 'type': 'dynamic_text'
                               }
@@ -3379,7 +3379,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               },
                               'src': {
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/image-v7rjaWPn4Dd0YIEQoyCUm59jmzwsHM8tRUJ756RV.webp'
+                                  'content': '/ycode/layouts/assets/placeholder-1.webp'
                                 },
                                 'type': 'dynamic_text'
                               }
@@ -3516,7 +3516,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-002': {
     category: 'Features',
-    previewImage: '/layouts/features-002.webp',
+    previewImage: '/ycode/layouts/previews/features-002.webp',
     template: {
       'name': 'section',
       'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
@@ -4077,7 +4077,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-003': {
     category: 'Features',
-    previewImage: '/layouts/features-003.webp',
+    previewImage: '/ycode/layouts/previews/features-003.webp',
     template: {
       'name': 'section',
       'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
@@ -4732,7 +4732,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'src': {
                             'type': 'dynamic_text',
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/image-Gcfb6ps8XUYiLLuoFtli2KYJyEjXrOpF7hnl6qc7.webp'
+                              'content': '/ycode/layouts/assets/placeholder-4.webp'
                             }
                           },
                           'alt': {
@@ -4813,7 +4813,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-004': {
     category: 'Features',
-    previewImage: '/layouts/features-004.webp',
+    previewImage: '/ycode/layouts/previews/features-004.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -5837,7 +5837,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-005': {
     category: 'Features',
-    previewImage: '/layouts/features-005.webp',
+    previewImage: '/ycode/layouts/previews/features-005.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -6157,7 +6157,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               },
                               'src': {
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/image-6tVsCFykGQvpQWGdOsemkoqW8BAS4QhXQKVBjHRQ.webp'
+                                  'content': '/ycode/layouts/assets/placeholder-5.webp'
                                 },
                                 'type': 'dynamic_text'
                               }
@@ -6545,7 +6545,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-006': {
     category: 'Features',
-    previewImage: '/layouts/features-006.webp',
+    previewImage: '/ycode/layouts/previews/features-006.webp',
     template: {
       'name': 'section',
       'open': true,
@@ -7303,7 +7303,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
               },
               'src': {
                 'data': {
-                  'content': 'https://app.ycode.com/images/layouts/image-ps9xO6m7BE34lp9dkPue4aAL8mcsDjw6UKg0rIVb.webp'
+                  'content': '/ycode/layouts/assets/placeholder-2.webp'
                 },
                 'type': 'dynamic_text'
               }
@@ -7320,7 +7320,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-007': {
     category: 'Features',
-    previewImage: '/layouts/features-007.webp',
+    previewImage: '/ycode/layouts/previews/features-007.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -8251,7 +8251,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-008': {
     category: 'Features',
-    previewImage: '/layouts/features-008.webp',
+    previewImage: '/ycode/layouts/previews/features-008.webp',
     template: {
       'name': 'section',
       'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff] w-[100%]',
@@ -8356,7 +8356,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'src': {
                             'type': 'dynamic_text',
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/image-Gcfb6ps8XUYiLLuoFtli2KYJyEjXrOpF7hnl6qc7.webp'
+                              'content': '/ycode/layouts/assets/placeholder-4.webp'
                             }
                           },
                           'alt': {
@@ -9001,7 +9001,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-009': {
     category: 'Features',
-    previewImage: '/layouts/features-009.webp',
+    previewImage: '/ycode/layouts/previews/features-009.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -10282,7 +10282,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-010': {
     category: 'Features',
-    previewImage: '/layouts/features-010.webp',
+    previewImage: '/ycode/layouts/previews/features-010.webp',
     template: {
       'name': 'section',
       'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff] w-[100%]',
@@ -10387,7 +10387,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'src': {
                             'type': 'dynamic_text',
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/image-Gcfb6ps8XUYiLLuoFtli2KYJyEjXrOpF7hnl6qc7.webp'
+                              'content': '/ycode/layouts/assets/placeholder-4.webp'
                             }
                           },
                           'alt': {
@@ -11125,7 +11125,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-011': {
     category: 'Features',
-    previewImage: '/layouts/features-011.webp',
+    previewImage: '/ycode/layouts/previews/features-011.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -12084,7 +12084,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'features-012': {
     category: 'Features',
-    previewImage: '/layouts/features-012.webp',
+    previewImage: '/ycode/layouts/previews/features-012.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -13015,7 +13015,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-posts-001': {
     category: 'Blog posts',
-    previewImage: '/layouts/blog-posts-001-2.webp',
+    previewImage: '/ycode/layouts/previews/blog-posts-001-2.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -13255,7 +13255,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-GFhXQCdLky9j26wMQompuFaQO8c9GcGY79IZofbj.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-6.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -13560,7 +13560,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-6tVsCFykGQvpQWGdOsemkoqW8BAS4QhXQKVBjHRQ.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-5.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -13865,7 +13865,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-xUNerRkB8j3RJeohmuP4Csc0KL1j6vDFBSgMWZK7.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-7.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -14170,7 +14170,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-42aciTV0vFda0leZfpdKswYTqlPlFrMDaGhMFUmi.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-8.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -14434,7 +14434,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-posts-002': {
     category: 'Blog posts',
-    previewImage: '/layouts/blog-posts-002.webp',
+    previewImage: '/ycode/layouts/previews/blog-posts-002.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -14673,7 +14673,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-GFhXQCdLky9j26wMQompuFaQO8c9GcGY79IZofbj.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-6.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -14900,7 +14900,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           },
                                           'src': {
                                             'data': {
-                                              'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                              'content': '/ycode/layouts/assets/user-profile-1.webp'
                                             },
                                             'type': 'dynamic_text'
                                           }
@@ -15071,7 +15071,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-xUNerRkB8j3RJeohmuP4Csc0KL1j6vDFBSgMWZK7.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-7.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -15298,7 +15298,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           },
                                           'src': {
                                             'data': {
-                                              'content': 'https://app.ycode.com/images/layouts/user-profile-4.jpg'
+                                              'content': '/ycode/layouts/assets/user-profile-4.webp'
                                             },
                                             'type': 'dynamic_text'
                                           }
@@ -15429,7 +15429,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-posts-003': {
     category: 'Blog posts',
-    previewImage: '/layouts/blog-posts-003.webp',
+    previewImage: '/ycode/layouts/previews/blog-posts-003.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -15832,7 +15832,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-1.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -16158,7 +16158,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-4.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-4.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -16480,7 +16480,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'src': {
                                         'type': 'dynamic_text',
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-3.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-3.webp'
                                         }
                                       },
                                       'alt': {
@@ -16609,7 +16609,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-posts-004': {
     category: 'Blog posts',
-    previewImage: '/layouts/blog-posts-004.webp',
+    previewImage: '/ycode/layouts/previews/blog-posts-004.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -16855,7 +16855,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-GFhXQCdLky9j26wMQompuFaQO8c9GcGY79IZofbj.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-6.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -17100,7 +17100,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           },
                                           'src': {
                                             'data': {
-                                              'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                              'content': '/ycode/layouts/assets/user-profile-1.webp'
                                             },
                                             'type': 'dynamic_text'
                                           }
@@ -17270,7 +17270,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-xUNerRkB8j3RJeohmuP4Csc0KL1j6vDFBSgMWZK7.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-7.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -17515,7 +17515,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           },
                                           'src': {
                                             'data': {
-                                              'content': 'https://app.ycode.com/images/layouts/user-profile-4.jpg'
+                                              'content': '/ycode/layouts/assets/user-profile-4.webp'
                                             },
                                             'type': 'dynamic_text'
                                           }
@@ -17680,7 +17680,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'src': {
                                     'type': 'dynamic_text',
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-42aciTV0vFda0leZfpdKswYTqlPlFrMDaGhMFUmi.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-8.webp'
                                     }
                                   },
                                   'alt': {
@@ -17924,7 +17924,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'src': {
                                             'type': 'dynamic_text',
                                             'data': {
-                                              'content': 'https://app.ycode.com/images/layouts/user-profile-3.jpg'
+                                              'content': '/ycode/layouts/assets/user-profile-3.webp'
                                             }
                                           },
                                           'alt': {
@@ -18054,7 +18054,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-posts-005': {
     category: 'Blog posts',
-    previewImage: '/layouts/blog-posts-005.webp',
+    previewImage: '/ycode/layouts/previews/blog-posts-005.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -18293,7 +18293,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-GFhXQCdLky9j26wMQompuFaQO8c9GcGY79IZofbj.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-6.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -18525,7 +18525,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-xUNerRkB8j3RJeohmuP4Csc0KL1j6vDFBSgMWZK7.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-7.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -18752,7 +18752,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'src': {
                                     'type': 'dynamic_text',
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-adDzF0cqVI0ncLnZgH3cAPMeLWCaFTIK2vVLY5E6.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-9.webp'
                                     }
                                   },
                                   'alt': {
@@ -18949,7 +18949,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-posts-006': {
     category: 'Blog posts',
-    previewImage: '/layouts/blog-posts-006.webp',
+    previewImage: '/ycode/layouts/previews/blog-posts-006.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -19317,7 +19317,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-GFhXQCdLky9j26wMQompuFaQO8c9GcGY79IZofbj.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-6.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -19623,7 +19623,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-6tVsCFykGQvpQWGdOsemkoqW8BAS4QhXQKVBjHRQ.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-5.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -19929,7 +19929,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/image-42aciTV0vFda0leZfpdKswYTqlPlFrMDaGhMFUmi.webp'
+                                      'content': '/ycode/layouts/assets/placeholder-8.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -20194,7 +20194,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-headers-001': {
     category: 'Blog header',
-    previewImage: '/layouts/blog-headers-001.webp',
+    previewImage: '/ycode/layouts/previews/blog-headers-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -20406,7 +20406,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-1.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -20546,7 +20546,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'src': {
                             'type': 'dynamic_text',
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/image-ps9xO6m7BE34lp9dkPue4aAL8mcsDjw6UKg0rIVb.webp'
+                              'content': '/ycode/layouts/assets/placeholder-2.webp'
                             }
                           },
                           'alt': {
@@ -20585,7 +20585,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-headers-002': {
     category: 'Blog header',
-    previewImage: '/layouts/blog-headers-002.webp',
+    previewImage: '/ycode/layouts/previews/blog-headers-002.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -20904,7 +20904,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'src': {
                             'type': 'dynamic_text',
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/image-42aciTV0vFda0leZfpdKswYTqlPlFrMDaGhMFUmi.webp'
+                              'content': '/ycode/layouts/assets/placeholder-8.webp'
                             }
                           },
                           'alt': {
@@ -20932,7 +20932,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-headers-003': {
     category: 'Blog header',
-    previewImage: '/layouts/blog-headers-003.webp',
+    previewImage: '/ycode/layouts/previews/blog-headers-003.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -21255,7 +21255,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'src': {
                             'type': 'dynamic_text',
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/image-0wcZjzA1Jm9gJ9Adz0FOPH1vMuBtPSDfKK1joZRq.webp'
+                              'content': '/ycode/layouts/assets/placeholder-10.webp'
                             }
                           },
                           'alt': {
@@ -21288,7 +21288,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'blog-headers-004': {
     category: 'Blog header',
-    previewImage: '/layouts/blog-headers-004.webp',
+    previewImage: '/ycode/layouts/previews/blog-headers-004.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -21507,7 +21507,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               },
                               'src': {
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                  'content': '/ycode/layouts/assets/user-profile-1.webp'
                                 },
                                 'type': 'dynamic_text'
                               }
@@ -21729,7 +21729,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
               'src': {
                 'type': 'dynamic_text',
                 'data': {
-                  'content': 'https://app.ycode.com/images/layouts/image-ps9xO6m7BE34lp9dkPue4aAL8mcsDjw6UKg0rIVb.webp'
+                  'content': '/ycode/layouts/assets/placeholder-2.webp'
                 }
               },
               'alt': {
@@ -21748,7 +21748,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'stats-001': {
     category: 'Stats',
-    previewImage: '/layouts/stats-001.webp',
+    previewImage: '/ycode/layouts/previews/stats-001.webp',
     template: {
       'name': 'section',
       'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
@@ -22407,7 +22407,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'stats-002': {
     category: 'Stats',
-    previewImage: '/layouts/stats-002.webp',
+    previewImage: '/ycode/layouts/previews/stats-002.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -23133,7 +23133,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'stats-003': {
     category: 'Stats',
-    previewImage: '/layouts/stats-003.webp',
+    previewImage: '/ycode/layouts/previews/stats-003.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -23392,7 +23392,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               },
                               'src': {
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/image-Gcfb6ps8XUYiLLuoFtli2KYJyEjXrOpF7hnl6qc7.webp'
+                                  'content': '/ycode/layouts/assets/placeholder-4.webp'
                                 },
                                 'type': 'dynamic_text'
                               }
@@ -23909,7 +23909,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'pricing-001': {
     category: 'Pricing',
-    previewImage: '/layouts/pricing-001.webp',
+    previewImage: '/ycode/layouts/previews/pricing-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -25501,7 +25501,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'team-001': {
     category: 'Team',
-    previewImage: '/layouts/team-001.webp',
+    previewImage: '/ycode/layouts/previews/team-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -25745,7 +25745,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-1.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -25911,7 +25911,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-6.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-6.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -26077,7 +26077,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-5.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-5.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -26243,7 +26243,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-4.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-4.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -26409,7 +26409,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-7.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-7.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -26575,7 +26575,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-8.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-8.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -26700,7 +26700,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'team-002': {
     category: 'Team',
-    previewImage: '/layouts/team-002.webp',
+    previewImage: '/ycode/layouts/previews/team-002.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -26946,7 +26946,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-1.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -27115,7 +27115,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-6.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-6.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -27284,7 +27284,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-5.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-5.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -27453,7 +27453,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/user-profile-4.jpg'
+                                      'content': '/ycode/layouts/assets/user-profile-4.webp'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -27580,7 +27580,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'testimonials-001': {
     category: 'Testimonials',
-    previewImage: '/layouts/testimonials-001.webp',
+    previewImage: '/ycode/layouts/previews/testimonials-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -27700,7 +27700,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           },
                           'src': {
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                              'content': '/ycode/layouts/assets/user-profile-1.webp'
                             },
                             'type': 'dynamic_text'
                           }
@@ -27858,7 +27858,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'testimonials-002': {
     category: 'Testimonials',
-    previewImage: '/layouts/testimonials-002.webp',
+    previewImage: '/ycode/layouts/previews/testimonials-002.webp',
     template: {
       'name': 'section',
       'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
@@ -28078,7 +28078,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-1.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -28299,7 +28299,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-6.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-6.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -28520,7 +28520,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-7.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-7.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -28716,7 +28716,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'testimonials-003': {
     category: 'Testimonials',
-    previewImage: '/layouts/testimonials-003.webp',
+    previewImage: '/ycode/layouts/previews/testimonials-003.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -28960,7 +28960,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               },
                               'src': {
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/company-2-logo-black.svg'
+                                  'content': '/ycode/layouts/assets/company-2-logo-black.svg'
                                 },
                                 'type': 'dynamic_text'
                               }
@@ -29028,7 +29028,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'src': {
                                 'type': 'dynamic_text',
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/company-1-logo-black.svg'
+                                  'content': '/ycode/layouts/assets/company-1-logo-black.svg'
                                 }
                               },
                               'alt': {
@@ -29327,7 +29327,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-1.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -29719,7 +29719,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-6.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-6.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -29885,7 +29885,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'src': {
                                 'type': 'dynamic_text',
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/company-2-logo-black.svg'
+                                  'content': '/ycode/layouts/assets/company-2-logo-black.svg'
                                 }
                               },
                               'alt': {
@@ -29958,7 +29958,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'src': {
                                 'type': 'dynamic_text',
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/company-1-logo-black.svg'
+                                  'content': '/ycode/layouts/assets/company-1-logo-black.svg'
                                 }
                               },
                               'alt': {
@@ -29988,7 +29988,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'testimonials-004': {
     category: 'Testimonials',
-    previewImage: '/layouts/testimonials-004.webp',
+    previewImage: '/ycode/layouts/previews/testimonials-004.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -30095,7 +30095,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'src': {
                             'type': 'dynamic_text',
                             'data': {
-                              'content': 'https://app.ycode.com/images/layouts/user-profile-6.jpg'
+                              'content': '/ycode/layouts/assets/user-profile-6.webp'
                             }
                           },
                           'alt': {
@@ -30487,7 +30487,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'src': {
                                 'type': 'dynamic_text',
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/company-1-logo-black.svg'
+                                  'content': '/ycode/layouts/assets/company-1-logo-black.svg'
                                 }
                               },
                               'alt': {
@@ -30519,7 +30519,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'testimonials-005': {
     category: 'Testimonials',
-    previewImage: '/layouts/testimonials-005.webp',
+    previewImage: '/ycode/layouts/previews/testimonials-005.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -31041,7 +31041,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-1.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -31450,7 +31450,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-6.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-6.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -31854,7 +31854,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'src': {
                                         'type': 'dynamic_text',
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-9.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-9.webp'
                                         }
                                       },
                                       'alt': {
@@ -32267,7 +32267,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-5.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-5.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -32676,7 +32676,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-4.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-4.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -33085,7 +33085,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       },
                                       'src': {
                                         'data': {
-                                          'content': 'https://app.ycode.com/images/layouts/user-profile-7.jpg'
+                                          'content': '/ycode/layouts/assets/user-profile-7.webp'
                                         },
                                         'type': 'dynamic_text'
                                       }
@@ -33208,7 +33208,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'faq-001': {
     category: 'FAQ',
-    previewImage: '/layouts/faq-001.webp',
+    previewImage: '/ycode/layouts/previews/faq-001.webp',
     template: {
       'name': 'section',
       'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
@@ -34255,7 +34255,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'navigation-001': {
     category: 'Navigation',
-    previewImage: '/layouts/navigation-001.webp',
+    previewImage: '/ycode/layouts/previews/navigation-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -34405,7 +34405,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/ycode-logo-black.svg'
+                                      'content': '/ycode/layouts/assets/ycode-logo-black.svg'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -34806,7 +34806,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'navigation-002': {
     category: 'Navigation',
-    previewImage: '/layouts/navigation-002.webp',
+    previewImage: '/ycode/layouts/previews/navigation-002.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -34957,7 +34957,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/ycode-logo-black.svg'
+                                      'content': '/ycode/layouts/assets/ycode-logo-black.svg'
                                     },
                                     'type': 'dynamic_text'
                                   }
@@ -35294,7 +35294,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'footer-001': {
     category: 'Footer',
-    previewImage: '/layouts/footer-001.webp',
+    previewImage: '/ycode/layouts/previews/footer-001.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -35412,7 +35412,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               },
                               'src': {
                                 'data': {
-                                  'content': 'https://app.ycode.com/images/layouts/ycode-logo-black.svg'
+                                  'content': '/ycode/layouts/assets/ycode-logo-black.svg'
                                 },
                                 'type': 'dynamic_text'
                               }
@@ -35836,7 +35836,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'footer-002': {
     category: 'Footer',
-    previewImage: '/layouts/footer-002.webp',
+    previewImage: '/ycode/layouts/previews/footer-002.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -36277,7 +36277,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
 
   'footer-003': {
     category: 'Footer',
-    previewImage: '/layouts/footer-003.webp',
+    previewImage: '/ycode/layouts/previews/footer-003.webp',
     template: {
       'name': 'section',
       'open': false,
@@ -36413,7 +36413,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   },
                                   'src': {
                                     'data': {
-                                      'content': 'https://app.ycode.com/images/layouts/ycode-logo-black.svg'
+                                      'content': '/ycode/layouts/assets/ycode-logo-black.svg'
                                     },
                                     'type': 'dynamic_text'
                                   }

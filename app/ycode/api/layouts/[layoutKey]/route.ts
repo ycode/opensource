@@ -92,7 +92,7 @@ export async function PATCH(
     const previewImageRegex = /previewImage:\s*'[^']*'/;
     const updatedLayoutSectionWithImage = updatedLayoutSection.replace(
       previewImageRegex, 
-      `previewImage: '/layouts/${uniqueNewLayoutKey}.webp'`
+      `previewImage: '/ycode/layouts/previews/${uniqueNewLayoutKey}.webp'`
     );
 
     // Replace the section in the file
@@ -177,7 +177,7 @@ export async function DELETE(
 
     // Try to delete the associated image file
     try {
-      const layoutsDir = path.join(process.cwd(), 'public', 'layouts');
+      const layoutsDir = path.join(process.cwd(), 'public', 'ycode', 'layouts', 'previews');
       
       // Try common image extensions
       const extensions = ['.webp', '.png', '.jpg', '.jpeg', '.gif'];
