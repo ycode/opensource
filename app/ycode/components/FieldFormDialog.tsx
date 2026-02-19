@@ -116,7 +116,7 @@ export default function FieldFormDialog({
 
     if (field) {
       setFieldName(field.name);
-      setFieldType(field.type);
+      if (field.type !== 'status') setFieldType(field.type);
       setFieldDefault(field.default || '');
       setReferenceCollectionId(field.reference_collection_id || null);
       setFieldMultiple(field.data?.multiple || false);

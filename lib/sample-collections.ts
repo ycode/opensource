@@ -14,6 +14,7 @@ export interface SampleFieldDefinition {
   fillable: boolean;
   hidden: boolean;
   order: number;
+  is_computed?: boolean;
 }
 
 export interface SampleItemDefinition {

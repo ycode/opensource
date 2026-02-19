@@ -83,11 +83,11 @@ const FIELD_TYPES_BY_VALUE: Record<FieldType, (typeof FIELD_TYPES)[number]> =
 
 /** Get icon name for field type. Returns `defaultIcon` for invalid field types. */
 export function getFieldIcon(
-  fieldType: FieldType | undefined,
+  fieldType: CollectionFieldType | undefined,
   defaultIcon: IconProps['name'] = 'text'
 ): IconProps['name'] {
   if (!fieldType) return defaultIcon;
-  return FIELD_TYPES_BY_VALUE[fieldType]?.icon ?? defaultIcon;
+  return FIELD_TYPES_BY_VALUE[fieldType as FieldType]?.icon ?? defaultIcon;
 }
 
 // =============================================================================
@@ -228,6 +228,27 @@ export function findFieldById(
 /** Get field name by ID. Returns 'Unknown field' if not found. */
 export function getFieldName(fields: CollectionField[], fieldId: string): string {
   return findFieldById(fields, fieldId)?.name ?? 'Unknown field';
+}
+
+/** Find the computed status field ID for a collection's fields */
+export function findStatusFieldId(fields: CollectionField[]): string | null {
+  return fields.find(f => f.type === 'status' && f.is_computed)?.id ?? null;
+}
+
+/** Action types for changing an item's publish status */
+export type StatusAction = 'draft' | 'stage' | 'publish';
+
+/** Serialize a status value object to JSON for storage in item values */
+export function buildStatusValue(isPublishable: boolean, isPublished: boolean, isModified = false): string {
+  return JSON.stringify({ is_publishable: isPublishable, is_published: isPublished, is_modified: isModified });
+}
+
+/** Derive optimistic is_publishable/is_published flags from a status action */
+export function getStatusFlagsFromAction(action: StatusAction): { isPublishable: boolean; isPublished: boolean } {
+  return {
+    isPublishable: action !== 'draft',
+    isPublished: action === 'publish',
+  };
 }
 
 /** Get field type by ID. Returns undefined if not found. */
@@ -515,6 +536,7 @@ export function buildMultiAssetVirtualFields(): CollectionField[] {
     collection_id: '__virtual__',
     order: 0,
     hidden: false,
+    is_computed: false,
     is_published: true,
     created_at: '',
     updated_at: '',

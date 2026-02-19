@@ -814,7 +814,7 @@ export interface ActivityNotification {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'color' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'audio' | 'video' | 'document' | 'link' | 'email' | 'phone';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'color' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'audio' | 'video' | 'document' | 'link' | 'email' | 'phone' | 'status';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
@@ -863,6 +863,7 @@ export interface CreateCollectionFieldData {
   collection_id: string; // UUID
   reference_collection_id?: string | null; // UUID
   hidden?: boolean;
+  is_computed?: boolean;
   data?: CollectionFieldData;
   is_published?: boolean;
 }
@@ -893,6 +894,7 @@ export interface CollectionField {
   updated_at: string;
   deleted_at: string | null;
   hidden: boolean;
+  is_computed: boolean;
   data: CollectionFieldData;
   is_published: boolean;
 }
@@ -905,6 +907,8 @@ export interface CollectionItem {
   deleted_at: string | null;
   manual_order: number;
   is_published: boolean;
+  is_publishable: boolean;
+  content_hash: string | null;
 }
 
 export interface CollectionItemValue {

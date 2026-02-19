@@ -776,6 +776,8 @@ const LayerItem: React.FC<{
           updated_at: '',
           deleted_at: null,
           is_published: true,
+          is_publishable: true,
+          content_hash: null,
           values: virtualValues,
         };
       });

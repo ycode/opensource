@@ -70,8 +70,8 @@ export async function GET(
       );
     }
 
-    // Get published fields for reference resolution and filtering
-    const fields = await getFieldsByCollectionId(collection_id, true);
+    // Get published fields for reference resolution and filtering (exclude computed like Status)
+    const fields = await getFieldsByCollectionId(collection_id, true, { excludeComputed: true });
     const fieldSlugToId: Record<string, string> = {};
     fields.forEach(field => {
       const slug = field.key || field.name.toLowerCase().replace(/\s+/g, '-');
@@ -232,8 +232,8 @@ export async function POST(
       );
     }
 
-    // Get published fields for mapping slugs to IDs
-    const fields = await getFieldsByCollectionId(collection_id, true);
+    // Get published fields for mapping slugs to IDs (exclude computed like Status)
+    const fields = await getFieldsByCollectionId(collection_id, true, { excludeComputed: true });
     const fieldSlugToId: Record<string, string> = {};
     
     // Identify protected fields (cannot be set by user)
@@ -301,6 +301,7 @@ export async function POST(
           collection_id,
           manual_order: item.manual_order,
           is_published: true,
+          is_publishable: true,
           created_at: item.created_at,
           updated_at: item.updated_at,
         });

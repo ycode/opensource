@@ -5,6 +5,11 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 
 interface CollectionItemContextMenuProps {
   children: React.ReactNode;
+  isPublishable: boolean;
+  hasPublishedVersion: boolean;
+  onSetAsDraft: () => void;
+  onStageForPublish: () => void;
+  onSetAsPublished: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   disabled?: boolean;
@@ -12,6 +17,11 @@ interface CollectionItemContextMenuProps {
 
 export default function CollectionItemContextMenu({
   children,
+  isPublishable,
+  hasPublishedVersion,
+  onSetAsDraft,
+  onStageForPublish,
+  onSetAsPublished,
   onDuplicate,
   onDelete,
   disabled = false,
@@ -25,13 +35,31 @@ export default function CollectionItemContextMenu({
       <ContextMenuTrigger asChild>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-44">
-        <ContextMenuItem onClick={onDuplicate}>
-          <span>Duplicate</span>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem
+          disabled={!isPublishable && !hasPublishedVersion}
+          onClick={onSetAsDraft}
+        >
+          Set as draft
         </ContextMenuItem>
-        
+        <ContextMenuItem
+          disabled={isPublishable && !hasPublishedVersion}
+          onClick={onStageForPublish}
+        >
+          Stage for publish
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={hasPublishedVersion && isPublishable}
+          onClick={onSetAsPublished}
+        >
+          Set as published
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={onDuplicate}>
+          Duplicate
+        </ContextMenuItem>
         <ContextMenuItem onClick={onDelete}>
-          <span>Delete</span>
+          Delete
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

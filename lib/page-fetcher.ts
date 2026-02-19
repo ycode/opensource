@@ -384,7 +384,8 @@ export async function fetchPageByPath(
             // Fetch collection fields (needed for translation key lookup and custom code placeholders)
             const collectionFields = await getFieldsByCollectionId(
               cmsSettings.collection_id,
-              isPublished
+              isPublished,
+              { excludeComputed: true }
             );
 
             const collectionItem = await getCollectionItemBySlug(
@@ -930,7 +931,7 @@ async function resolveReferenceFields(
       if (!refItem) continue;
 
       // Get fields for the referenced collection
-      const refFields = await getFieldsByCollectionId(field.reference_collection_id, isPublished);
+      const refFields = await getFieldsByCollectionId(field.reference_collection_id, isPublished, { excludeComputed: true });
 
       // Build the path prefix for this level
       const currentPath = pathPrefix ? `${pathPrefix}.${field.id}` : field.id;
@@ -1031,6 +1032,8 @@ async function injectCollectionData(
         deleted_at: null,
         manual_order: 0,
         is_published: true,
+        is_publishable: true,
+        content_hash: null,
         values: enhancedValues,
       };
       const resolved = resolveInlineVariablesWithRelationships(textContent, mockItem);
@@ -1581,7 +1584,7 @@ export async function resolveCollectionLayers(
           }
 
           // Fetch collection fields for reference resolution
-          const collectionFields = await getFieldsByCollectionId(collectionVariable.id, isPublished);
+          const collectionFields = await getFieldsByCollectionId(collectionVariable.id, isPublished, { excludeComputed: true });
 
           // Find slug field for building collection item URLs
           const slugField = collectionFields.find(f => f.key === 'slug');
@@ -2049,7 +2052,7 @@ export async function renderCollectionItemsToHtml(
   translations?: Record<string, Translation>
 ): Promise<string> {
   // Fetch collection fields for field resolution
-  const collectionFields = await getFieldsByCollectionId(collectionId, isPublished);
+  const collectionFields = await getFieldsByCollectionId(collectionId, isPublished, { excludeComputed: true });
 
   // Get timezone setting for date formatting
   const htmlTimezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
@@ -2163,6 +2166,8 @@ async function injectCollectionDataForHtml(
         deleted_at: null,
         manual_order: 0,
         is_published: true,
+        is_publishable: true,
+        content_hash: null,
         values: enhancedValues,
       };
       const resolved = resolveInlineVariables(textContent, mockItem);

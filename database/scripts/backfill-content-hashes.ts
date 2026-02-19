@@ -7,6 +7,7 @@
  * - Components (name + layers hash)
  * - LayerStyles (name + classes + design hash)
  * - Assets (all mutable fields hash)
+ * - CollectionItems (EAV values hash)
  * 
  * Run this after the content_hash migrations have been applied.
  * 
@@ -23,6 +24,7 @@ import {
   generateLayerStyleContentHash,
   generateAssetContentHash,
 } from '../../lib/hash-utils';
+import { generateCollectionItemContentHash } from '../../lib/hash-utils';
 
 const PAGE_SIZE = 1000;
 
@@ -301,6 +303,70 @@ async function backfillAssetHashes(client: SupabaseClient) {
   console.log(`  Updated ${updated} of ${assets.length} assets`);
 }
 
+async function backfillCollectionItemHashes(client: SupabaseClient) {
+  console.log('Backfilling collection_items content hashes...');
+
+  const items = await fetchAllPaginated(client, 'collection_items', (q) =>
+    q.is('deleted_at', null).is('content_hash', null)
+  );
+
+  if (items.length === 0) {
+    console.log('  No collection items need backfilling');
+    return;
+  }
+
+  // Batch-fetch all values for these items
+  const itemIds = items.map((item: any) => item.id);
+
+  // Fetch values in chunks (Supabase .in() has limits)
+  const CHUNK_SIZE = 200;
+  const allValues: any[] = [];
+  for (let i = 0; i < itemIds.length; i += CHUNK_SIZE) {
+    const chunk = itemIds.slice(i, i + CHUNK_SIZE);
+    const { data, error } = await client
+      .from('collection_item_values')
+      .select('item_id, field_id, value, is_published')
+      .in('item_id', chunk)
+      .is('deleted_at', null);
+
+    if (error) throw new Error(`Failed to fetch item values: ${error.message}`);
+    if (data) allValues.push(...data);
+  }
+
+  // Group values by (item_id, is_published)
+  const valuesMap = new Map<string, Array<{ field_id: string; value: string | null }>>();
+  for (const row of allValues) {
+    const key = `${row.item_id}:${row.is_published}`;
+    if (!valuesMap.has(key)) valuesMap.set(key, []);
+    valuesMap.get(key)!.push({ field_id: row.field_id, value: row.value });
+  }
+
+  let updated = 0;
+  for (const item of items) {
+    try {
+      const key = `${item.id}:${item.is_published}`;
+      const values = valuesMap.get(key) || [];
+      const hash = generateCollectionItemContentHash(values);
+
+      const { error: updateError } = await client
+        .from('collection_items')
+        .update({ content_hash: hash })
+        .eq('id', item.id)
+        .eq('is_published', item.is_published);
+
+      if (updateError) {
+        console.error(`  Error updating collection_item ${item.id}:`, updateError.message);
+      } else {
+        updated++;
+      }
+    } catch (error) {
+      console.error(`  Error processing collection_item ${item.id}:`, error);
+    }
+  }
+
+  console.log(`  Updated ${updated} of ${items.length} collection items`);
+}
+
 async function main() {
   console.log('Starting content hash backfill...\n');
 
@@ -312,6 +378,7 @@ async function main() {
     await backfillComponentHashes(client);
     await backfillLayerStyleHashes(client);
     await backfillAssetHashes(client);
+    await backfillCollectionItemHashes(client);
 
     console.log('\n✅ Content hash backfill completed successfully');
   } catch (error) {

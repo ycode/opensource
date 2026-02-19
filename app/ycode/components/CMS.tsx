@@ -7,7 +7,7 @@
  * Content Management System interface for managing collection items with EAV architecture.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,8 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { slugify, isTruthyBooleanValue, parseMultiReferenceValue } from '@/lib/collection-utils';
 import { getSampleCollectionOptions } from '@/lib/sample-collections';
 import { ASSET_CATEGORIES, getOptimizedImageUrl, isAssetOfType } from '@/lib/asset-utils';
-import { type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField } from '@/lib/collection-field-utils';
+import { type FieldType, findDisplayField, getItemDisplayName, getFieldIcon, isMultipleAssetField, findStatusFieldId } from '@/lib/collection-field-utils';
+import { CollectionStatusPill, parseStatusValue } from './CollectionStatusPill';
 import { extractPlainTextFromTiptap } from '@/lib/tiptap-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
@@ -108,12 +109,16 @@ interface SortableRowProps {
   isSaving?: boolean;
   isManualMode?: boolean;
   children: React.ReactNode;
+  statusValue: import('./CollectionStatusPill').ItemStatusValue | null;
+  onSetAsDraft: () => void;
+  onStageForPublish: () => void;
+  onSetAsPublished: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   lockInfo?: ItemLockInfo;
 }
 
-function SortableRow({ item, isSaving, isManualMode, children, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
+function SortableRow({ item, isSaving, isManualMode, children, statusValue, onSetAsDraft, onStageForPublish, onSetAsPublished, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -138,6 +143,11 @@ function SortableRow({ item, isSaving, isManualMode, children, onDuplicate, onDe
 
   return (
     <CollectionItemContextMenu
+      isPublishable={statusValue?.is_publishable ?? item.is_publishable}
+      hasPublishedVersion={statusValue?.is_published ?? false}
+      onSetAsDraft={onSetAsDraft}
+      onStageForPublish={onStageForPublish}
+      onSetAsPublished={onSetAsPublished}
       onDuplicate={onDuplicate}
       onDelete={onDelete}
       disabled={isSaving}
@@ -345,6 +355,8 @@ const CMS = React.memo(function CMS() {
     updateCollection,
     deleteCollection,
     reorderCollections,
+    setItemPublishable,
+    setItemStatus,
   } = useCollectionsStore();
 
   // Collection collaboration sync
@@ -412,6 +424,10 @@ const CMS = React.memo(function CMS() {
   const collectionFields = useMemo(
     () => (selectedCollectionId ? (fields[selectedCollectionId] || []) : []),
     [selectedCollectionId, fields]
+  );
+  const statusFieldId = useMemo(
+    () => findStatusFieldId(collectionFields),
+    [collectionFields]
   );
 
   // Auto-select first collection when none is selected and collections are available
@@ -844,6 +860,18 @@ const CMS = React.memo(function CMS() {
         });
       });
   };
+
+  const handleSetItemStatus = useCallback((itemId: string, action: 'draft' | 'stage' | 'publish') => {
+    if (!selectedCollectionId) return;
+
+    setItemStatus(selectedCollectionId, itemId, action)
+      .catch((error) => {
+        console.error('Failed to update item status:', error);
+        toast.error('Failed to update item status', {
+          description: 'Please try again.',
+        });
+      });
+  }, [selectedCollectionId, setItemStatus]);
 
   const handleDuplicateItem = (itemId: string) => {
     if (!selectedCollectionId) return;
@@ -1536,10 +1564,10 @@ const CMS = React.memo(function CMS() {
                     </td>
                     {collectionFields.filter(f => !f.hidden).map((field) => (
                       <td key={field.id} className="px-4 py-5">
-                        <div className="h-4 bg-secondary/50 rounded-[6px] animate-pulse w-1/3" />
+                        <div className={`h-4 bg-secondary/50 rounded-[6px] animate-pulse ${field.type === 'status' ? 'w-12' : 'w-1/3'}`} />
                       </td>
                     ))}
-                    <td className="px-4 py-3 "></td>
+                    <td className="px-4 py-3"></td>
                   </tr>
                 ))
               ) : showSkeleton ? (
@@ -1552,12 +1580,16 @@ const CMS = React.memo(function CMS() {
                     item={item}
                     isSaving={isTempId(item.id)}
                     isManualMode={isManualMode}
+                    statusValue={statusFieldId ? parseStatusValue(item.values[statusFieldId]) : null}
+                    onSetAsDraft={() => handleSetItemStatus(item.id, 'draft')}
+                    onStageForPublish={() => handleSetItemStatus(item.id, 'stage')}
+                    onSetAsPublished={() => handleSetItemStatus(item.id, 'publish')}
                     onDuplicate={() => handleDuplicateItem(item.id)}
                     onDelete={() => handleDeleteItem(item.id)}
                     lockInfo={getItemLockInfo(item.id)}
                   >
                     <td
-                      className="pl-5 pr-3 py-3 w-12 border-b-0!"
+                      className="pl-5 pr-3 py-3 w-12"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!isManualMode) {
@@ -1578,6 +1610,20 @@ const CMS = React.memo(function CMS() {
                       </div>
                     </td>
                     {collectionFields.filter(f => !f.hidden).map((field) => {
+                      if (field.type === 'status') {
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4 py-5"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            <CollectionStatusPill
+                              statusValue={statusFieldId ? parseStatusValue(item.values[statusFieldId]) : null}
+                            />
+                          </td>
+                        );
+                      }
+
                       const value = item.values[field.id];
 
                       // Format date fields in user's timezone
@@ -1890,9 +1936,9 @@ const CMS = React.memo(function CMS() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, fieldDialogOpen, searchQuery,
+    sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, fieldDialogOpen, searchQuery, statusFieldId,
     collectionItems.length, showSkeleton, totalItems, pageSize, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField,
-    handleHideField, handleDeleteField, handleFieldDialogSubmit, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem,
+    handleHideField, handleDeleteField, handleFieldDialogSubmit, handleDragEnd, handleSetItemStatus, handleDuplicateItem, handleDeleteItem, handleEditItem,
     handleToggleItemSelection, sensors,
   ]);
 

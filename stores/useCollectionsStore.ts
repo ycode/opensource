@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { collectionsApi } from '@/lib/api';
 import { sortCollectionsByOrder } from '@/lib/collection-utils';
-import { MULTI_ASSET_COLLECTION_ID } from '@/lib/collection-field-utils';
+import { MULTI_ASSET_COLLECTION_ID, findStatusFieldId, buildStatusValue, getStatusFlagsFromAction } from '@/lib/collection-field-utils';
+import type { StatusAction } from '@/lib/collection-field-utils';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import type { Collection, CollectionField, CollectionItemWithValues, CreateCollectionData, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
@@ -13,11 +14,19 @@ import type { Collection, CollectionField, CollectionItemWithValues, CreateColle
  * Handles collections, fields, and items with their values.
  */
 
+interface ItemsQueryParams {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: string;
+}
+
 interface CollectionsState {
   collections: Collection[];
   fields: Record<string, CollectionField[]>; // keyed by collection_id (UUID)
   items: Record<string, CollectionItemWithValues[]>; // keyed by collection_id (UUID, current page only, UUID)
   itemsTotalCount: Record<string, number>; // keyed by collection_id (UUID) - total count for pagination
+  lastItemsQuery: Record<string, ItemsQueryParams>; // keyed by collection_id — last loadItems params
   selectedCollectionId: string | null; // UUID
   isLoading: boolean;
   error: string | null;
@@ -44,17 +53,22 @@ interface CollectionsActions {
   loadItems: (collectionId: string, page?: number, limit?: number, sortBy?: string, sortOrder?: string) => Promise<void>;
   loadPublishedItems: (collectionId: string) => Promise<void>;
   getDropdownItems: (collectionId: string) => Promise<Array<{ id: string; label: string }>>;
-  createItem: (collectionId: string, values: Record<string, any>) => Promise<CollectionItemWithValues>;
+  createItem: (collectionId: string, values: Record<string, any>, statusAction?: StatusAction) => Promise<CollectionItemWithValues>;
   updateItem: (collectionId: string, itemId: string, values: Record<string, any>) => Promise<void>;
   deleteItem: (collectionId: string, itemId: string) => Promise<void>;
   duplicateItem: (collectionId: string, itemId: string) => Promise<CollectionItemWithValues | undefined>;
   searchItems: (collectionId: string, query: string, page?: number, limit?: number, sortBy?: string, sortOrder?: string) => Promise<void>;
+
+  // Publishing
+  setItemPublishable: (collectionId: string, itemId: string, isPublishable: boolean) => Promise<void>;
+  setItemStatus: (collectionId: string, itemId: string, action: StatusAction) => Promise<void>;
 
   // Sorting
   updateCollectionSorting: (collectionId: string, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => Promise<void>;
   reorderItems: (collectionId: string, updates: Array<{ id: string; manual_order: number }>) => Promise<void>;
 
   // Utility
+  reloadCurrentItems: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -66,6 +80,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   fields: {},
   items: {},
   itemsTotalCount: {},
+  lastItemsQuery: {},
   selectedCollectionId: null,
   isLoading: false,
   error: null,
@@ -110,14 +125,16 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw new Error(`Failed to preload items: ${response.error}`);
     }
 
-    const result = response.data || {};
+    const batchItems = response.data?.items || {};
     const itemsMap: Record<string, CollectionItemWithValues[]> = {};
     const itemsTotalCountMap: Record<string, number> = {};
 
     // Use draft_items_count from collections for accurate totals (already fetched)
     // Sort preloaded items based on each collection's sorting settings
+    const queryMap: Record<string, ItemsQueryParams> = {};
+
     collections.forEach(collection => {
-      const batchResult = result[collection.id];
+      const batchResult = batchItems[collection.id];
       let preloadedItems = batchResult?.items || [];
 
       // Apply collection sorting so items are in the correct order from the start
@@ -138,6 +155,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
       itemsMap[collection.id] = preloadedItems;
       itemsTotalCountMap[collection.id] = collection.draft_items_count ?? 0;
+
+      // Persist sort params so reloadCurrentItems uses the correct order
+      const sortBy = sorting?.direction === 'manual' ? 'manual' : sorting?.field;
+      const sortOrder = sorting?.direction === 'manual' ? undefined : sorting?.direction;
+      queryMap[collection.id] = { page: 1, limit: 25, sortBy, sortOrder };
     });
 
     set((state) => ({
@@ -148,6 +170,10 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       itemsTotalCount: {
         ...state.itemsTotalCount,
         ...itemsTotalCountMap,
+      },
+      lastItemsQuery: {
+        ...state.lastItemsQuery,
+        ...queryMap,
       },
     }));
   },
@@ -176,10 +202,19 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
             hidden: false,
           },
           {
+            name: 'Status',
+            key: 'status',
+            type: 'status' as const,
+            order: 1,
+            fillable: false,
+            is_computed: true,
+            hidden: false,
+          },
+          {
             name: 'Name',
             key: 'name',
             type: 'text' as const,
-            order: 1,
+            order: 2,
             fillable: true,
             hidden: false,
           },
@@ -187,7 +222,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
             name: 'Slug',
             key: 'slug',
             type: 'text' as const,
-            order: 2,
+            order: 3,
             fillable: true,
             hidden: false,
           },
@@ -195,7 +230,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
             name: 'Created Date',
             key: 'created_at',
             type: 'date' as const,
-            order: 3,
+            order: 4,
             fillable: false,
             hidden: false,
           },
@@ -203,7 +238,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
             name: 'Updated Date',
             key: 'updated_at',
             type: 'date' as const,
-            order: 4,
+            order: 5,
             fillable: false,
             hidden: false,
           },
@@ -525,7 +560,15 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       return;
     }
 
-    set({ isLoading: true, error: null });
+    // Remember query params for reloadCurrentItems
+    set(state => ({
+      isLoading: true,
+      error: null,
+      lastItemsQuery: {
+        ...state.lastItemsQuery,
+        [collectionId]: { page, limit, sortBy, sortOrder },
+      },
+    }));
 
     try {
       const response = await collectionsApi.getItems(collectionId, { page, limit, sortBy, sortOrder });
@@ -576,9 +619,17 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
 
-  createItem: async (collectionId, values) => {
+  createItem: async (collectionId, values, statusAction) => {
     // Create optimistic item with temporary ID
     const tempId = `temp-${Date.now()}`;
+    const statusFieldId = findStatusFieldId(get().fields[collectionId] || []);
+    const { isPublishable, isPublished } = statusAction
+      ? getStatusFlagsFromAction(statusAction)
+      : { isPublishable: true, isPublished: false };
+    const optimisticValues = { ...values };
+    if (statusFieldId) {
+      optimisticValues[statusFieldId] = buildStatusValue(isPublishable, isPublished);
+    }
     const optimisticItem: CollectionItemWithValues = {
       id: tempId,
       collection_id: collectionId,
@@ -587,7 +638,9 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       updated_at: new Date().toISOString(),
       deleted_at: null,
       is_published: false,
-      values,
+      is_publishable: isPublishable,
+      content_hash: null,
+      values: optimisticValues,
     };
 
     // Optimistically add item to store (no loading state)
@@ -604,7 +657,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }));
 
     try {
-      const response = await collectionsApi.createItem(collectionId, values);
+      const response = await collectionsApi.createItem(collectionId, values, statusAction);
 
       if (response.error) {
         throw new Error(response.error);
@@ -791,6 +844,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         newValues[slugField.id] = newSlug;
       }
 
+      const dupStatusFieldId = findStatusFieldId(get().fields[collectionId] || []);
+      if (dupStatusFieldId) {
+        newValues[dupStatusFieldId] = buildStatusValue(true, false);
+      }
+
       const optimisticItem: CollectionItemWithValues = {
         id: tempId,
         collection_id: collectionId,
@@ -799,6 +857,8 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         updated_at: now,
         deleted_at: null,
         is_published: false,
+        is_publishable: true,
+        content_hash: null,
         values: newValues,
       };
 
@@ -880,6 +940,126 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
 
+  // Publishing
+  setItemPublishable: async (collectionId: string, itemId: string, isPublishable: boolean) => {
+    // Store previous state for rollback
+    const previousItems = get().items[collectionId] || [];
+    const previousItem = previousItems.find(item => item.id === itemId);
+    const statusFieldId = findStatusFieldId(get().fields[collectionId] || []);
+
+    // Optimistically update both item flag and status value
+    set(state => ({
+      items: {
+        ...state.items,
+        [collectionId]: (state.items[collectionId] || []).map(item => {
+          if (item.id !== itemId) return item;
+          const updatedItem = { ...item, is_publishable: isPublishable };
+          if (statusFieldId) {
+            updatedItem.values = {
+              ...item.values,
+              [statusFieldId]: buildStatusValue(isPublishable, false),
+            };
+          }
+          return updatedItem;
+        }),
+      },
+    }));
+
+    try {
+      const response = await collectionsApi.setItemPublishable(collectionId, itemId, isPublishable);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Replace with server response to get accurate status
+      const serverItem = response.data;
+      if (serverItem) {
+        set(state => ({
+          items: {
+            ...state.items,
+            [collectionId]: (state.items[collectionId] || []).map(item =>
+              item.id === itemId ? serverItem : item
+            ),
+          },
+        }));
+      }
+    } catch (error) {
+      // Revert optimistic update
+      if (previousItem) {
+        set(state => ({
+          items: {
+            ...state.items,
+            [collectionId]: (state.items[collectionId] || []).map(item =>
+              item.id === itemId ? previousItem : item
+            ),
+          },
+          error: error instanceof Error ? error.message : 'Failed to update item',
+        }));
+      }
+      throw error;
+    }
+  },
+
+  setItemStatus: async (collectionId: string, itemId: string, action: StatusAction) => {
+    const previousItems = get().items[collectionId] || [];
+    const previousItem = previousItems.find(item => item.id === itemId);
+    const statusFieldId = findStatusFieldId(get().fields[collectionId] || []);
+    const { isPublishable, isPublished } = getStatusFlagsFromAction(action);
+
+    set(state => ({
+      items: {
+        ...state.items,
+        [collectionId]: (state.items[collectionId] || []).map(item => {
+          if (item.id !== itemId) return item;
+          const updatedItem = { ...item, is_publishable: isPublishable };
+          if (statusFieldId) {
+            updatedItem.values = {
+              ...item.values,
+              [statusFieldId]: buildStatusValue(isPublishable, isPublished),
+            };
+          }
+          return updatedItem;
+        }),
+      },
+    }));
+
+    try {
+      const response = await collectionsApi.setItemStatus(collectionId, itemId, action);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Replace with server response for accurate status
+      const serverItem = response.data;
+      if (serverItem) {
+        set(state => ({
+          items: {
+            ...state.items,
+            [collectionId]: (state.items[collectionId] || []).map(item =>
+              item.id === itemId ? serverItem : item
+            ),
+          },
+        }));
+      }
+    } catch (error) {
+      // Revert optimistic update
+      if (previousItem) {
+        set(state => ({
+          items: {
+            ...state.items,
+            [collectionId]: (state.items[collectionId] || []).map(item =>
+              item.id === itemId ? previousItem : item
+            ),
+          },
+          error: error instanceof Error ? error.message : 'Failed to update item status',
+        }));
+      }
+      throw error;
+    }
+  },
+
   // Sorting
   updateCollectionSorting: async (collectionId: string, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => {
     set({ isLoading: true, error: null });
@@ -950,6 +1130,13 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
 
   // Utility
+  reloadCurrentItems: async () => {
+    const { selectedCollectionId, lastItemsQuery, loadItems } = get();
+    if (!selectedCollectionId) return;
+    const q = lastItemsQuery[selectedCollectionId] || {};
+    await loadItems(selectedCollectionId, q.page, q.limit, q.sortBy, q.sortOrder);
+  },
+
   clearError: () => {
     set({ error: null });
   },

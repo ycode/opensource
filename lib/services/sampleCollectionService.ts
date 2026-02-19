@@ -24,8 +24,9 @@ const SAMPLES_DIR = path.join(process.cwd(), 'storage', 'collections');
 /** Built-in fields before custom fields */
 const BUILT_IN_FIELDS_START: SampleFieldDefinition[] = [
   { name: 'ID', key: 'id', type: 'number', fillable: false, hidden: false, order: 0 },
-  { name: 'Name', key: 'name', type: 'text', fillable: true, hidden: false, order: 1 },
-  { name: 'Slug', key: 'slug', type: 'text', fillable: true, hidden: false, order: 2 },
+  { name: 'Status', key: 'status', type: 'status', fillable: false, hidden: false, order: 1, is_computed: true },
+  { name: 'Name', key: 'name', type: 'text', fillable: true, hidden: false, order: 2 },
+  { name: 'Slug', key: 'slug', type: 'text', fillable: true, hidden: false, order: 3 },
 ];
 
 /** Built-in fields after custom fields (always at the end) */
@@ -89,6 +90,7 @@ export async function createSampleCollection(
         fillable: field.fillable,
         hidden: field.hidden,
         order: field.order,
+        is_computed: field.is_computed,
         collection_id: collection.id,
         is_published: false,
       })

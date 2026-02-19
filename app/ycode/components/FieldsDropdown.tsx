@@ -9,7 +9,6 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import type { CollectionField } from '@/types';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -57,13 +56,13 @@ function SortableFieldItem({ field, onToggleVisibility }: SortableFieldItemProps
     >
       <Icon
         name="grip-vertical"
-        className="size-3.5 text-muted-foreground flex-shrink-0"
+        className="size-3.5 text-muted-foreground shrink-0"
       />
       <Switch
         checked={!field.hidden}
         onCheckedChange={() => onToggleVisibility(field.id)}
         disabled={field.name.toLowerCase() === 'name'}
-        className="flex-shrink-0"
+        className="shrink-0"
         size="sm"
       />
       <span className="truncate text-xs text-muted-foreground select-none">{field.name}</span>
@@ -86,7 +85,7 @@ export default function FieldsDropdown({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Require 5px movement before drag starts
+        distance: 5,
       },
     })
   );

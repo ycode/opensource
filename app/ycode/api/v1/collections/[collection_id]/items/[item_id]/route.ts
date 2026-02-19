@@ -51,8 +51,8 @@ export async function GET(
       );
     }
 
-    // Get published fields for reference resolution
-    const fields = await getFieldsByCollectionId(collection_id, true);
+    // Get published fields for reference resolution (exclude computed like Status)
+    const fields = await getFieldsByCollectionId(collection_id, true, { excludeComputed: true });
 
     // Transform with resolved references and optional field projections
     const response = await transformItemToPublicWithRefs(
@@ -128,8 +128,8 @@ export async function PUT(
       );
     }
 
-    // Get published fields for mapping slugs to IDs
-    const fields = await getFieldsByCollectionId(collection_id, true);
+    // Get published fields for mapping slugs to IDs (exclude computed like Status)
+    const fields = await getFieldsByCollectionId(collection_id, true, { excludeComputed: true });
     const fieldSlugToId: Record<string, string> = {};
     
     // Identify protected fields (cannot be modified by user)
@@ -256,8 +256,8 @@ export async function PATCH(
       );
     }
 
-    // Get published fields for mapping slugs to IDs
-    const fields = await getFieldsByCollectionId(collection_id, true);
+    // Get published fields for mapping slugs to IDs (exclude computed like Status)
+    const fields = await getFieldsByCollectionId(collection_id, true, { excludeComputed: true });
     const fieldSlugToId: Record<string, string> = {};
     
     // Identify protected fields (cannot be modified by user)

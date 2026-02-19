@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getItemsWithValues, createItem, getItemWithValues, getMaxIdValue } from '@/lib/repositories/collectionItemRepository';
+import { getItemsWithValues, createItem, getItemWithValues, getMaxIdValue, enrichItemsWithStatus, enrichSingleItemWithStatus, publishSingleItem, unpublishSingleItem } from '@/lib/repositories/collectionItemRepository';
+import { clearAllCache } from '@/lib/services/cacheService';
 import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
+import { findStatusFieldId } from '@/lib/collection-field-utils';
+import type { StatusAction } from '@/lib/collection-field-utils';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -51,6 +54,13 @@ export async function GET(
 
     // Always get draft items in the builder
     let { items, total } = await getItemsWithValues(id, false, filters);
+
+    // Find status field ID for enrichment
+    const allFields = await getFieldsByCollectionId(id, false);
+    const statusFieldId = findStatusFieldId(allFields);
+
+    // Enrich items with computed status values before sorting
+    await enrichItemsWithStatus(items, id, statusFieldId);
 
     // Apply sorting
     if (sortBy && sortBy !== 'none') {
@@ -115,8 +125,8 @@ export async function POST(
 
     const body = await request.json();
 
-    // Extract item data and values
-    const { values, ...itemData } = body;
+    // Extract item data, values, and optional status action
+    const { values, status_action, ...itemData } = body;
 
     // Create the item (draft)
     const item = await createItem({
@@ -166,8 +176,23 @@ export async function POST(
       );
     }
 
-    // Get item with values
+    // Apply status action if provided
+    const action = status_action as StatusAction | undefined;
+    if (action === 'draft') {
+      await unpublishSingleItem(item.id);
+      await clearAllCache();
+    } else if (action === 'stage') {
+      // New items are already staged (is_publishable defaults to true)
+    } else if (action === 'publish') {
+      await publishSingleItem(item.id);
+      await clearAllCache();
+    }
+
+    // Get item with values and enrich with status
     const itemWithValues = await getItemWithValues(item.id, false);
+    if (itemWithValues) {
+      await enrichSingleItemWithStatus(itemWithValues, id);
+    }
 
     return noCache(
       { data: itemWithValues },

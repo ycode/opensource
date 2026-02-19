@@ -1796,7 +1796,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         activeTab={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? 'pages' : activeTab}
         onExitComponentEditMode={handleExitComponentEditMode}
         onPublishSuccess={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations' ? () => {} : () => {
-          // No need to reload pages - publish already updates store state
+          useCollectionsStore.getState().reloadCurrentItems();
         }}
         isSettingsRoute={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' || routeType === 'integrations'}
       />

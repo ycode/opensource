@@ -52,7 +52,7 @@ export async function GET(
     }
 
     // Get published fields for this collection
-    const fields = await getFieldsByCollectionId(collection_id, true);
+    const fields = await getFieldsByCollectionId(collection_id, true, { excludeComputed: true });
 
     // Transform fields to public API format
     const publicFields = fields

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { duplicateItem } from '@/lib/repositories/collectionItemRepository';
+import { duplicateItem, enrichSingleItemWithStatus } from '@/lib/repositories/collectionItemRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -16,10 +16,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string; item_id: string }> }
 ) {
   try {
-    const { item_id } = await params;
+    const { id, item_id } = await params;
     const itemId = item_id;
 
     const newItem = await duplicateItem(itemId);
+
+    if (newItem) {
+      await enrichSingleItemWithStatus(newItem, id);
+    }
 
     return noCache(
       { data: newItem },

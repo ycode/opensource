@@ -5,6 +5,7 @@
  */
 
 import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData, AssetFolder, Font } from '../types';
+import type { StatusAction } from '@/lib/collection-field-utils';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -497,7 +498,7 @@ export const collectionsApi = {
   async getTopItemsPerCollection(
     collectionIds: string[],
     limit: number = 25
-  ): Promise<ApiResponse<Record<string, { items: CollectionItemWithValues[] }>>> {
+  ): Promise<ApiResponse<{ items: Record<string, { items: CollectionItemWithValues[] }> }>> {
     return apiRequest('/ycode/api/collections/items/batch', {
       method: 'POST',
       body: JSON.stringify({ collectionIds, limit }),
@@ -531,10 +532,10 @@ export const collectionsApi = {
     return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items/${itemId}`);
   },
 
-  async createItem(collectionId: string, values: Record<string, any>): Promise<ApiResponse<CollectionItemWithValues>> {
+  async createItem(collectionId: string, values: Record<string, any>, statusAction?: StatusAction): Promise<ApiResponse<CollectionItemWithValues>> {
     return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items`, {
       method: 'POST',
-      body: JSON.stringify({ values }),
+      body: JSON.stringify({ values, ...(statusAction && { status_action: statusAction }) }),
     });
   },
 
@@ -542,6 +543,20 @@ export const collectionsApi = {
     return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items/${itemId}`, {
       method: 'PUT',
       body: JSON.stringify({ values }),
+    });
+  },
+
+  async setItemPublishable(collectionId: string, itemId: string, is_publishable: boolean): Promise<ApiResponse<CollectionItemWithValues>> {
+    return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items/${itemId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ is_publishable }),
+    });
+  },
+
+  async setItemStatus(collectionId: string, itemId: string, action: StatusAction): Promise<ApiResponse<CollectionItemWithValues>> {
+    return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items/${itemId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ action }),
     });
   },
 
