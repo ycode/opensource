@@ -57,23 +57,56 @@ export async function getAllCollections(filters?: QueryFilters): Promise<Collect
     throw new Error(`Failed to fetch collections: ${error.message}`);
   }
 
-  // Process the data to add draft_items_count
+  const draftIds = (data || []).map((c: any) => c.id);
+
+  // When fetching draft collections, batch-check which ones have a published version
+  const publishedIds = !isPublished && draftIds.length > 0
+    ? await getPublishedCollectionIds(draftIds)
+    : new Set<string>();
+
+  // Process the data to add draft_items_count and has_published_version
   const collections = (data || []).map((collection: any) => {
     const items = collection.collection_items || [];
-    // Count only non-deleted items that match the same is_published state
     const draft_items_count = items.filter((item: any) =>
       item.deleted_at === null && item.is_published === isPublished
     ).length;
 
-    // Remove the joined data and add the count
     const { collection_items, ...collectionData } = collection;
     return {
       ...collectionData,
       draft_items_count,
+      ...(!isPublished && { has_published_version: publishedIds.has(collection.id) }),
     };
   });
 
   return collections;
+}
+
+/**
+ * Batch-check which collection IDs have a published version.
+ * Returns a Set of IDs that have is_published=true rows.
+ */
+export async function getPublishedCollectionIds(collectionIds: string[]): Promise<Set<string>> {
+  if (collectionIds.length === 0) return new Set();
+
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  const { data, error } = await client
+    .from('collections')
+    .select('id')
+    .in('id', collectionIds)
+    .eq('is_published', true)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(`Failed to check published collections: ${error.message}`);
+  }
+
+  return new Set((data || []).map(c => c.id));
 }
 
 /**

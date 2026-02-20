@@ -528,6 +528,7 @@ export default function CollectionItemSheet({
                     {isNewItem ? 'Create' : 'Save'} as draft
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                    disabled={!collection?.has_published_version}
                     onClick={() => {
                       pendingStatusActionRef.current = 'publish';
                       form.handleSubmit(handleSubmit)();

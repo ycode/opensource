@@ -6,6 +6,7 @@ import {
   stageSingleItem,
   publishSingleItem,
 } from '@/lib/repositories/collectionItemRepository';
+import { getCollectionById } from '@/lib/repositories/collectionRepository';
 import type { StatusAction } from '@/lib/collection-field-utils';
 import { clearAllCache } from '@/lib/services/cacheService';
 import { noCache } from '@/lib/api-response';
@@ -31,6 +32,17 @@ export async function PUT(
 
     if (!['draft', 'stage', 'publish'].includes(action)) {
       return noCache({ error: 'Invalid action. Must be draft, stage, or publish' }, 400);
+    }
+
+    // Block publishing items when the collection itself hasn't been published
+    if (action === 'publish') {
+      const publishedCollection = await getCollectionById(collectionId, true);
+      if (!publishedCollection) {
+        return noCache(
+          { error: 'Cannot publish item: the collection has not been published yet' },
+          400
+        );
+      }
     }
 
     switch (action) {

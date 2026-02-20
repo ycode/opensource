@@ -833,6 +833,7 @@ export interface Collection {
   order: number;
   is_published: boolean;
   draft_items_count?: number;
+  has_published_version?: boolean;
 }
 
 export interface CreateCollectionData {

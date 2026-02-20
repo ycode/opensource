@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishValues } from '@/lib/repositories/collectionItemValueRepository';
 import { hardDeleteItem, getItemById } from '@/lib/repositories/collectionItemRepository';
+import { getCollectionById } from '@/lib/repositories/collectionRepository';
 import { cleanupDeletedCollections } from '@/lib/services/collectionService';
 import { noCache } from '@/lib/api-response';
 
@@ -40,6 +41,12 @@ export async function POST(request: NextRequest) {
           await hardDeleteItem(itemId);
           publishedCount++;
         } else {
+          // Block publishing if the collection hasn't been published
+          const publishedCollection = await getCollectionById(item.collection_id, true);
+          if (!publishedCollection) {
+            console.warn(`Skipping item ${itemId}: collection ${item.collection_id} is not published`);
+            continue;
+          }
           // Normal publish: copy draft values to published
           await publishValues(itemId);
           publishedCount++;

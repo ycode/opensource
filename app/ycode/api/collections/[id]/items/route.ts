@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getItemsWithValues, createItem, getItemWithValues, getMaxIdValue, enrichItemsWithStatus, enrichSingleItemWithStatus, publishSingleItem, unpublishSingleItem } from '@/lib/repositories/collectionItemRepository';
+import { getCollectionById } from '@/lib/repositories/collectionRepository';
 import { clearAllCache } from '@/lib/services/cacheService';
 import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
@@ -184,6 +185,13 @@ export async function POST(
     } else if (action === 'stage') {
       // New items are already staged (is_publishable defaults to true)
     } else if (action === 'publish') {
+      const publishedCollection = await getCollectionById(id, true);
+      if (!publishedCollection) {
+        return noCache(
+          { error: 'Cannot publish item: the collection has not been published yet' },
+          400
+        );
+      }
       await publishSingleItem(item.id);
       await clearAllCache();
     }

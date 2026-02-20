@@ -7,6 +7,7 @@ interface CollectionItemContextMenuProps {
   children: React.ReactNode;
   isPublishable: boolean;
   hasPublishedVersion: boolean;
+  isCollectionPublished: boolean;
   onSetAsDraft: () => void;
   onStageForPublish: () => void;
   onSetAsPublished: () => void;
@@ -19,6 +20,7 @@ export default function CollectionItemContextMenu({
   children,
   isPublishable,
   hasPublishedVersion,
+  isCollectionPublished,
   onSetAsDraft,
   onStageForPublish,
   onSetAsPublished,
@@ -49,7 +51,7 @@ export default function CollectionItemContextMenu({
           Stage for publish
         </ContextMenuItem>
         <ContextMenuItem
-          disabled={hasPublishedVersion && isPublishable}
+          disabled={!isCollectionPublished || (hasPublishedVersion && isPublishable)}
           onClick={onSetAsPublished}
         >
           Set as published

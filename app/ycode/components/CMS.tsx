@@ -109,6 +109,7 @@ interface SortableRowProps {
   item: CollectionItemWithValues;
   isSaving?: boolean;
   isManualMode?: boolean;
+  isCollectionPublished: boolean;
   children: React.ReactNode;
   statusValue: import('./CollectionStatusPill').ItemStatusValue | null;
   onSetAsDraft: () => void;
@@ -119,7 +120,7 @@ interface SortableRowProps {
   lockInfo?: ItemLockInfo;
 }
 
-function SortableRow({ item, isSaving, isManualMode, children, statusValue, onSetAsDraft, onStageForPublish, onSetAsPublished, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
+function SortableRow({ item, isSaving, isManualMode, isCollectionPublished, children, statusValue, onSetAsDraft, onStageForPublish, onSetAsPublished, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -146,6 +147,7 @@ function SortableRow({ item, isSaving, isManualMode, children, statusValue, onSe
     <CollectionItemContextMenu
       isPublishable={statusValue?.is_publishable ?? item.is_publishable}
       hasPublishedVersion={statusValue?.is_published ?? false}
+      isCollectionPublished={isCollectionPublished}
       onSetAsDraft={onSetAsDraft}
       onStageForPublish={onStageForPublish}
       onSetAsPublished={onSetAsPublished}
@@ -1616,6 +1618,7 @@ const CMS = React.memo(function CMS() {
                     item={item}
                     isSaving={isTempId(item.id)}
                     isManualMode={isManualMode}
+                    isCollectionPublished={selectedCollection?.has_published_version ?? false}
                     statusValue={statusFieldId ? parseStatusValue(item.values[statusFieldId]) : null}
                     onSetAsDraft={() => handleSetItemStatus(item.id, 'draft')}
                     onStageForPublish={() => handleSetItemStatus(item.id, 'stage')}
