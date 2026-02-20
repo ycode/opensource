@@ -22,6 +22,7 @@ export async function up(knex: Knex): Promise<void> {
     table.boolean('fillable').notNullable().defaultTo(true);
     table.integer('order').notNullable();
     table.boolean('hidden').notNullable().defaultTo(false);
+    table.boolean('is_computed').notNullable().defaultTo(false);
     table.jsonb('data').notNullable().defaultTo('{}');
     table.boolean('is_published').notNullable().defaultTo(false);
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
