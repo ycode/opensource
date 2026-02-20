@@ -1,4 +1,4 @@
-import { storage } from '@/lib/storage';
+import { credentials } from '@/lib/credentials';
 import { noCache } from '@/lib/api-response';
 import { validateConnectionUrl } from '@/lib/supabase-config-parser';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
@@ -36,7 +36,7 @@ async function hasAuthUsers(): Promise<boolean> {
  */
 export async function GET() {
   try {
-    const config = await storage.get<SupabaseConfig>('supabase_config');
+    const config = await credentials.get<SupabaseConfig>('supabase_config');
     const isVercel = process.env.VERCEL === '1';
 
     // If no config, return not configured

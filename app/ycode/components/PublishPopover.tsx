@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
@@ -53,6 +54,8 @@ export default function PublishPopover({
   const [changeCounts, setChangeCounts] = useState<PublishPreviewCounts | null>(null);
   const [isLoadingCount, setIsLoadingCount] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
+  const [isReverting, setIsReverting] = useState(false);
+  const [isRevertDialogOpen, setIsRevertDialogOpen] = useState(false);
 
   const { getSettingByKey, updateSetting } = useSettingsStore();
   const publishedAt = getSettingByKey('published_at');
@@ -112,7 +115,30 @@ export default function PublishPopover({
     }
   }, [baseUrl, publishedUrl, onPublishSuccess, setIsPublishing, updateSetting]);
 
+  const handleRevertConfirm = useCallback(async () => {
+    try {
+      setIsReverting(true);
+
+      const result = await publishApi.revert();
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      toast.success('Revert successful, builder is reloading...');
+
+      // Full reload to refresh all editor stores with reverted data
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to revert:', error);
+      toast.error('Failed to revert changes');
+      setIsReverting(false);
+      setIsRevertDialogOpen(false);
+    }
+  }, []);
+
   return (
+    <>
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button size="sm" disabled={isDisabled}>Publish</Button>
@@ -161,24 +187,34 @@ export default function PublishPopover({
         ) : changeCounts ? (
           changeCounts.total > 0 ? (
             <Collapsible>
-              <CollapsibleTrigger className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors group">
-                <span className="flex items-center gap-1.5">
-                    <div className="size-[22px] flex items-center justify-center bg-input rounded-md">
-                     <Icon
-                       name="chevronRight"
-                       className="size-2.5 transition-transform group-data-[state=open]:rotate-90"
-                     />
-                    </div>
+              <div className="flex items-center justify-between w-full">
+                <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group">
+                  <div className="size-5.5 flex items-center justify-center bg-input rounded-md">
+                    <Icon
+                      name="chevronRight"
+                      className="size-2.5 transition-transform group-data-[state=open]:rotate-90"
+                    />
+                  </div>
                   {changeCounts.total} {changeCounts.total === 1 ? 'Change' : 'Changes'}
-                </span>
-              </CollapsibleTrigger>
+                </CollapsibleTrigger>
+                {publishedAt && (
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    onClick={() => setIsRevertDialogOpen(true)}
+                    disabled={isReverting || isPublishing}
+                  >
+                    Revert
+                  </Button>
+                )}
+              </div>
               <CollapsibleContent>
                 <div className="flex flex-col gap-1.5 pt-1.5">
                   {BREAKDOWN_ITEMS.map(({ key, label, icon }) =>
                     changeCounts[key] > 0 ? (
                       <div key={key} className="flex items-center justify-between text-xs text-muted-foreground">
                         <span className="flex items-center gap-1.5">
-                          <div className="size-[22px] flex items-center justify-center bg-input rounded-md">
+                          <div className="size-5.5 flex items-center justify-center bg-input rounded-md">
                             <Icon name={icon} className="size-2.5" />
                           </div>
                           {label}
@@ -196,5 +232,47 @@ export default function PublishPopover({
         ) : null}
       </PopoverContent>
     </Popover>
+
+    <Dialog
+      open={isRevertDialogOpen}
+      onOpenChange={(open) => { if (!isReverting) setIsRevertDialogOpen(open); }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        onPointerDownOutside={(e) => { if (isReverting) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (isReverting) e.preventDefault(); }}
+      >
+        <DialogHeader>
+          <DialogTitle>Revert to published version</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-2">
+          <DialogDescription>
+            All unpublished changes will be discarded and replaced with the last
+            published version. The builder will reload after this operation.
+          </DialogDescription>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsRevertDialogOpen(false)}
+            disabled={isReverting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleRevertConfirm}
+            disabled={isReverting}
+          >
+            {isReverting ? <><Spinner /> Reverting...</> : 'Revert'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

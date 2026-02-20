@@ -344,6 +344,7 @@ async function publishAllFields(collectionId: string): Promise<number> {
       existing.order === field.order &&
       existing.reference_collection_id === field.reference_collection_id &&
       existing.hidden === field.hidden &&
+      existing.is_computed === field.is_computed &&
       JSON.stringify(existing.data) === JSON.stringify(field.data)
     ) {
       continue;
@@ -360,6 +361,7 @@ async function publishAllFields(collectionId: string): Promise<number> {
       collection_id: field.collection_id,
       reference_collection_id: field.reference_collection_id,
       hidden: field.hidden,
+      is_computed: field.is_computed,
       data: field.data,
       is_published: true,
       created_at: field.created_at,

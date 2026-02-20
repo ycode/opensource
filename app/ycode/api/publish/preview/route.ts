@@ -5,6 +5,7 @@ import { getUnpublishedCollections } from '@/lib/repositories/collectionReposito
 import { getUnpublishedComponents } from '@/lib/repositories/componentRepository';
 import { getUnpublishedLayerStyles } from '@/lib/repositories/layerStyleRepository';
 import { getUnpublishedAssets } from '@/lib/repositories/assetRepository';
+import { getDeletedDraftCount } from '@/lib/sync-utils';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -23,19 +24,39 @@ export interface PublishPreviewCounts {
 
 /**
  * GET /ycode/api/publish/preview
- * Get counts of all unpublished items per entity type in a single request.
+ * Count all pending changes (new, modified, deleted) per entity type.
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const [pages, collections, collectionItems, components, layerStyles, assets] = await Promise.all([
+    // Count changed + deleted in parallel for each entity type
+    const [
+      pagesChanged, pagesDeleted,
+      collectionsChanged, collectionsDeleted,
+      itemsChanged, itemsDeleted,
+      componentsChanged, componentsDeleted,
+      layerStylesChanged, layerStylesDeleted,
+      assetsChanged, assetsDeleted,
+    ] = await Promise.all([
       getUnpublishedPagesCount(),
+      getDeletedDraftCount('pages'),
       getUnpublishedCollections().then(c => c.length),
+      getDeletedDraftCount('collections'),
       getTotalPublishableItemsCount(),
+      getDeletedDraftCount('collection_items'),
       getUnpublishedComponents().then(c => c.length),
+      getDeletedDraftCount('components'),
       getUnpublishedLayerStyles().then(s => s.length),
+      getDeletedDraftCount('layer_styles'),
       getUnpublishedAssets().then(a => a.length),
+      getDeletedDraftCount('assets'),
     ]);
 
+    const pages = pagesChanged + pagesDeleted;
+    const collections = collectionsChanged + collectionsDeleted;
+    const collectionItems = itemsChanged + itemsDeleted;
+    const components = componentsChanged + componentsDeleted;
+    const layerStyles = layerStylesChanged + layerStylesDeleted;
+    const assets = assetsChanged + assetsDeleted;
     const total = pages + collections + collectionItems + components + layerStyles + assets;
 
     return noCache({

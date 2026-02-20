@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
+import { cleanupOrphanedStorageFiles } from '@/lib/storage-utils';
 import { generateFontContentHash } from '@/lib/hash-utils';
 import type { Font, CreateFontData, UpdateFontData } from '@/types';
 
@@ -301,9 +302,8 @@ export async function publishFonts(): Promise<{ added: number; updated: number; 
   }
 
   // Delete published fonts that were soft-deleted in draft
-  const deletedDraftIds = (draftFonts || [])
-    .filter(f => f.deleted_at !== null)
-    .map(f => f.id);
+  const deletedDrafts = (draftFonts || []).filter(f => f.deleted_at !== null);
+  const deletedDraftIds = deletedDrafts.map(f => f.id);
 
   if (deletedDraftIds.length > 0) {
     // Delete from published
@@ -347,6 +347,14 @@ export async function publishFonts(): Promise<{ added: number; updated: number; 
     if (error) throw new Error(`Failed to delete orphaned published fonts: ${error.message}`);
     stats.deleted += orphanedPublished.length;
   }
+
+  // Delete physical files for all hard-deleted fonts
+  const allDeletedFonts = [...deletedDrafts, ...orphanedPublished];
+  const storagePaths = allDeletedFonts
+    .filter(f => f.storage_path)
+    .map(f => f.storage_path as string);
+
+  await cleanupOrphanedStorageFiles('fonts', storagePaths);
 
   return stats;
 }

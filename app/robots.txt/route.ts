@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { storage } from '@/lib/storage';
+import { credentials } from '@/lib/credentials';
 import type { SitemapSettings } from '@/types';
 
 /**
@@ -29,7 +29,7 @@ function getBaseUrl(): string {
 
 export async function GET() {
   try {
-    const hasSupabaseCredentials = await storage.exists();
+    const hasSupabaseCredentials = await credentials.exists();
     if (!hasSupabaseCredentials) {
       const baseUrl = getBaseUrl();
       const fallback = `# Default robots.txt

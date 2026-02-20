@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { storage } from '@/lib/storage';
+import { credentials } from '@/lib/credentials';
 import { testSupabaseConnection } from '@/lib/supabase-server';
 import { testSupabaseDirectConnection } from '@/lib/knex-client';
 import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
@@ -32,10 +32,9 @@ export async function POST(request: NextRequest) {
       dbPassword: db_password,
     };
 
-    // Parse and validate the config
-    let credentials;
+    let parsed;
     try {
-      credentials = parseSupabaseConfig(config);
+      parsed = parseSupabaseConfig(config);
     } catch (error) {
       return noCache(
         { error: error instanceof Error ? error.message : 'Invalid connection URL format' },
@@ -54,11 +53,11 @@ export async function POST(request: NextRequest) {
 
     // Test database connection
     const dbTestResult = await testSupabaseDirectConnection({
-      dbHost: credentials.dbHost,
-      dbPort: credentials.dbPort,
-      dbName: credentials.dbName,
-      dbUser: credentials.dbUser,
-      dbPassword: credentials.dbPassword,
+      dbHost: parsed.dbHost,
+      dbPort: parsed.dbPort,
+      dbName: parsed.dbName,
+      dbUser: parsed.dbUser,
+      dbPassword: parsed.dbPassword,
     });
     if (!dbTestResult.success) {
       return noCache(
@@ -68,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Store credentials
-    await storage.set('supabase_config', config);
+    await credentials.set('supabase_config', config);
 
     return noCache({
       success: true,

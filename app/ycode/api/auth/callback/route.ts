@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { CookieOptions } from '@supabase/ssr';
-import { storage } from '@/lib/storage';
+import { credentials } from '@/lib/credentials';
 import { cookies } from 'next/headers';
 
 /**
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   if (code) {
     try {
       // Get Supabase config
-      const config = await storage.get<{
+      const config = await credentials.get<{
         url: string;
         anonKey: string;
         serviceRoleKey: string;

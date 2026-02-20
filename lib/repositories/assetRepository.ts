@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
+import { cleanupOrphanedStorageFiles } from '@/lib/storage-utils';
 import { generateAssetContentHash } from '../hash-utils';
 import type { Asset } from '../../types';
 
@@ -848,27 +849,7 @@ export async function hardDeleteSoftDeletedAssets(): Promise<{ count: number }> 
 
   const ids = deletedDrafts.map(a => a.id);
 
-  // Collect storage paths to delete
-  const storagePaths = deletedDrafts
-    .filter(a => a.storage_path)
-    .map(a => a.storage_path as string);
-
-  // Delete physical files from storage in batches
-  if (storagePaths.length > 0) {
-    for (let i = 0; i < storagePaths.length; i += SUPABASE_WRITE_BATCH_SIZE) {
-      const batch = storagePaths.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
-      const { error: storageError } = await client.storage
-        .from(STORAGE_BUCKET)
-        .remove(batch);
-
-      if (storageError) {
-        console.error('Failed to delete some files from storage:', storageError);
-        // Continue with database deletion
-      }
-    }
-  }
-
-  // Delete published and draft versions in batches
+  // Delete published and draft versions in batches (before file cleanup)
   for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
     const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
 
@@ -895,6 +876,13 @@ export async function hardDeleteSoftDeletedAssets(): Promise<{ count: number }> 
       throw new Error(`Failed to delete draft assets: ${deleteDraftError.message}`);
     }
   }
+
+  // Delete physical files that are no longer referenced by any row
+  const storagePaths = deletedDrafts
+    .filter(a => a.storage_path)
+    .map(a => a.storage_path as string);
+
+  await cleanupOrphanedStorageFiles('assets', storagePaths);
 
   return { count: deletedDrafts.length };
 }

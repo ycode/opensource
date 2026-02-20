@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { storage } from './storage';
+import { credentials } from './credentials';
 import { parseSupabaseConfig } from './supabase-config-parser';
 import type { SupabaseConfig, SupabaseCredentials } from '@/types';
 
@@ -15,7 +15,7 @@ import type { SupabaseConfig, SupabaseCredentials } from '@/types';
  * Parses the stored config to extract all necessary details
  */
 async function getSupabaseCredentials(): Promise<SupabaseCredentials | null> {
-  const config = await storage.get<SupabaseConfig>('supabase_config');
+  const config = await credentials.get<SupabaseConfig>('supabase_config');
 
   if (!config) {
     return null;
@@ -42,21 +42,21 @@ let cachedCredentials: string | null = null;
  * Get Supabase client with service role key (admin access)
  */
 export async function getSupabaseAdmin(tenantId?: string): Promise<SupabaseClient | null> {
-  const credentials = await getSupabaseCredentials();
+  const creds = await getSupabaseCredentials();
 
-  if (!credentials) {
+  if (!creds) {
     console.error('[getSupabaseAdmin] No credentials returned!');
     return null;
   }
 
   // Cache client if credentials haven't changed
-  const credKey = `${credentials.projectUrl}:${credentials.serviceRoleKey}`;
+  const credKey = `${creds.projectUrl}:${creds.serviceRoleKey}`;
   if (cachedClient && cachedCredentials === credKey) {
     return cachedClient;
   }
 
   // Create new client
-  cachedClient = createClient(credentials.projectUrl, credentials.serviceRoleKey, {
+  cachedClient = createClient(creds.projectUrl, creds.serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -75,10 +75,9 @@ export async function testSupabaseConnection(
   config: SupabaseConfig
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Parse the config to get the API URL
-    const credentials = parseSupabaseConfig(config);
+    const parsed = parseSupabaseConfig(config);
 
-    const client = createClient(credentials.projectUrl, credentials.serviceRoleKey, {
+    const client = createClient(parsed.projectUrl, parsed.serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,

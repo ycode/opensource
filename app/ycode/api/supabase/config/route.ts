@@ -1,4 +1,4 @@
-import { storage } from '@/lib/storage';
+import { credentials } from '@/lib/credentials';
 import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
 import { noCache } from '@/lib/api-response';
 import type { SupabaseConfig } from '@/types';
@@ -15,7 +15,7 @@ export const revalidate = 0;
  */
 export async function GET() {
   try {
-    const config = await storage.get<SupabaseConfig>('supabase_config');
+    const config = await credentials.get<SupabaseConfig>('supabase_config');
 
     if (!config) {
       // Config not found - return 404 (expected during setup)
@@ -27,11 +27,10 @@ export async function GET() {
 
     // Parse config to get the full credentials including projectUrl
     // If parsing fails, treat it as not configured (return 404 instead of 500)
-    let credentials;
+    let parsed;
     try {
-      credentials = parseSupabaseConfig(config);
+      parsed = parseSupabaseConfig(config);
     } catch (parseError) {
-      // Invalid config format - treat as not configured
       console.error('Failed to parse Supabase config:', parseError);
       return noCache(
         { error: 'Supabase not configured. Please complete the setup wizard first.' },
@@ -39,11 +38,10 @@ export async function GET() {
       );
     }
 
-    // Only return public config (not service role key)
     return noCache({
       data: {
-        url: credentials.projectUrl,
-        anonKey: credentials.anonKey,
+        url: parsed.projectUrl,
+        anonKey: parsed.anonKey,
       },
     });
   } catch (error) {

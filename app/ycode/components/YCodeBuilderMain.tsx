@@ -97,7 +97,7 @@ interface YCodeBuilderProps {
 
 export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCodeBuilderProps) {
   const router = useRouter();
-  const { routeType, resourceId, sidebarTab, navigateToLayers, navigateToComponent, urlState, updateQueryParams } = useEditorUrl();
+  const { routeType, resourceId, sidebarTab, navigateToLayers, navigateToCollection, navigateToCollections, navigateToComponent, urlState, updateQueryParams } = useEditorUrl();
 
   // Optimize store subscriptions - use selective selectors to prevent unnecessary re-renders
   const signOut = useAuthStore((state) => state.signOut);
@@ -127,6 +127,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const openCreateComponentDialog = useEditorStore((state) => state.openCreateComponentDialog);
   const closeCreateComponentDialog = useEditorStore((state) => state.closeCreateComponentDialog);
 
+  const collections = useCollectionsStore((state) => state.collections);
   const selectedCollectionId = useCollectionsStore((state) => state.selectedCollectionId);
 
   const updateLayer = usePagesStore((state) => state.updateLayer);
@@ -526,13 +527,14 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
   // Handle URL-based navigation after data loads
   useEffect(() => {
-    // For pages, wait for pages to load. For components, wait for components to load
     const isPagesRoute = routeType === 'layers' || routeType === 'page' || !routeType;
     const isComponentRoute = routeType === 'component';
+    const isCollectionRoute = routeType === 'collection';
 
     if (!migrationsComplete) return;
     if (isPagesRoute && pages.length === 0) return;
     if (isComponentRoute && components.length === 0) return;
+    if (isCollectionRoute && collections.length === 0 && !builderDataPreloaded) return;
 
     // Handle route types: layers, page, collection, collections-base, component
     if ((routeType === 'layers' || routeType === 'page') && resourceId) {
@@ -557,11 +559,28 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         }
       }
     } else if (routeType === 'collection' && resourceId) {
-      const { setSelectedCollectionId } = useCollectionsStore.getState();
-      setSelectedCollectionId(resourceId); // resourceId is already a UUID string
+      const storeState = useCollectionsStore.getState();
+
+      // Skip if already selected (e.g. CMS just created a collection and set it)
+      if (storeState.selectedCollectionId === resourceId) {
+        // Already selected — nothing to do
+      } else if (resourceId.startsWith('temp-')) {
+        storeState.setSelectedCollectionId(resourceId);
+      } else {
+        const collectionExists = storeState.collections.some(c => c.id === resourceId);
+
+        if (collectionExists) {
+          storeState.setSelectedCollectionId(resourceId);
+        } else if (storeState.collections.length > 0) {
+          storeState.setSelectedCollectionId(storeState.collections[0].id);
+          navigateToCollection(storeState.collections[0].id);
+        } else {
+          storeState.setSelectedCollectionId(null);
+          navigateToCollections();
+        }
+      }
     } else if (routeType === 'collections-base') {
       // On base collections route, don't set a selected collection
-      // The CMS component will show all collections or empty state
     } else if (routeType === 'component' && resourceId && !isExitingComponentModeRef.current) {
       const { getComponentById, loadComponentDraft } = useComponentsStore.getState();
       const component = getComponentById(resourceId);
@@ -583,7 +602,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       // navigateToLayers will automatically include view=desktop, tab=design, layer=body
       navigateToLayers(defaultPage.id);
     }
-  }, [migrationsComplete, pages.length, components.length, routeType, resourceId, currentPageId, editingComponentId, pages, components, setCurrentPageId, setSelectedLayerId, navigateToLayers, urlState.layerId]);
+  }, [migrationsComplete, pages.length, components.length, collections.length, routeType, resourceId, currentPageId, editingComponentId, pages, components, collections, setCurrentPageId, setSelectedLayerId, navigateToLayers, navigateToCollection, navigateToCollections, urlState.layerId]);
 
   // Auto-select Body layer when switching pages (not when draft updates)
   useEffect(() => {

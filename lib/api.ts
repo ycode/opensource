@@ -235,6 +235,16 @@ export const publishApi = {
       body: JSON.stringify(options),
     });
   },
+
+  /** Revert all draft data to match the last published version */
+  async revert(): Promise<ApiResponse<{
+    changes: Record<string, number | boolean>;
+    cleaned: Record<string, number>;
+  }>> {
+    return apiRequest('/ycode/api/revert', {
+      method: 'POST',
+    });
+  },
 };
 
 // Assets API

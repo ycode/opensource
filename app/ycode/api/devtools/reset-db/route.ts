@@ -33,39 +33,21 @@ export async function POST() {
       console.log('[POST /ycode/api/devtools/reset-db] Cleaning up assets storage bucket...');
 
       try {
-        const { data: files, error: listError } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .list('', {
-            limit: 1000,
-            sortBy: { column: 'created_at', order: 'desc' }
-          });
+        // emptyBucket removes all files recursively (including nested folders)
+        const { error: emptyError } = await supabase.storage.emptyBucket(STORAGE_BUCKET);
 
-        if (listError) {
-          console.log('[POST /ycode/api/devtools/reset-db] Error listing files (bucket may not exist):', listError.message);
-        } else if (files && files.length > 0) {
-          console.log(`[POST /ycode/api/devtools/reset-db] Found ${files.length} files in assets bucket`);
-
-          const filePaths = files.map(file => file.name);
-          const { error: deleteError } = await supabase.storage
-            .from(STORAGE_BUCKET)
-            .remove(filePaths);
-
-          if (deleteError) {
-            console.log('[POST /ycode/api/devtools/reset-db] Error deleting files:', deleteError.message);
-          } else {
-            console.log(`[POST /ycode/api/devtools/reset-db] Deleted ${filePaths.length} files from assets bucket`);
-          }
+        if (emptyError) {
+          console.log('[POST /ycode/api/devtools/reset-db] Error emptying bucket (may not exist):', emptyError.message);
         } else {
-          console.log('[POST /ycode/api/devtools/reset-db] No files found in assets bucket');
+          console.log('[POST /ycode/api/devtools/reset-db] Assets bucket emptied');
         }
 
-        console.log('[POST /ycode/api/devtools/reset-db] Deleting assets bucket...');
         const { error: deleteBucketError } = await supabase.storage.deleteBucket(STORAGE_BUCKET);
 
         if (deleteBucketError) {
           console.log('[POST /ycode/api/devtools/reset-db] Error deleting bucket (may not exist):', deleteBucketError.message);
         } else {
-          console.log('[POST /ycode/api/devtools/reset-db] Assets bucket deleted successfully');
+          console.log('[POST /ycode/api/devtools/reset-db] Assets bucket deleted');
         }
       } catch (storageError) {
         console.log('[POST /ycode/api/devtools/reset-db] Storage cleanup error:', storageError);

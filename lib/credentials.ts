@@ -1,8 +1,8 @@
 /**
- * Storage for Supabase credentials.
+ * Supabase Credentials
  *
  * Always reads from process.env (environment variables).
- * On local dev, writes to .env.local + sets process.env in-memory.
+ * On local dev, writes to .env + sets process.env in-memory.
  * On Vercel, env vars are set via the dashboard — writes are not supported.
  *
  * SERVER-ONLY: This module uses Node.js fs module and should never be imported in client code.
@@ -159,10 +159,7 @@ async function removeSupabaseVarsFromEnv(): Promise<void> {
   await fs.writeFile(ENV_FILE, filtered ? `${filtered}\n` : '', 'utf-8');
 }
 
-/**
- * Export a storage object for convenience.
- */
-export const storage = {
+export const credentials = {
   get,
   set,
   del,
