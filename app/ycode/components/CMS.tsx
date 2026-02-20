@@ -1247,123 +1247,120 @@ const CMS = React.memo(function CMS() {
   };
 
   // Collection sidebar handlers
-  const handleCreateCollection = async () => {
-    const baseName = 'Collection';
-    let collectionName = baseName;
-    let counter = 1;
+  const handleCreateCollection = () => {
+    // Defer state changes so the dropdown menu can finish its close animation
+    requestAnimationFrame(async () => {
+      const baseName = 'Collection';
+      let collectionName = baseName;
+      let counter = 1;
 
-    while (collections.some(c => c.name === collectionName)) {
-      collectionName = `${baseName} ${counter}`;
-      counter++;
-    }
+      while (collections.some(c => c.name === collectionName)) {
+        collectionName = `${baseName} ${counter}`;
+        counter++;
+      }
 
-    // Optimistic: add a temporary collection to the sidebar immediately and enter rename mode
-    const tempId = `temp-${Date.now()}`;
-    const optimisticCollection: Collection = {
-      id: tempId,
-      uuid: tempId,
-      name: collectionName,
-      sorting: null,
-      order: Number.MAX_SAFE_INTEGER,
-      is_published: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-      draft_items_count: 0,
-    };
-
-    useCollectionsStore.setState(state => ({
-      collections: [...state.collections, optimisticCollection],
-      items: { ...state.items, [tempId]: [] },
-      itemsTotalCount: { ...state.itemsTotalCount, [tempId]: 0 },
-    }));
-    navigateToCollection(tempId);
-    setRenamingCollectionId(tempId);
-    setRenameValue(collectionName);
-
-    // Create the collection in the background
-    try {
-      const newCollection = await createCollection({
+      const tempId = `temp-${Date.now()}`;
+      const optimisticCollection: Collection = {
+        id: tempId,
+        uuid: tempId,
         name: collectionName,
         sorting: null,
-        order: collections.length,
-      });
+        order: Number.MAX_SAFE_INTEGER,
+        is_published: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        deleted_at: null,
+        draft_items_count: 0,
+      };
 
-      if (liveCollectionUpdates) {
-        liveCollectionUpdates.broadcastCollectionCreate(newCollection);
+      useCollectionsStore.setState(state => ({
+        collections: [...state.collections, optimisticCollection],
+        items: { ...state.items, [tempId]: [] },
+        itemsTotalCount: { ...state.itemsTotalCount, [tempId]: 0 },
+      }));
+      navigateToCollection(tempId);
+      setRenamingCollectionId(tempId);
+      setRenameValue(collectionName);
+
+      try {
+        const newCollection = await createCollection({
+          name: collectionName,
+          sorting: null,
+          order: collections.length,
+        });
+
+        if (liveCollectionUpdates) {
+          liveCollectionUpdates.broadcastCollectionCreate(newCollection);
+        }
+
+        useCollectionsStore.setState(state => ({
+          collections: state.collections.filter(c => c.id !== tempId),
+          items: Object.fromEntries(Object.entries(state.items).filter(([k]) => k !== tempId)),
+          itemsTotalCount: Object.fromEntries(Object.entries(state.itemsTotalCount).filter(([k]) => k !== tempId)),
+        }));
+
+        navigateToCollection(newCollection.id);
+        setRenamingCollectionId(newCollection.id);
+      } catch (error) {
+        console.error('Failed to create collection:', error);
+        useCollectionsStore.setState(state => ({
+          collections: state.collections.filter(c => c.id !== tempId),
+        }));
+        setRenamingCollectionId(null);
+        setRenameValue('');
+        toast.error('Failed to create collection');
       }
-
-      // Remove the optimistic temp entry (store already added the real one)
-      useCollectionsStore.setState(state => ({
-        collections: state.collections.filter(c => c.id !== tempId),
-        items: Object.fromEntries(Object.entries(state.items).filter(([k]) => k !== tempId)),
-        itemsTotalCount: Object.fromEntries(Object.entries(state.itemsTotalCount).filter(([k]) => k !== tempId)),
-      }));
-
-      navigateToCollection(newCollection.id);
-
-      // Update rename to target real collection ID
-      setRenamingCollectionId(newCollection.id);
-    } catch (error) {
-      console.error('Failed to create collection:', error);
-      // Rollback: remove the optimistic entry
-      useCollectionsStore.setState(state => ({
-        collections: state.collections.filter(c => c.id !== tempId),
-      }));
-      setRenamingCollectionId(null);
-      setRenameValue('');
-      toast.error('Failed to create collection');
-    }
+    });
   };
 
-  const handleCreateSampleCollection = async (sampleId: string) => {
-    // Optimistic: add a temporary collection to the sidebar immediately
-    const sample = getSampleCollectionOptions().find(s => s.id === sampleId);
-    const tempId = `temp-sample-${Date.now()}`;
-    const optimisticCollection: Collection = {
-      id: tempId,
-      uuid: tempId,
-      name: sample?.name || 'Sample Collection',
-      sorting: null,
-      order: Number.MAX_SAFE_INTEGER,
-      is_published: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-      draft_items_count: 0,
-    };
+  const handleCreateSampleCollection = (sampleId: string) => {
+    // Defer state changes so the dropdown menu can finish its close animation
+    requestAnimationFrame(async () => {
+      const sample = getSampleCollectionOptions().find(s => s.id === sampleId);
+      const tempId = `temp-sample-${Date.now()}`;
+      const optimisticCollection: Collection = {
+        id: tempId,
+        uuid: tempId,
+        name: sample?.name || 'Sample Collection',
+        sorting: null,
+        order: Number.MAX_SAFE_INTEGER,
+        is_published: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        deleted_at: null,
+        draft_items_count: 0,
+      };
 
-    useCollectionsStore.setState(state => ({
-      collections: [...state.collections, optimisticCollection],
-    }));
-    setSelectedCollectionId(tempId);
-    navigateToCollection(tempId);
-    setLoadingSampleCollectionId(tempId);
-
-    try {
-      const collection = await createSampleCollection(sampleId);
-
-      // Remove the optimistic entry (store already added the real one)
       useCollectionsStore.setState(state => ({
-        collections: state.collections.filter(c => c.id !== tempId),
+        collections: [...state.collections, optimisticCollection],
       }));
+      setSelectedCollectionId(tempId);
+      navigateToCollection(tempId);
+      setLoadingSampleCollectionId(tempId);
 
-      setSelectedCollectionId(collection.id);
-      navigateToCollection(collection.id);
+      try {
+        const collection = await createSampleCollection(sampleId);
 
-      if (liveCollectionUpdates) {
-        liveCollectionUpdates.broadcastCollectionCreate(collection);
+        useCollectionsStore.setState(state => ({
+          collections: state.collections.filter(c => c.id !== tempId),
+        }));
+
+        setSelectedCollectionId(collection.id);
+        navigateToCollection(collection.id);
+
+        if (liveCollectionUpdates) {
+          liveCollectionUpdates.broadcastCollectionCreate(collection);
+        }
+      } catch (error) {
+        console.error('Failed to create sample collection:', error);
+        useCollectionsStore.setState(state => ({
+          collections: state.collections.filter(c => c.id !== tempId),
+        }));
+        toast.error('Failed to create sample collection');
+      } finally {
+        setLoadingSampleCollectionId(null);
       }
-    } catch (error) {
-      console.error('Failed to create sample collection:', error);
-      // Rollback: remove the optimistic entry
-      useCollectionsStore.setState(state => ({
-        collections: state.collections.filter(c => c.id !== tempId),
-      }));
-      toast.error('Failed to create sample collection');
-    } finally {
-      setLoadingSampleCollectionId(null);
-    }
+    });
   };
 
   const handleCollectionDoubleClick = (collection: { id: string; name: string }) => {

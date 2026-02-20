@@ -4,8 +4,9 @@ import sharp from 'sharp';
 
 import { createCollection, getAllCollections } from '@/lib/repositories/collectionRepository';
 import { createField } from '@/lib/repositories/collectionFieldRepository';
-import { createItemsBulk } from '@/lib/repositories/collectionItemRepository';
+import { createItemsBulk, enrichItemsWithStatus } from '@/lib/repositories/collectionItemRepository';
 import { insertValuesBulk } from '@/lib/repositories/collectionItemValueRepository';
+import { findStatusFieldId } from '@/lib/collection-field-utils';
 import { createAsset } from '@/lib/repositories/assetRepository';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
@@ -134,6 +135,10 @@ export async function createSampleCollection(
     }
     return { ...item, values: itemValues };
   });
+
+  // 8. Enrich items with computed status values
+  const statusFieldId = findStatusFieldId(fields);
+  await enrichItemsWithStatus(itemsWithValues, collection.id, statusFieldId);
 
   return { collection, fields, assets, items: itemsWithValues };
 }
